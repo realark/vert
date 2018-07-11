@@ -1,0 +1,2 @@
+* About
+A simple 2d game engine.
