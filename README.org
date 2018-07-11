@@ -1,2 +1,18 @@
 * About
 A simple 2d game engine.
+* Running
+To run from slime:
+#+BEGIN_SRC lisp
+(ql:quickload :vert)
+#+END_SRC
+
+See [[file:game-template/README.org][Game-Template Documentation]] for a quickstart to setting up and shipping a game.
+* Testing
+Tests are written in [[https://github.com/fukamachi/prove][prove]].
+
+Running from repl:
+#+BEGIN_SRC lisp
+;; optionally set `prove:*debug-on-error*` T to get deubugger on test failure
+(ql:quickload :vert/unit-test)
+(prove:run :vert/unit-test)
+#+END_SRC

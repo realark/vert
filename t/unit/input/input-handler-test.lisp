@@ -1,0 +1,42 @@
+(in-package :recurse.vert/unit-test)
+
+(deftest input-mapping
+  (let* ((obj (make-instance 'test-object))
+         (controller (make-instance 'input-device :input-name "test-controller"))
+         (keyboard (make-instance 'input-device :input-name "test-keyboard"))
+         (scene (make-instance 'test-scene :width 100 :height 100)))
+    (recurse.vert::add-scene-input scene controller)
+    (recurse.vert::add-scene-input scene keyboard)
+    (add-to-scene scene obj)
+    (activate-input keyboard :scancode-left)
+    (activate-input controller :scancode-left)
+    (update scene 10 nil)
+    (is (method-invoke-count obj "while-active-move-left") 0 "input not hooked up")
+    (setf (recurse.vert::active-input-device obj) (recurse.vert::device-id keyboard))
+    (update scene 10 nil)
+    (is (method-invoke-count obj "while-active-move-left") 1 "default input invokes action")
+    (is (method-invoke-count obj "while-active-move-right") 0 "default input invokes correct action")
+
+    (override-input-command-map obj ("test-keyboard" (:scancode-h :move-left)
+                                                     (:scancode-l :move-right)
+                                                     (:scancode-space :jump)))
+    (activate-input keyboard :scancode-l)
+    (update scene 10 nil)
+    (is (method-invoke-count obj "while-active-move-left") 1 "override input ignores left arrow")
+    (is (method-invoke-count obj "while-active-move-right") 1 "override input fires on l")
+
+    (let ((l-active nil)
+          (l-deactivated nil))
+      (override-command-action-map obj (:move-right (while-active
+                                                     (setf l-deactivated nil)
+                                                     (setf l-active T))
+                                                    (on-deactivate
+                                                     (setf l-deactivated T)
+                                                     (setf l-active nil))))
+      (update scene 10 nil)
+      (is (method-invoke-count obj "while-active-move-right") 1 "override command does not call introspector")
+      (is (and l-active (null l-deactivated)) T "activate action sets lexical value")
+
+      (deactivate-input keyboard :scancode-l)
+      (update scene 10 nil)
+      (is (and (null l-active) l-deactivated) T "deactivated action sets lexical value"))))
