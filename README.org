@@ -6,7 +6,7 @@ To run from slime:
 (ql:quickload :vert)
 #+END_SRC
 
-See [[file:game-template/README.org][Game-Template Documentation]] for a quickstart to setting up and shipping a game.
+See [[file:game-template/README.org]] for a quickstart to setting up and shipping a game.
 * Testing
 Tests are written in [[https://github.com/fukamachi/prove][prove]].
 
