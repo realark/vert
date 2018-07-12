@@ -9,14 +9,14 @@ Use this template to build your game.
    4. t/*
    5. makefile
 3. Add desired binaries to link and ship (with appropriate licenses)
-   1. $resources/linlibs$ for linux
-   2. $resources/maclibs$ for osx
-   3. $resources/winlibs$ for windows
+   1. =resources/linlibs= for linux
+   2. =resources/maclibs= for osx
+   3. =resources/winlibs= for windows
 4. verify game compiles and builds a shippable release
-   1. run $make release$ to generate zipfile
-   2. unzip generated release and run $launcher.(sh|bat)$
+   1. run =make release= to generate zipfile
+   2. unzip generated release and run =launcher.(sh|bat)=
    3. verify window title shows your game name
-5. Modify $build-mygame.ros$ and provide the following info in the main method:
+5. Modify =build-mygame.ros= and provide the following info in the main method:
    1. Initial scene-builder function
    2. Any desired component replacements
 6. Develop your game
