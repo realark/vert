@@ -2,7 +2,7 @@
 Use this template to build your game.
 * Instructions
 1. Copy this game-template folder into your own project
-2. Rename $mygame$ to your actual game name.
+2. Rename =mygame= to your actual game name.
    1. mygame.asd
    2. build-mygame.ros
    3. src/*
@@ -26,5 +26,5 @@ Use this template to build your game.
 (recurse.vert:main #'mygame::game-menu :block nil)
 #+END_SRC
 ** Testing
-1. Edit $mytest.lisp$
+1. Edit =mytest.lisp=
 2. Run tests with prove: (prove:run-test-package :mygame-test)

@@ -4,9 +4,6 @@
   nil
   "Manages the current scene and runs the game loop")
 
-;; silence incudine logger
-(setf (incudine.util:logger-level) :error)
-
 (defun main (scene-creator-function &key (block T)
                                       (dev-mode nil)
                                       (audio-player (make-instance 'sdl-audio-player))
