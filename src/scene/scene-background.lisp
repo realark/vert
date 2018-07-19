@@ -5,6 +5,7 @@
 Smaller numbers will scroll slower, larger number will scroll faster. 1 will scroll at an equal rate to the main layer (presumable the player)."
   `(single-float 0.0001  10000.0))
 
+@export-class
 (defclass scene-background (static-sprite)
   ((horizontal-parallax :initarg :horizontal-parallax
                         :initform 1.0

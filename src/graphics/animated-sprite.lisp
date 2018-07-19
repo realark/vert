@@ -14,7 +14,8 @@
 
 @export-class
 (defclass animated-sprite (static-sprite)
-  ((animations :initarg :animations
+  ((path-to-image :initform nil)
+   (animations :initarg :animations
                :reader animations
                :initform (list)
                :documentation "plist. key = :animation-name, val = animation-struct")
@@ -34,7 +35,8 @@
       animated-sprite
     (setf next-frame-change-timestamp 0
           active-animation (getf animations (get-new-animation animated-sprite))
-          (active-animation-frame-index animated-sprite) 0)))
+          (active-animation-frame-index animated-sprite) 0
+          (path-to-image animated-sprite) (animation-spritesheet active-animation))))
 
 (defmethod (setf active-animation-frame-index) :after (new-index (animated-sprite animated-sprite))
   (with-slots (active-animation
