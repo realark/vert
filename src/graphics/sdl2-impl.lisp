@@ -97,6 +97,12 @@ A nil key will disable caching for this texture.")
             :reader texture
             :type sdl2-ffi:sdl-texture
             :documentation "An sdl texture")
+   (wrap-width :initarg :wrap-width
+               :initform nil
+               :documentation "TODO")
+   (wrap-height :initarg :wrap-height
+                :initform nil
+                :documentation "TODO")
    (flip-list :initarg :flip-list
               :initform '()
               :reader flip-list
@@ -116,7 +122,9 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
 (defmethod initialize-instance :after ((drawable sdl-texture-drawable) &rest args)
   (declare (ignore args))
   (setf (color-mod drawable) (color-mod drawable))
-  (with-slots (%sdl-rotation-degrees) drawable
+  (with-slots (%sdl-rotation-degrees wrap-width wrap-height) drawable
+    (when wrap-width (setf wrap-width (coerce wrap-width 'world-dimension)))
+    (when wrap-height (setf wrap-height (coerce wrap-height 'world-dimension)))
     (setf %sdl-rotation-degrees (coerce (- (rad->deg (rotation drawable))) 'sdl-rotation-degrees)))
   (with-slots (flip-list) drawable
     (let ((tmp-list flip-list))
@@ -143,7 +151,7 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
 
 (defmethod render ((drawable sdl-texture-drawable) update-percent (camera camera) (renderer sdl2-ffi:sdl-renderer))
   (declare (optimize (speed 3)))
-  (with-slots (texture %sdl-rotation-degrees color-mod flip-list (sdl-rect sdl-rectangle) sdl-source-rectangle)
+  (with-slots (texture %sdl-rotation-degrees color-mod flip-list (sdl-rect sdl-rectangle) sdl-source-rectangle wrap-width wrap-height width height)
       drawable
     (declare (sdl-rotation-degrees %sdl-rotation-degrees))
     (unless texture (load-resources drawable renderer))
@@ -153,16 +161,67 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
                                 (b color-mod))
     (sdl2:set-texture-alpha-mod texture (a color-mod))
 
-    ;; render-copy is coercing rotation to double-float and consing a lot
-    ;; so we'll just invoke the ffi function directly
-    (sdl2-ffi.functions:sdl-render-copy-ex
-     renderer
-     texture
-     sdl-source-rectangle
-     sdl-rect
-     %sdl-rotation-degrees
-     nil
-     (autowrap::mask-apply 'sdl2::sdl-renderer-flip flip-list)))
+    (if (or wrap-width wrap-height)
+        (progn
+          (unless wrap-width (setf wrap-width width))
+          (unless wrap-height (setf wrap-height height))
+
+          (loop :with render-x = 0
+             :and render-y = 0
+             :while (and (< render-x width) (< render-y height)) :do
+             (let ((render-width wrap-width)
+                   ;; TODO handle truncate case when x and y exceed drawable width/height
+                   (render-height wrap-height))
+               (with-accessors ((scale scale) (camera-x x) (camera-y y)) camera
+                 (declare (world-dimension render-width render-height)
+                          (world-position camera-x camera-y)
+                          (camera-scale scale))
+                 (setf (sdl2:rect-width sdl-rect) (ceiling (* scale render-width))
+                       (sdl2:rect-height sdl-rect) (ceiling (* scale render-height)))
+
+                 (multiple-value-bind (x y)
+                     (the (values screen-unit screen-unit)
+                          (values (ceiling (* scale (- render-x camera-x)))
+                                  (ceiling (* scale (- render-y camera-y)))))
+                   (declare (screen-unit x y))
+                   ;; FIXME: interpolation for wrapped values
+                   ;; (multiple-value-bind (x y) (%interpolate drawable x y update-percent)
+                   ;;   (declare (screen-unit x y)))
+                   (setf (sdl2:rect-x sdl-rect) x
+                         (sdl2:rect-y sdl-rect) y)))
+               #+nil
+               (format T "Render here: ~A,~A (~Ax~A) --> ~A,~A (~Ax~A) ~%"
+                       render-x render-y render-width render-height
+                       (sdl2:rect-x sdl-rect)
+                       (sdl2:rect-y sdl-rect)
+                       (sdl2:rect-width sdl-rect)
+                       (sdl2:rect-height sdl-rect))
+               )
+
+
+             (sdl2-ffi.functions:sdl-render-copy-ex ; do rendering
+              renderer
+              texture
+              sdl-source-rectangle
+              sdl-rect
+              %sdl-rotation-degrees
+              nil
+              (autowrap::mask-apply 'sdl2::sdl-renderer-flip flip-list))
+             ;; update render target to next square
+             (incf render-x wrap-width)
+             (unless (< render-x width)
+               (setf render-x 0
+                     render-y (+ render-y wrap-height)))))
+        ;; render-copy is coercing rotation to double-float and consing a lot
+        ;; so we'll just invoke the ffi function directly
+        (sdl2-ffi.functions:sdl-render-copy-ex
+         renderer
+         texture
+         sdl-source-rectangle
+         sdl-rect
+         %sdl-rotation-degrees
+         nil
+         (autowrap::mask-apply 'sdl2::sdl-renderer-flip flip-list))))
   (values))
 
 (defgeneric create-sdl-texture (sdl-texture-drawable rendering-context)

@@ -17,26 +17,34 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
 
 @export-class
 (defclass scene-background (aabb)
-  ((layers :initform nil))
+  ((layers :initform nil)
+   (wrap-width :initarg :wrap-width
+               :initform nil
+               :documentation "TODO")
+   (wrap-height :initarg :wrap-height
+                :initform nil
+                :documentation "TODO"))
   (:documentation "Image displayed behind a scene."))
 
 (defmethod initialize-instance :after ((background scene-background) &key layers)
-  (unless layers (error ":layers required"))
-  (setf
-   (slot-value background 'layers)
-   (loop :with parallax-images = (make-array 1 :fill-pointer 0 :adjustable T)
-      :for item :in layers :do
-      (when (stringp item)
-        (vector-push-extend (make-instance 'parallax-image
-                                           :width (width background)
-                                           :height (height background)
-                                           :path-to-image item)
-                            parallax-images))
-      :finally (return parallax-images))))
+  (with-slots (wrap-width wrap-height) background
+    (unless layers (error ":layers required"))
+    (setf
+     (slot-value background 'layers)
+     (loop :with parallax-images = (make-array 1 :fill-pointer 0 :adjustable T)
+        :for item :in layers :do
+        (when (stringp item)
+          (vector-push-extend (make-instance 'parallax-image
+                                             :wrap-width wrap-width
+                                             :wrap-height wrap-height
+                                             :width (width background)
+                                             :height (height background)
+                                             :path-to-image item)
+                              parallax-images))
+        :finally (return parallax-images)))))
 
 (defmethod render ((background scene-background) update-percent camera rendering-context)
   (with-slots (layers) background
-    ;; (format T "render layers! ~A~%" layers)
     (loop :for layer :across layers :do
        (render layer update-percent camera rendering-context))))
 
