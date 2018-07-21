@@ -162,42 +162,21 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
     (sdl2:set-texture-alpha-mod texture (a color-mod))
 
     (if (or wrap-width wrap-height)
-        (progn
-          (unless wrap-width (setf wrap-width width))
-          (unless wrap-height (setf wrap-height height))
+        (let* ((screen-x (sdl2:rect-x sdl-rect))
+               (screen-y (sdl2:rect-y sdl-rect))
+               (screen-w (sdl2:rect-width sdl-rect))
+               (screen-h (sdl2:rect-height sdl-rect))
+               (wrap-screen-w (ceiling (* (scale camera) (or wrap-width width))))
+               (wrap-screen-h (ceiling (* (scale camera) (or wrap-height height))))
+               (render-x screen-x)
+               (render-y screen-y))
+          (declare (screen-unit screen-x screen-y screen-w screen-h wrap-screen-w wrap-screen-h render-x render-y))
 
-          (loop :with render-x = 0
-             :and render-y = 0
-             :while (and (< render-x width) (< render-y height)) :do
-             (let ((render-width wrap-width)
-                   ;; TODO handle truncate case when x and y exceed drawable width/height
-                   (render-height wrap-height))
-               (with-accessors ((scale scale) (camera-x x) (camera-y y)) camera
-                 (declare (world-dimension render-width render-height)
-                          (world-position camera-x camera-y)
-                          (camera-scale scale))
-                 (setf (sdl2:rect-width sdl-rect) (ceiling (* scale render-width))
-                       (sdl2:rect-height sdl-rect) (ceiling (* scale render-height)))
-
-                 (multiple-value-bind (x y)
-                     (the (values screen-unit screen-unit)
-                          (values (ceiling (* scale (- render-x camera-x)))
-                                  (ceiling (* scale (- render-y camera-y)))))
-                   (declare (screen-unit x y))
-                   ;; FIXME: interpolation for wrapped values
-                   ;; (multiple-value-bind (x y) (%interpolate drawable x y update-percent)
-                   ;;   (declare (screen-unit x y)))
-                   (setf (sdl2:rect-x sdl-rect) x
-                         (sdl2:rect-y sdl-rect) y)))
-               #+nil
-               (format T "Render here: ~A,~A (~Ax~A) --> ~A,~A (~Ax~A) ~%"
-                       render-x render-y render-width render-height
-                       (sdl2:rect-x sdl-rect)
-                       (sdl2:rect-y sdl-rect)
-                       (sdl2:rect-width sdl-rect)
-                       (sdl2:rect-height sdl-rect))
-               )
-
+          (setf (sdl2:rect-width sdl-rect) wrap-screen-w
+                (sdl2:rect-height sdl-rect) wrap-screen-h)
+          (loop :while (and (< render-x (+ screen-x screen-w)) (< render-y (+ screen-y screen-h))) :do
+             (setf (sdl2:rect-x sdl-rect) render-x
+                   (sdl2:rect-y sdl-rect) render-y)
 
              (sdl2-ffi.functions:sdl-render-copy-ex ; do rendering
               renderer
@@ -208,10 +187,10 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
               nil
               (autowrap::mask-apply 'sdl2::sdl-renderer-flip flip-list))
              ;; update render target to next square
-             (incf render-x wrap-width)
-             (unless (< render-x width)
-               (setf render-x 0
-                     render-y (+ render-y wrap-height)))))
+             (incf render-x wrap-screen-w)
+             (unless (< render-x (+ screen-x screen-w))
+               (setf render-x screen-x
+                     render-y (+ render-y wrap-screen-h)))))
         ;; render-copy is coercing rotation to double-float and consing a lot
         ;; so we'll just invoke the ffi function directly
         (sdl2-ffi.functions:sdl-render-copy-ex
