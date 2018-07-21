@@ -41,7 +41,6 @@
                   :initform (error ":path-to-image must be specified")
                   :accessor path-to-image
                   :documentation "Path to image file.")
-   ;; FIXME: sdl exposed to override this slot
    (sdl-source-rectangle :initform nil
                          :initarg :sprite-source
                          :documentation "A sprite-source which specifies which portion of the image to render"))

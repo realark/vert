@@ -31,6 +31,13 @@
   output-color)
 
 @export
+(defun make-random-color (&optional random-alpha)
+  (make-color :r (random 256)
+              :g (random 256)
+              :b (random 256)
+              :a (if random-alpha (random 256) 255)))
+
+@export
 (defparameter *black* (make-color :r 0 :g 0 :b 0 :a 255))
 @export
 (defparameter *white* (make-color :r 255 :g 255 :b 255 :a 255))
