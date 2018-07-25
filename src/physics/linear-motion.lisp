@@ -27,15 +27,15 @@
       (setf (x moving-object) (point-x colliding-point))
       (cond
         ;; will rarely be both x and y axis
-        ;; let y movement "win" in that case
-        (x-axis-collision
-         (setf (velocity-x moving-object) 0
-               (acceleration-x moving-object) 0
-               (point-y non-colliding-point) (point-y colliding-point)))
+        ;; let x movement "win" in that case
         (y-axis-collision
          (setf (velocity-y moving-object) 0
                (acceleration-y moving-object) 0
                (point-x non-colliding-point) (point-x colliding-point)))
+        (x-axis-collision
+         (setf (velocity-x moving-object) 0
+               (acceleration-x moving-object) 0
+               (point-y non-colliding-point) (point-y colliding-point)))
         (T
          ;; neither axis is "responsible" for the collision.
          ;; Kill all velocity/acceleration
