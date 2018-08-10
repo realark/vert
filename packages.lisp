@@ -2,7 +2,7 @@
 (require 'sb-concurrency)
 
 (defpackage :recurse.vert
-  (:use :cl :bordeaux-threads :trivial-main-thread)
+  (:use :cl :bordeaux-threads)
   (:import-from :cl-annot.class :export-structure :export-slots :export-class)
   (:export
    ;; event system

@@ -134,7 +134,6 @@
                #:swank
                #:cl-annot
                #:bordeaux-threads
-               #:trivial-main-thread
                #:alexandria))
 
 (defsystem vert/test
