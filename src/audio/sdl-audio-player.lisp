@@ -70,12 +70,14 @@ Computed as (* (/ bit-rate 8) num-channels)")
     (when *audio-player*
       ;; FIXME: should lock around setting audio player state
       (with-slots (num-music-plays) *audio-player*
-        (decf num-music-plays)
-        (if (and (eq :playing (music-state *audio-player*))
-                 (> num-music-plays 0))
-            (setf (music-state *audio-player*) :playing)
-            (setf num-music-plays 0
-                  (music-state *audio-player*) :stopped)))))
+        (case (music-state *audio-player*)
+          (:playing
+           (decf num-music-plays)
+           (cond
+             ((> num-music-plays 0) (setf (music-state *audio-player*) :playing))
+             ((= num-music-plays 0) (setf (music-state *audio-player*) :stopped))
+             (T (setf num-music-plays -1 (music-state *audio-player*) :playing))))
+          (:stopped (setf num-music-plays 0))))))
   (unwind-protect
        (progn
          ;; lock all audio devices
