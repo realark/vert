@@ -14,7 +14,10 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
   (setf *dev-mode* dev-mode)
   (unless *engine-manager*
     #+os-macosx
-    (unless (and (eq (find-main-thread) (current-thread)) block)
+    (unless (and (eq (or #+sbcl (sb-thread:main-thread)
+                         (error "unable to find main thread for lisp impl"))
+                     (current-thread))
+                 block)
       (error "osx will crash if any thread other than thread0 issues drawing calls"))
 
     (setf *engine-manager* (make-instance 'sdl-engine-manager :game-name game-name))
