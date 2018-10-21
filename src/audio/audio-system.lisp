@@ -16,7 +16,7 @@ This may change after a call to START-AUDIO-SYSTEM. Do not hold a reference to t
   (setf *audio-player*
         (if *audio-player-init-fn*
             (funcall *audio-player-init-fn*)
-            (make-instance 'incudine-audio-player)))
+            (make-instance 'sdl-audio-player)))
   (start-audio-player *audio-player*)
   *audio-player*)
 
