@@ -20,6 +20,7 @@
                :initform (list)
                :documentation "plist. key = :animation-name, val = animation-struct")
    (active-animation :initform nil)
+   (active-animation-keyword :initform nil)
    (next-frame-change-timestamp :initform nil
                                 :documentation "ms timestamp when current frame will be swapped for a new one.")
    (active-animation-frame-index :initform 0
@@ -61,25 +62,29 @@
            (< current-frame-index (- (length (animation-frames animation)) 1))))
     (with-slots (animations
                  active-animation
+                 active-animation-keyword
                  next-frame-change-timestamp)
         animated-sprite
-      (let ((now (scene-ticks scene)))
+      (let ((now (scene-ticks scene))
+            (new-animation-keyword (get-new-animation animated-sprite)))
         (declare (timestamp-ms now next-frame-change-timestamp))
-        (when (>= now next-frame-change-timestamp)
-          (let ((new-animation (getf animations (get-new-animation animated-sprite))))
-            (if (and (has-next-frame active-animation (active-animation-frame-index animated-sprite))
-                     (eq active-animation new-animation))
-                (incf (the (integer 0 10000)
-                           (active-animation-frame-index animated-sprite)))
-                (setf active-animation new-animation
-                      (path-to-image animated-sprite) (animation-spritesheet active-animation)
-                      (active-animation-frame-index animated-sprite) 0))))))))
+        (when (or (>= now next-frame-change-timestamp)
+                  (not (eq active-animation-keyword new-animation-keyword)))
+          (if (and (has-next-frame active-animation (active-animation-frame-index animated-sprite))
+                   (eq active-animation-keyword new-animation-keyword))
+              (incf (the (integer 0 10000)
+                         (active-animation-frame-index animated-sprite)))
+              (setf active-animation-keyword new-animation-keyword
+                    active-animation (getf animations active-animation-keyword)
+                    (path-to-image animated-sprite) (animation-spritesheet active-animation)
+                    next-frame-change-timestamp now ; frame index setter below will update the next update time correctly relative to now
+                    (active-animation-frame-index animated-sprite) 0)))))))
 
 @export
 (defgeneric get-new-animation (game-object)
-  (:documentation "Called at the finish of every animation.
-  This will be invoked after all user-updates have run.
-  Default implementation will just run the first animation it can find.
-  return the keyword of the animation to play next.")
+  (:documentation "Called every draw updated.
+A keyword present in the animation plist must be returned.
+If this keyword is the same keyword previously returned the animation will continue.
+Otherwise the animation will be interrupted and the new animation will begin.")
   (:method ((animated-sprite animated-sprite))
     (first (animations animated-sprite))))
