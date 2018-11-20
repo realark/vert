@@ -70,6 +70,7 @@
   (let* ((surf (sdl2-image:load-image (path-to-image static-sprite)))
          (texture (sdl2:create-texture-from-surface renderer surf)))
     (sdl2:free-surface surf)
+    (sdl2:set-texture-blend-mode texture sdl2-ffi:+sdl-blendmode-blend+)
     texture))
 
 @export

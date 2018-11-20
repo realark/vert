@@ -23,6 +23,7 @@
                   :type screen-unit
                   :documentation "Height of the display screen in pixels")
    (pixels-per-unit :initarg :pixels-per-unit
+                    ;; TODO: 1 is a better default
                     :initform 30
                     :reader pixels-per-unit
                     :documentation "The number of pixels in one world unit.")
