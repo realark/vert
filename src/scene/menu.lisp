@@ -26,7 +26,6 @@
    (music :initarg :music
           :initform nil
           :documentation "Music to play while the menu is active")
-   ;; TODO render background
    (background :initarg :background
                :initform nil))
   (:documentation "A game menu"))
@@ -170,8 +169,10 @@
 ;; Render Menu
 
 (defmethod render ((menu menu) update-percent camera renderer)
-  (with-slots (node) menu
+  (with-slots (node background) menu
     (let ((camera (camera menu)))
+      (when background
+        (render background update-percent camera renderer))
       (render node update-percent camera renderer)
       (loop for child in (slot-value node 'children) do
            (render child update-percent camera renderer)))))
