@@ -36,18 +36,6 @@
                  :initform nil
                  :reader audio-player
                  :documentation "System audio player.")
-   ;; debugging
-   (measure-framerate :initform nil
-                      :initarg :measure-framerate
-                      :documentation "When non-nil measure rendering FPS.")
-   (current-fps :initform 60.0)
-   (framerate-samples :initform (make-array +num-framerate-samples+
-                                            :initial-element (get-internal-real-time)
-                                            :adjustable nil
-                                            :element-type *internal-real-time-type*)
-                      :documentation "An array of the timestamp of the past N render frames.")
-   (framerate-samples-fp :initform 0
-                      :documentation "framerate-samples fill-pointer")
    ;; engine state
    (clear-color :initform *black*
                 :accessor clear-color
@@ -56,7 +44,16 @@
                           :initform (ticks)
                           :accessor next-update-timestamp
                           :documentation "Timestamp (ms) of the next desired update frame.
-Used to determine the number of update frames to execute and the set the interpolation value for the render frame."))
+Used to determine the number of update frames to execute and the set the interpolation value for the render frame.")
+   ;; debugging
+   (current-fps :initform 60.0)
+   (framerate-samples :initform (make-array +num-framerate-samples+
+                                            :initial-element (get-internal-real-time)
+                                            :adjustable nil
+                                            :element-type *internal-real-time-type*)
+                      :documentation "An array of the timestamp of the past N render frames.")
+   (framerate-samples-fp :initform 0
+                      :documentation "framerate-samples fill-pointer"))
   (:documentation "Starts and stops the game. Manages global engine state and services."))
 
 (defevent engine-started ((engine-manager engine-manager))
@@ -128,28 +125,9 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                  'single-float)
                 nil
                 renderer)
-        (with-slots (measure-framerate framerate-samples framerate-samples-fp current-fps)
-            engine-manager
-          ;; (declare ((simple-array (unsigned-byte 62) 6) framerate-samples)
-          ;;          ((integer 0 6) framerate-samples-fp))
-          (render-game-window engine-manager)
-          (when measure-framerate
-            ;; fill-pointer sits at the oldest recorded timestamp
-            (let* ((now (get-internal-real-time))
-                   (oldest (elt framerate-samples framerate-samples-fp))
-                   (units-since-oldest-frame (- now oldest))
-                   (frames-per-unit (/ +num-framerate-samples+ units-since-oldest-frame)))
-              ;; compute framerate here
-              (setf current-fps (float (* frames-per-unit internal-time-units-per-second))
-               (elt framerate-samples framerate-samples-fp) now
-               framerate-samples-fp (mod (+ 1 framerate-samples-fp) #.+num-framerate-samples+ )))
-            ;; render framerate hud
-            ;; (format T "Current FPS = ~A~%" current-fps)
-            )
-          ;; (let ((ts (get-internal-real-time)))
-          ;;   (format T "Render took ~Ams~%" (- (get-internal-real-time) ts)))
-          ;; FIXME sleep if no vsync
-          (when *dev-mode* (dev-mode-post-game-loop-iteration)))))))
+        (when *dev-mode* (dev-mode-pre-render engine-manager))
+        (render-game-window engine-manager)
+        (when *dev-mode* (dev-mode-post-game-loop-iteration engine-manager))))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
   (:documentation "Initialize ENGINE-MANAGER and start the game.
@@ -182,11 +160,16 @@ It is invoked after the engine is fully started.")
 
 ;; debugging and dev mode tools
 
-(defun dev-mode-post-game-loop-iteration ()
+(defun dev-mode-pre-render (engine-manager)
+  (render-dev-mode-info engine-manager))
+
+(defun dev-mode-post-game-loop-iteration (engine-manager)
+  (compute-framerate engine-manager)
   (reload-textures-if-changed))
 
 (defun reload-textures-if-changed ()
   "If any textures have changed, flush the texture cache and reload."
+  (declare (optimize (space 3)))
   (flet ((reload-texture (objects-using-texture)
            (loop for object across (copy-seq objects-using-texture) do
                 (release-resources object))))
@@ -195,6 +178,41 @@ It is invoked after the engine is fully started.")
       (let ((current-mtime (file-write-date path)))
         (when (/= current-mtime original-mtime)
           (reload-texture objects-using-texture))))))
+
+(defun compute-framerate (engine-manager)
+  (declare (optimize (space 3)))
+  (with-slots (measure-framerate framerate-samples framerate-samples-fp current-fps)
+      engine-manager
+    (declare (simple-array framerate-samples)
+             ((integer 0 6) framerate-samples-fp))
+    ;; fill-pointer sits at the oldest recorded timestamp
+    (let* ((now (get-internal-real-time))
+           (oldest (elt framerate-samples framerate-samples-fp))
+           (units-since-oldest-frame (- now oldest))
+           (frames-per-unit (/ +num-framerate-samples+ units-since-oldest-frame)))
+      ;; compute framerate here
+      (setf current-fps (float (* frames-per-unit internal-time-units-per-second))
+            (elt framerate-samples framerate-samples-fp) now
+            framerate-samples-fp (mod (+ 1 framerate-samples-fp) #.+num-framerate-samples+ )))))
+
+(let ((fps-text (make-instance 'font-drawable
+                               :width 150
+                               :height 100
+                               :color *red*
+                               :text "0.0fps")))
+  (defun render-dev-mode-info (engine-manager)
+    "Render dev-mode info to the upper-right corner of the game window"
+    (declare (optimize (space 3)))
+    (with-slots (current-fps)
+        engine-manager
+      (let ((camera (camera (active-scene engine-manager))))
+        (setf (text fps-text) (format nil "~Afps" (floor current-fps))
+              (x fps-text) (- (+ (x camera) (width camera)) (width fps-text))
+              (y fps-text) (y camera))
+        (render fps-text
+                0.0
+                camera
+                (rendering-context engine-manager))))))
 
 ;;;; methods which will be provided by the implementation
 
