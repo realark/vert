@@ -1,7 +1,15 @@
 (in-package :recurse.vert)
 
-(defconstant +update-timestep+ (ceiling (/ 1000 60))
+(defconstant +update-timestep+ (floor (/ 1000 60))
   "Duration of the update timeslice in milliseconds. Just over 60 update frames per second.")
+
+(defconstant +num-framerate-samples+ 6
+  "Number of render samples to keep when measuring FPS")
+(defparameter *internal-real-time-type* (type-of (get-internal-real-time)))
+
+(defparameter *dev-mode*
+  nil
+  "Set to non-nil to enable dev features (potentially at a cost to performance).")
 
 (defclass engine-manager (event-publisher)
   ;; global services
@@ -28,6 +36,18 @@
                  :initform nil
                  :reader audio-player
                  :documentation "System audio player.")
+   ;; debugging
+   (measure-framerate :initform nil
+                      :initarg :measure-framerate
+                      :documentation "When non-nil measure rendering FPS.")
+   (current-fps :initform 60.0)
+   (framerate-samples :initform (make-array +num-framerate-samples+
+                                            :initial-element (get-internal-real-time)
+                                            :adjustable nil
+                                            :element-type *internal-real-time-type*)
+                      :documentation "An array of the timestamp of the past N render frames.")
+   (framerate-samples-fp :initform 0
+                      :documentation "framerate-samples fill-pointer")
    ;; engine state
    (clear-color :initform *black*
                 :accessor clear-color
@@ -108,9 +128,28 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                  'single-float)
                 nil
                 renderer)
-        (render-game-window engine-manager)
-        ;; FIXME sleep if no vsync
-        (when *dev-mode* (dev-mode-post-game-loop-iteration))))))
+        (with-slots (measure-framerate framerate-samples framerate-samples-fp current-fps)
+            engine-manager
+          ;; (declare ((simple-array (unsigned-byte 62) 6) framerate-samples)
+          ;;          ((integer 0 6) framerate-samples-fp))
+          (render-game-window engine-manager)
+          (when measure-framerate
+            ;; fill-pointer sits at the oldest recorded timestamp
+            (let* ((now (get-internal-real-time))
+                   (oldest (elt framerate-samples framerate-samples-fp))
+                   (units-since-oldest-frame (- now oldest))
+                   (frames-per-unit (/ +num-framerate-samples+ units-since-oldest-frame)))
+              ;; compute framerate here
+              (setf current-fps (float (* frames-per-unit internal-time-units-per-second))
+               (elt framerate-samples framerate-samples-fp) now
+               framerate-samples-fp (mod (+ 1 framerate-samples-fp) #.+num-framerate-samples+ )))
+            ;; render framerate hud
+            ;; (format T "Current FPS = ~A~%" current-fps)
+            )
+          ;; (let ((ts (get-internal-real-time)))
+          ;;   (format T "Render took ~Ams~%" (- (get-internal-real-time) ts)))
+          ;; FIXME sleep if no vsync
+          (when *dev-mode* (dev-mode-post-game-loop-iteration)))))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
   (:documentation "Initialize ENGINE-MANAGER and start the game.
@@ -140,6 +179,22 @@ It is invoked after the engine is fully started.")
     (stop-audio-system)
     (fire-event engine-manager engine-stopped)
     (format t "~%~%")))
+
+;; debugging and dev mode tools
+
+(defun dev-mode-post-game-loop-iteration ()
+  (reload-textures-if-changed))
+
+(defun reload-textures-if-changed ()
+  "If any textures have changed, flush the texture cache and reload."
+  (flet ((reload-texture (objects-using-texture)
+           (loop for object across (copy-seq objects-using-texture) do
+                (release-resources object))))
+    (%do-cache (*resource-cache* path tex :mtime original-mtime :objects-using objects-using-texture)
+      (declare (ignore tex))
+      (let ((current-mtime (file-write-date path)))
+        (when (/= current-mtime original-mtime)
+          (reload-texture objects-using-texture))))))
 
 ;;;; methods which will be provided by the implementation
 

@@ -117,8 +117,7 @@
                         :pathname "src/engine-manager"
                         :serial T
                         :components
-                        ((:file "dev-mode")
-                         (:file "engine-manager")
+                        ((:file "engine-manager")
                          (:file "application-window")
                          (:file "sdl-application-window")
                          (:file "sdl-engine-manager")
