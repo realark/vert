@@ -40,6 +40,7 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
    (wrap-width :initarg :wrap-width
                :initform nil
                :documentation "TODO")
+   (orig-wrap-width :initform nil)
    (wrap-height :initarg :wrap-height
                 :initform nil
                 :documentation "TODO")
@@ -49,8 +50,9 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
   (:documentation "Image displayed behind a scene."))
 
 (defmethod initialize-instance :after ((background scene-background) &key layers)
-  (with-slots (wrap-width wrap-height) background
+  (with-slots (wrap-width orig-wrap-width wrap-height) background
     (unless layers (error ":layers required"))
+    (when wrap-width (setf orig-wrap-width wrap-width))
     (setf
      (slot-value background 'layers)
      (loop :with parallax-images = (make-array 1 :fill-pointer 0 :adjustable T)
@@ -71,15 +73,17 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
            (scene-background background)
            (simple-camera camera))
   ;; FIXME: This isn't fully implemented
-  ;; Doesn't work with zoom
+  ;; Doesn't work correctly with zoom
   ;; (when (slot-value background 'fixed-location)
   ;;   (setf (x background) (x camera)
   ;;         (y background) (y camera)))
-  (with-slots (layers fixed-location wrap-width wrap-height) background
+  (with-slots (layers fixed-location wrap-width orig-wrap-width wrap-height) background
     (loop :for layer :across layers :do
          (when fixed-location
-           (setf (width layer) (* (screen-width camera) 1000)
-                 (height layer) (screen-height camera)
+           (when wrap-width
+             (setf (slot-value layer 'wrap-width) (/ orig-wrap-width (scale camera))))
+           (setf (width layer) (* 10 (the world-dimension (width camera)))
+                 (height layer)  (height camera)
                  (x layer) (if wrap-width 0.0 (x camera))
                  (y layer) (y camera)))
          (render layer update-percent camera rendering-context))))
