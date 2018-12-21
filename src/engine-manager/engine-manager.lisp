@@ -200,11 +200,12 @@ It is invoked after the engine is fully started.")
                                :height 100
                                :color *red*
                                :text "0.0fps")))
+  (defmethod cleanup-engine :after (engine-manager)
+             (release-resources fps-text))
   (defun render-dev-mode-info (engine-manager)
     "Render dev-mode info to the upper-right corner of the game window"
     (declare (optimize (space 3)))
-    (with-slots (current-fps)
-        engine-manager
+    (with-slots (current-fps )engine-manager
       (let ((camera (camera (active-scene engine-manager))))
         (setf (text fps-text) (format nil "~Afps" (floor current-fps))
               (x fps-text) (- (+ (x camera) (width camera)) (width fps-text))
