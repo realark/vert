@@ -3,7 +3,7 @@
 (defconstant +update-timestep+ (floor (/ 1000 60))
   "Duration of the update timeslice in milliseconds. Just over 60 update frames per second.")
 
-(defconstant +num-framerate-samples+ 6
+(defparameter *num-framerate-samples* 6
   "Number of render samples to keep when measuring FPS")
 (defparameter *internal-real-time-type* (type-of (get-internal-real-time)))
 
@@ -47,7 +47,7 @@
 Used to determine the number of update frames to execute and the set the interpolation value for the render frame.")
    ;; debugging
    (current-fps :initform 60.0)
-   (framerate-samples :initform (make-array +num-framerate-samples+
+   (framerate-samples :initform (make-array *num-framerate-samples*
                                             :initial-element (get-internal-real-time)
                                             :adjustable nil
                                             :element-type *internal-real-time-type*)
@@ -184,36 +184,53 @@ It is invoked after the engine is fully started.")
   (with-slots (measure-framerate framerate-samples framerate-samples-fp current-fps)
       engine-manager
     (declare (simple-array framerate-samples)
-             ((integer 0 6) framerate-samples-fp))
+             ((integer 0 60) framerate-samples-fp))
     ;; fill-pointer sits at the oldest recorded timestamp
     (let* ((now (get-internal-real-time))
            (oldest (elt framerate-samples framerate-samples-fp))
            (units-since-oldest-frame (- now oldest))
-           (frames-per-unit (/ +num-framerate-samples+ units-since-oldest-frame)))
+           (frames-per-unit (/ *num-framerate-samples* units-since-oldest-frame)))
       ;; compute framerate here
       (setf current-fps (float (* frames-per-unit internal-time-units-per-second))
             (elt framerate-samples framerate-samples-fp) now
-            framerate-samples-fp (mod (+ 1 framerate-samples-fp) #.+num-framerate-samples+ )))))
+            framerate-samples-fp (mod (+ 1 framerate-samples-fp) *num-framerate-samples*)))))
 
-(let ((fps-text (make-instance 'font-drawable
-                               :width 150
-                               :height 100
-                               :color *red*
-                               :text "0.0fps")))
+(let ((gc-count 0))
+  (defun gc-callback ()
+    (incf gc-count))
+  (defun current-gc-count () gc-count))
+#+sbcl
+(push #'gc-callback
+      sb-ext:*after-gc-hooks*)
+
+(let* ((line-width-px 150.0)
+       (line-height-px 100.0)
+       (rendered-text (make-instance 'font-drawable
+                                :width line-width-px
+                                :height line-height-px
+                                :color *red*
+                                :text "0.0fps")))
   (defmethod cleanup-engine :after (engine-manager)
-             (release-resources fps-text))
+    (release-resources rendered-text))
+
   (defun render-dev-mode-info (engine-manager)
     "Render dev-mode info to the upper-right corner of the game window"
     (declare (optimize (space 3)))
     (with-slots (current-fps )engine-manager
       (let ((camera (camera (active-scene engine-manager))))
-        (setf (text fps-text) (format nil "~Afps" (floor current-fps))
-              (x fps-text) (- (+ (x camera) (width camera)) (width fps-text))
-              (y fps-text) (y camera))
-        (render fps-text
-                0.0
-                camera
-                (rendering-context engine-manager))))))
+        (setf (width rendered-text) (/ line-width-px (zoom camera))
+              (height rendered-text) (/ line-height-px (zoom camera))
+              (x rendered-text) (- (+ (x camera) (width camera)) (width rendered-text)))
+        (loop :with line-num = 0
+              :for text :in (list (format nil "GC# ~A" (current-gc-count))
+                                  (format nil "~Afps" (floor current-fps)))
+              :do (setf (text rendered-text) text
+                        (y rendered-text) (+ (y camera) (/ (* line-num line-height-px) (zoom camera)))
+                        line-num (+ line-num 1))
+                  (render rendered-text
+                          0.0
+                          camera
+                          (rendering-context engine-manager)))))))
 
 ;;;; methods which will be provided by the implementation
 
