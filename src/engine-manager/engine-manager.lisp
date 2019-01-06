@@ -241,6 +241,7 @@ It is invoked after the engine is fully started.")
               :for text :in (list (format nil "~Afps" (floor current-fps))
                                   (format nil "GC# ~A" (current-gc-count))
                                   (format nil "GC-MS: ~A" (last-gc-time-ms))
+                                  (format nil "~Amb" (ceiling (/ (sb-kernel:dynamic-usage) #.(expt 10 6))))
                                   (format nil "~Amin-fps" (floor min-fps)))
               :do (setf (text rendered-text) text
                         (y rendered-text) (+ (y camera) (/ (* line-num line-height-px) (zoom camera)))
