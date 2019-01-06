@@ -195,21 +195,31 @@ It is invoked after the engine is fully started.")
             (elt framerate-samples framerate-samples-fp) now
             framerate-samples-fp (mod (+ 1 framerate-samples-fp) *num-framerate-samples*)))))
 
-(let ((gc-count 0))
+(let ((gc-count 0)
+      (last-gc-time-ms 0)
+      (gc-timer 0))
   (defun gc-callback ()
-    (incf gc-count))
-  (defun current-gc-count () gc-count))
-#+sbcl
-(push #'gc-callback
-      sb-ext:*after-gc-hooks*)
+    (incf gc-count)
+    (setf
+     last-gc-time-ms (/ (- sb-ext:*gc-run-time* gc-timer) (/ internal-time-units-per-second 1000))
+     gc-timer sb-ext:*gc-run-time*))
+
+  (defun current-gc-count ()
+    gc-count)
+
+  (defun last-gc-time-ms ()
+    last-gc-time-ms)
+  #+sbcl
+  (push #'gc-callback
+        sb-ext:*after-gc-hooks*))
 
 (let* ((line-width-px 150.0)
        (line-height-px 100.0)
        (rendered-text (make-instance 'font-drawable
-                                :width line-width-px
-                                :height line-height-px
-                                :color *red*
-                                :text "0.0fps")))
+                                     :width line-width-px
+                                     :height line-height-px
+                                     :color *red*
+                                     :text "0.0fps")))
   (defmethod cleanup-engine :after (engine-manager)
     (release-resources rendered-text))
 
@@ -222,8 +232,9 @@ It is invoked after the engine is fully started.")
               (height rendered-text) (/ line-height-px (zoom camera))
               (x rendered-text) (- (+ (x camera) (width camera)) (width rendered-text)))
         (loop :with line-num = 0
-              :for text :in (list (format nil "GC# ~A" (current-gc-count))
-                                  (format nil "~Afps" (floor current-fps)))
+              :for text :in (list (format nil "~Afps" (floor current-fps))
+                                  (format nil "GC# ~A" (current-gc-count))
+                                  (format nil "GC-MS: ~A" (last-gc-time-ms)))
               :do (setf (text rendered-text) text
                         (y rendered-text) (+ (y camera) (/ (* line-num line-height-px) (zoom camera)))
                         line-num (+ line-num 1))
