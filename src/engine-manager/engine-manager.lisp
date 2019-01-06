@@ -47,6 +47,7 @@
 Used to determine the number of update frames to execute and the set the interpolation value for the render frame.")
    ;; debugging
    (current-fps :initform 60.0)
+   (min-fps :initform 300.0)
    (framerate-samples :initform (make-array *num-framerate-samples*
                                             :initial-element (get-internal-real-time)
                                             :adjustable nil
@@ -179,21 +180,26 @@ It is invoked after the engine is fully started.")
         (when (/= current-mtime original-mtime)
           (reload-texture objects-using-texture))))))
 
-(defun compute-framerate (engine-manager)
-  (declare (optimize (space 3)))
-  (with-slots (measure-framerate framerate-samples framerate-samples-fp current-fps)
-      engine-manager
-    (declare (simple-array framerate-samples)
-             ((integer 0 60) framerate-samples-fp))
-    ;; fill-pointer sits at the oldest recorded timestamp
-    (let* ((now (get-internal-real-time))
-           (oldest (elt framerate-samples framerate-samples-fp))
-           (units-since-oldest-frame (- now oldest))
-           (frames-per-unit (/ *num-framerate-samples* units-since-oldest-frame)))
-      ;; compute framerate here
-      (setf current-fps (float (* frames-per-unit internal-time-units-per-second))
-            (elt framerate-samples framerate-samples-fp) now
-            framerate-samples-fp (mod (+ 1 framerate-samples-fp) *num-framerate-samples*)))))
+(let ((last-min-fps-update 0))
+  (defun compute-framerate (engine-manager)
+    (declare (optimize (space 3)))
+    (with-slots (measure-framerate framerate-samples framerate-samples-fp current-fps min-fps)
+        engine-manager
+      (declare (simple-array framerate-samples)
+               ((integer 0 60) framerate-samples-fp))
+      (let* ((now (get-internal-real-time))
+             (oldest (elt framerate-samples framerate-samples-fp))
+             (units-since-oldest-frame (- now oldest))
+             (frames-per-unit (/ *num-framerate-samples* units-since-oldest-frame)))
+        ;; compute framerate here
+        (setf current-fps (float (* frames-per-unit internal-time-units-per-second))
+              (elt framerate-samples framerate-samples-fp) now
+              framerate-samples-fp (mod (+ 1 framerate-samples-fp) *num-framerate-samples*))
+        (when (or (< current-fps min-fps)
+                  ;; reset min-fps every 10 seconds
+                  (> (/ (- now last-min-fps-update) internal-time-units-per-second) 10))
+          (setf min-fps current-fps
+                last-min-fps-update now))))))
 
 (let ((gc-count 0)
       (last-gc-time-ms 0)
@@ -226,7 +232,7 @@ It is invoked after the engine is fully started.")
   (defun render-dev-mode-info (engine-manager)
     "Render dev-mode info to the upper-right corner of the game window"
     (declare (optimize (space 3)))
-    (with-slots (current-fps )engine-manager
+    (with-slots (current-fps min-fps) engine-manager
       (let ((camera (camera (active-scene engine-manager))))
         (setf (width rendered-text) (/ line-width-px (zoom camera))
               (height rendered-text) (/ line-height-px (zoom camera))
@@ -234,7 +240,8 @@ It is invoked after the engine is fully started.")
         (loop :with line-num = 0
               :for text :in (list (format nil "~Afps" (floor current-fps))
                                   (format nil "GC# ~A" (current-gc-count))
-                                  (format nil "GC-MS: ~A" (last-gc-time-ms)))
+                                  (format nil "GC-MS: ~A" (last-gc-time-ms))
+                                  (format nil "~Amin-fps" (floor min-fps)))
               :do (setf (text rendered-text) text
                         (y rendered-text) (+ (y camera) (/ (* line-num line-height-px) (zoom camera)))
                         line-num (+ line-num 1))
