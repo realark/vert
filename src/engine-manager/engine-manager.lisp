@@ -166,19 +166,25 @@ It is invoked after the engine is fully started.")
 (defun dev-mode-pre-render (engine-manager)
   (render-dev-mode-info engine-manager))
 
-(defun dev-mode-post-game-loop-iteration (engine-manager)
-  (compute-framerate engine-manager)
-  (reload-textures-if-changed))
+(let ((next-fs-check (ticks)))
+  (defun dev-mode-post-game-loop-iteration (engine-manager)
+    (compute-framerate engine-manager)
+    (let ((now (ticks)))
+      (when (>= now next-fs-check)
+        (setf next-fs-check (+ now 10000))
+        (reload-textures-if-changed)))))
 
 (defun reload-textures-if-changed ()
   "If any textures have changed, flush the texture cache and reload."
-  (declare (optimize (space 3)))
+  (declare (optimize (speed 3)
+                     (space 3)))
   (flet ((reload-texture (objects-using-texture)
-           (loop for object across (copy-seq objects-using-texture) do
+           (loop :for object :across (copy-seq objects-using-texture) :do
                 (release-resources object))))
     (%do-cache (*resource-cache* path tex :mtime original-mtime :objects-using objects-using-texture)
       (declare (ignore tex))
       (let ((current-mtime (file-write-date path)))
+        (declare (fixnum current-mtime original-mtime))
         (when (/= current-mtime original-mtime)
           (reload-texture objects-using-texture))))))
 
