@@ -124,8 +124,7 @@
 
 (defmethod initialize-instance :after ((node menu-node) &rest args)
   (declare (ignore args))
-  (with-slots (text node-name) node
-    (setf text node-name)))
+  (setf (text node) (slot-value node 'node-name)))
 
 (defclass parent-node (menu-node)
   ((children :initarg :children
