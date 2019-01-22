@@ -166,14 +166,9 @@ It is invoked after the engine is fully started.")
 (defun dev-mode-pre-render (engine-manager)
   (render-dev-mode-info engine-manager))
 
-(let ((next-fs-check (ticks)))
-  (defun dev-mode-post-game-loop-iteration (engine-manager)
-    (compute-framerate engine-manager)
-    (let ((now (ticks)))
-      (when (>= now next-fs-check)
-        (setf next-fs-check (+ now 10000))
-        (reload-textures-if-changed)))))
-
+(defun dev-mode-post-game-loop-iteration (engine-manager)
+  ;; (reload-textures-if-changed)
+  (compute-framerate engine-manager))
 (defun reload-textures-if-changed ()
   "If any textures have changed, flush the texture cache and reload."
   (declare (optimize (speed 3)
@@ -190,7 +185,8 @@ It is invoked after the engine is fully started.")
 
 (let ((last-min-fps-update 0))
   (defun compute-framerate (engine-manager)
-    (declare (optimize (space 3)))
+    (declare (optimize (speed 3)
+                       (space 3)))
     (with-slots (measure-framerate framerate-samples framerate-samples-fp current-fps min-fps)
         engine-manager
       (declare (simple-array framerate-samples)
@@ -200,7 +196,7 @@ It is invoked after the engine is fully started.")
              (units-since-oldest-frame (- now oldest))
              (frames-per-unit (/ *num-framerate-samples* units-since-oldest-frame)))
         ;; compute framerate here
-        (setf current-fps (float (* frames-per-unit internal-time-units-per-second))
+        (setf current-fps (float (floor (* frames-per-unit internal-time-units-per-second)))
               (elt framerate-samples framerate-samples-fp) now
               framerate-samples-fp (mod (+ 1 framerate-samples-fp) *num-framerate-samples*))
         (when (or (< current-fps min-fps)
@@ -233,31 +229,51 @@ It is invoked after the engine is fully started.")
                                      :width line-width-px
                                      :height line-height-px
                                      :color *red*
-                                     :text "0.0fps")))
+                                     :text "0.0fps"))
+       (number-cache (make-instance 'cache :test #'equal)))
+
   (defmethod cleanup-engine :after (engine-manager)
+    (clear-cache number-cache)
     (release-resources rendered-text))
 
   (defun render-dev-mode-info (engine-manager)
     "Render dev-mode info to the upper-right corner of the game window"
-    (declare (optimize (space 3)))
+    (declare (optimize (speed 3)
+                       (space 3)))
     (with-slots (current-fps min-fps) engine-manager
-      (let ((camera (camera (active-scene engine-manager))))
-        (setf (width rendered-text) (/ line-width-px (zoom camera))
-              (height rendered-text) (/ line-height-px (zoom camera))
-              (x rendered-text) (- (+ (x camera) (width camera)) (width rendered-text)))
-        (loop :with line-num = 0
-              :for text :in (list (format nil "~Afps" (floor current-fps))
-                                  (format nil "GC# ~A" (current-gc-count))
-                                  (format nil "GC-MS: ~A" (last-gc-time-ms))
-                                  (format nil "~Amb" (ceiling (/ (sb-kernel:dynamic-usage) #.(expt 10 6))))
-                                  (format nil "~Amin-fps" (floor min-fps)))
-              :do (setf (text rendered-text) text
-                        (y rendered-text) (+ (y camera) (/ (* line-num line-height-px) (zoom camera)))
-                        line-num (+ line-num 1))
-                  (render rendered-text
-                          0.0
-                          camera
-                          (rendering-context engine-manager)))))))
+      (let ((camera (camera (active-scene engine-manager)))
+            (line-num 0))
+        (with-accessors ((camera-zoom zoom)
+                         (camera-x x)
+                         (camera-y y)
+                         (camera-width width)
+                         (camera-height height))
+            camera
+          (with-accessors ((text-width width))
+              rendered-text
+            (declare (camera-scale camera-zoom)
+                     (world-position camera-x camera-y)
+                     (world-dimension camera-width camera-height text-width)
+                     ((integer 0 50) line-num))
+            (setf (width rendered-text) (/ line-width-px camera-zoom)
+                  (height rendered-text) (/ line-height-px camera-zoom)
+                  (x rendered-text) (- (+ camera-x camera-width) text-width))
+            (flet ((render-debug-line (text)
+                     (setf (text rendered-text) text
+                           (y rendered-text) (+ camera-y (/ (* line-num line-height-px) camera-zoom)))
+                     (render rendered-text
+                             0.0
+                             camera
+                             (rendering-context engine-manager))
+                     (incf line-num)))
+              (render-debug-line (getcache-default current-fps number-cache (format nil "~Afps" current-fps)))
+              (let ((gc-count (current-gc-count)))
+                (render-debug-line (getcache-default gc-count number-cache (format nil "GC# ~A" gc-count))))
+              (let ((gc-time-ms (last-gc-time-ms)))
+                (render-debug-line (getcache-default gc-time-ms number-cache (format nil "GC-MS: ~A" gc-time-ms))))
+              (let ((dynamic-use (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 6))))
+                (render-debug-line (getcache-default dynamic-use number-cache (format nil "~Amb" dynamic-use))))
+              (render-debug-line (getcache-default min-fps number-cache (format nil "~Amin-fps" min-fps))))))))))
 
 ;;;; methods which will be provided by the implementation
 
