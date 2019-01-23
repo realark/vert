@@ -24,8 +24,8 @@
 (defmethod collision :after ((agent back-and-forth) (object aabb))
   (with-slots ((direction agent-acceleration))
       agent
-    (setf direction (make-vector2 :x (* -1.0 (vector-x direction))
-                                  :y (* -1.0 (vector-y direction))))
+    (setf (x direction) (* -1.0 (x direction))
+          (y direction) (* -1.0 (y direction)))
     (if (> (vector-x direction) 0)
         (push-direction agent :EAST)
         (push-direction agent :WEST))

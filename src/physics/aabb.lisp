@@ -128,15 +128,27 @@
                (= z1 z2)))))))
 
 
-(declaim (inline center-of))
 @export
+@inline
 (defun center-of (aabb)
   (declare (optimize (speed 3)
                      (space 3))
            (aabb aabb))
-  (make-point :x (+ (the world-position (x aabb)) (/ (the world-dimension (width aabb)) 2.0))
-              :y (+ (the world-position (y aabb)) (/ (the world-dimension (height aabb)) 2.0))
-              :z (the world-position (z aabb))))
+  (compute-center-of aabb (make-point)))
+
+@export
+@inline
+(defun compute-center-of (aabb point)
+  "Compute the center of AABB and update POINT to the result."
+  (declare (optimize (speed 3)
+                     (space 3))
+           (point point)
+           (aabb aabb))
+  (setf
+   (x point) (+ (the world-position (x aabb)) (/ (the world-dimension (width aabb)) 2.0))
+   (y point) (+ (the world-position (y aabb)) (/ (the world-dimension (height aabb)) 2.0))
+   (z point) (the world-position (z aabb)))
+  point)
 
 (defcollision ((rect1 aabb) (rect2 aabb))
   (declare (optimize (speed 3)))
