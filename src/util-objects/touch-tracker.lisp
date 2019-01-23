@@ -3,22 +3,27 @@
 ;;;; Region of a touch-tracker
 
 (defclass touch-region (obb)
-  ((touching :initform (list)
+  ((touch-tracker :initarg :touch-tracker
+                  :initform (error ":touch-tracker required"))
+   (touching :initform (list)
              :accessor touching
              :documentation "Unordered list of objects this region is touching."))
   (:documentation "TODO"))
 
 (defun %remove-if-not-touching (touch-region object)
   (unless (collidep touch-region object)
-    (with-slots (touching) touch-region
+    (with-slots (touch-tracker touching) touch-region
       (setf touching (delete object touching)))))
 
 (defun %add-if-touching (touch-region object)
-  (with-slots (touching) touch-region
+  (with-slots (touch-tracker touching) touch-region
     (when (and (collidep touch-region object)
                (not (find object touching)))
       (add-subscriber object touch-region object-moved)
-      (push object touching))))
+      (push object touching)
+      (with-slots (all-objects-touching) touch-tracker
+        (unless (find object all-objects-touching)
+          (push object all-objects-touching))))))
 
 (defmethod object-moved :after ((touch-region touch-region))
   (loop for touched-object in (touching touch-region) do
@@ -36,7 +41,8 @@
     :reader touch-regions
     :documentation "Locations where the touch-tracker is being touched.
 Implemented as alist of :region-name to a TOUCH-REGION
-May be extended or overridden by subclasses."))
+May be extended or overridden by subclasses.")
+   (all-objects-touching :initform (list)))
   (:documentation "An object that tracks the objects it is touching."))
 
 (defgeneric add-touch-region (touch-tracker region-name touch-region)
@@ -55,12 +61,17 @@ May be extended or overridden by subclasses."))
   (:documentation "Get all objects touching the REGION-NAME touch-region.
 Or pass :all to get all objects touching TOUCH-TRACKER")
   (:method ((touch-tracker touch-tracker) &optional (region-name :all))
+    (declare (optimize (speed 3)
+                       (space 3))
+             (keyword region-name))
     (if (eq :all region-name)
-        ;; can destruct since flatten creates a fresh list
-        (delete-duplicates (alexandria:flatten
-                            (mapcar (lambda (item)
-                                      (touching (cdr item)))
-                                    (touch-regions touch-tracker))))
+        (with-slots (all-objects-touching) touch-tracker
+          (loop :for object :in all-objects-touching :do
+            (loop :for region-cons :in (touch-regions touch-tracker) :do
+              (when (find object (the list (slot-value (cdr region-cons) 'touching))) (return))
+              ;; if we make it here none of the touch regions have the object
+                  :finally (setf all-objects-touching (delete object all-objects-touching))))
+          all-objects-touching)
         (let ((region (cdr (assoc region-name (touch-regions touch-tracker)))))
           (unless region (error "No such region: ~A" region-name))
           (touching region)))))
@@ -119,6 +130,7 @@ Or pass :all to get all objects touching TOUCH-TRACKER")
       touch-tracker
     (let* ((region-extension *collision-precision*)
            (north (make-instance 'touch-region
+                                 :touch-tracker touch-tracker
                                  :rotation r
                                  :x x
                                  :y (- y region-extension)
@@ -126,6 +138,7 @@ Or pass :all to get all objects touching TOUCH-TRACKER")
                                  :width w
                                  :height region-extension))
            (east (make-instance 'touch-region
+                                 :touch-tracker touch-tracker
                                 :rotation r
                                 :x (+ x w)
                                 :y y
@@ -133,6 +146,7 @@ Or pass :all to get all objects touching TOUCH-TRACKER")
                                 :width region-extension
                                 :height h))
            (south (make-instance 'touch-region
+                                 :touch-tracker touch-tracker
                                  :rotation r
                                  :x x
                                  :y (+ y h)
@@ -140,6 +154,7 @@ Or pass :all to get all objects touching TOUCH-TRACKER")
                                  :width w
                                  :height region-extension))
            (west (make-instance 'touch-region
+                                 :touch-tracker touch-tracker
                                 :rotation r
                                 :x (- x region-extension)
                                 :y y
