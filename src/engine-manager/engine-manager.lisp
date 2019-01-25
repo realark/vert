@@ -194,7 +194,10 @@ It is invoked after the engine is fully started.")
       (let* ((now (get-internal-real-time))
              (oldest (elt framerate-samples framerate-samples-fp))
              (units-since-oldest-frame (- now oldest))
-             (frames-per-unit (/ *num-framerate-samples* units-since-oldest-frame)))
+             (frames-per-unit (/ *num-framerate-samples*
+                                 (if (= 0 units-since-oldest-frame)
+                                     1
+                                     units-since-oldest-frame))))
         ;; compute framerate here
         (setf current-fps (float (floor (* frames-per-unit internal-time-units-per-second)))
               (elt framerate-samples framerate-samples-fp) now
@@ -230,7 +233,11 @@ It is invoked after the engine is fully started.")
                                      :height line-height-px
                                      :color *red*
                                      :text "0.0fps"))
-       (number-cache (make-instance 'cache :test #'equal)))
+       (number-cache (make-instance 'cache
+                                    :test #'equal
+                                    :on-evict (lambda (line-num line-cache)
+                                                (declare (ignore line-num))
+                                                (clear-cache line-cache)))))
 
   (defmethod cleanup-engine :after (engine-manager)
     (clear-cache number-cache)
@@ -266,14 +273,25 @@ It is invoked after the engine is fully started.")
                              camera
                              (rendering-context engine-manager))
                      (incf line-num)))
-              (render-debug-line (getcache-default current-fps number-cache (format nil "~Afps" current-fps)))
-              (let ((gc-count (current-gc-count)))
-                (render-debug-line (getcache-default gc-count number-cache (format nil "GC# ~A" gc-count))))
-              (let ((gc-time-ms (last-gc-time-ms)))
-                (render-debug-line (getcache-default gc-time-ms number-cache (format nil "GC-MS: ~A" gc-time-ms))))
-              (let ((dynamic-use (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 6))))
-                (render-debug-line (getcache-default dynamic-use number-cache (format nil "~Amb" dynamic-use))))
-              (render-debug-line (getcache-default min-fps number-cache (format nil "~Amin-fps" min-fps))))))))))
+              (progn
+                (render-debug-line (getcache-default current-fps
+                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                     (format nil "~Afps" current-fps)))
+                (let ((gc-count (current-gc-count)))
+                  (render-debug-line (getcache-default gc-count
+                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                       (format nil "GC# ~A" gc-count))))
+                (let ((gc-time-ms (last-gc-time-ms)))
+                  (render-debug-line (getcache-default gc-time-ms
+                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                       (format nil "GC-MS: ~A" gc-time-ms))))
+                (let ((dynamic-use (/ (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 5)) 10.0)))
+                  (render-debug-line (getcache-default dynamic-use
+                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                       (format nil "~Amb" dynamic-use))))
+                (render-debug-line (getcache-default min-fps
+                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                     (format nil "~Amin-fps" min-fps)))))))))))
 
 ;;;; methods which will be provided by the implementation
 
