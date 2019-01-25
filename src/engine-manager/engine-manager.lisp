@@ -237,7 +237,8 @@ It is invoked after the engine is fully started.")
                                     :test #'equal
                                     :on-evict (lambda (line-num line-cache)
                                                 (declare (ignore line-num))
-                                                (clear-cache line-cache)))))
+                                                (clear-cache line-cache))))
+       (last-known-gc-count (current-gc-count)))
 
   (defmethod cleanup-engine :after (engine-manager)
     (clear-cache number-cache)
@@ -273,14 +274,21 @@ It is invoked after the engine is fully started.")
                              camera
                              (rendering-context engine-manager))
                      (incf line-num)))
-              (progn
+              (let ((gc-count (current-gc-count)))
+                (declare (fixnum gc-count last-known-gc-count))
+                (when (> gc-count last-known-gc-count)
+                  (setf last-known-gc-count gc-count)
+                  ;; render a mostly green frame when gc occurs
+                  (let ((clear-color (clear-color engine-manager)))
+                    (setf (clear-color engine-manager) *green*)
+                    (sdl2:render-clear (slot-value engine-manager 'rendering-context))
+                    (setf (clear-color engine-manager) clear-color)))
                 (render-debug-line (getcache-default current-fps
                                                      (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
                                                      (format nil "~Afps" current-fps)))
-                (let ((gc-count (current-gc-count)))
-                  (render-debug-line (getcache-default gc-count
-                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
-                                                       (format nil "GC# ~A" gc-count))))
+                (render-debug-line (getcache-default gc-count
+                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                     (format nil "GC# ~A" gc-count)))
                 (let ((gc-time-ms (last-gc-time-ms)))
                   (render-debug-line (getcache-default gc-time-ms
                                                        (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
