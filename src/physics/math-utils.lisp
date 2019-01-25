@@ -70,12 +70,11 @@
               (if (< (distance-between a c) (distance-between b c))
                   a b)))))))
 
-(proclaim '(inline distance-along-axis))
 (defun distance-along-axis (axis point)
   "Project POINT onto AXIS and compute a scalar value."
   (declare (optimize (speed 3))
-           (type point point)
-           (type vector2 axis))
+           (point point)
+           (vector2 axis))
   (with-accessors ((point-x point-x) (point-y point-y)) point
     (with-slots ((axis-x x) (axis-y y)) axis
       (declare (world-position axis-x axis-y))
