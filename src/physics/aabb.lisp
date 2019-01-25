@@ -47,7 +47,7 @@
 (defmethod (setf z) (value (aabb aabb))
   (setf (point-z (slot-value aabb 'world-position)) (coerce value 'world-position)))
 
-(defmethod rotation ((aabb aabb)) 0d0)
+(defmethod rotation ((aabb aabb)) 0f0)
 
 (defmethod print-object ((aabb aabb) out)
   (print-unreadable-object (aabb out :type t)

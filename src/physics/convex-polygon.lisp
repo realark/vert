@@ -10,7 +10,7 @@
     :documentation "Polygon's center in local space")
    (rotation :initarg :rotation
              :reader rotation
-             :initform 0d0
+             :initform 0f0
              :type rotation-radians
              :documentation "Polygon's rotation in degrees. Rotated about its center.")
    (bounding-box :reader bounding-box
@@ -47,7 +47,7 @@
             (width polygon) (height polygon) (rad->deg (rotation polygon)))))
 
 (defmethod (setf rotation) (value (polygon convex-polygon))
-  (setf (slot-value polygon 'rotation) (coerce (mod value #.(* 2d0 pi)) 'rotation-radians)))
+  (setf (slot-value polygon 'rotation) (coerce (mod value tau) 'rotation-radians)))
 
 (defmethod object-moved-all :after ((polygon convex-polygon))
   (%update-polygon-world-points polygon)

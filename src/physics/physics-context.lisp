@@ -4,9 +4,6 @@
 ;; Standard Distance = 1 Unit
 ;; Standard Time = 1 Millisecond
 
-@export
-(defconstant tau (* 2 pi))
-
 (defun units-per-second (x)
   (coerce (/ x 1000) 'single-float))
 
@@ -55,11 +52,11 @@
 
 (deftype rotation-degrees ()
   "Clockwise rotation in degrees"
-  '(double-float 0d0 360d0))
+  '(single-float 0f0 360f0))
 
 (deftype rotation-radians()
   "Clockwise rotation in radians"
-  `(double-float 0d0 ,tau))
+  `(single-float 0f0 ,tau))
 
 (deftype vector-dimension ()
   "A single dimension of a vector (e.g. velocity and acceleration vectors)."

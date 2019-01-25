@@ -2,8 +2,16 @@
 
 (in-package :recurse.vert)
 
-(defun deg->rad (x) (* x (/ pi 180)))
-(defun rad->deg (x) (* x (/ 180 pi)))
+@export
+(defconstant float-pi (float pi 0f0)
+  "Pi represented as a single slot float")
+
+@export
+(defconstant tau (float (* 2 pi) 0f0)
+  "Tau represented as a single slot float")
+
+(defun deg->rad (x) (* x (/ float-pi 180)))
+(defun rad->deg (x) (* x (/ 180 float-pi)))
 
 (defmacro ticks ()
   "Wallclock millisecond timestamp starting from an arbitrary point in time."

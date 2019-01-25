@@ -2,17 +2,15 @@
 
 (in-package :recurse.vert)
 
-(proclaim '(inline deg->rad))
 (defun deg->rad (x)
-  (declare (optimize (space 3)))
+  ;; (declare (optimize (speed 3)))
   (declare (rotation-degrees x))
-  (the rotation-radians (* x #.(/ pi 180))))
+  (the rotation-radians (* x #.(/ float-pi 180))))
 
-(proclaim '(inline rad->deg))
 (defun rad->deg (x)
-  (declare (optimize (space 3)))
+  ;; (declare (optimize (speed 3)))
   (declare (rotation-radians x))
-  (the rotation-degrees (* x #.(/ 180 pi))))
+  (the rotation-degrees (* x #.(/ 180 float-pi))))
 
 (defun rotate-2d (point theta &optional (rotation-origin *origin*))
   "Rotate POINT THETA radians about ROTATION-ORIGIN in the xy plane."
