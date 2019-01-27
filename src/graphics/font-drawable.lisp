@@ -114,16 +114,22 @@
         (load-resources char-drawable renderer)))))
 
 (defmethod render ((font-drawable font-drawable) update-percent camera rendering-context)
+  (declare (optimize (speed 3)))
   (with-slots (characters sdl-rectangle last-positions) font-drawable
     (loop :with n = 0
           :and char-width = (/ (width font-drawable) (length characters))
           :and interpolated-width = (round (/ (sdl2:rect-width sdl-rectangle) (length characters)))
           :for char :across characters :do
             (with-slots ((char-last-positions last-positions)) char
+              (declare ((integer 0 100) n)
+                       (world-position char-width)
+                       (screen-unit interpolated-width)
+                       ((simple-array screen-unit) char-last-positions))
               (setf (y char) (y font-drawable)
                     (height char) (height font-drawable)
                     (width char) char-width
-                    (x char) (+ (x font-drawable) (* n char-width))
+                    (x char) (+ (the world-position (x font-drawable))
+                                (the world-dimension (* n char-width)))
                     (color-mod char) (color-mod font-drawable)
                     (elt char-last-positions 0) (+ (elt last-positions 0) (* n interpolated-width))
                     (elt char-last-positions 1) (elt last-positions 1)

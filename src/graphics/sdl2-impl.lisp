@@ -56,8 +56,7 @@
 
 (defmethod render :before ((drawable sdl-rectangle-drawable) update-percent (camera simple-camera) renderer)
   ;; Update the sdl-rect relative to CAMERA's position
-  (declare (optimize (speed 3)
-                     (space 3))
+  (declare (optimize (speed 3))
            ((single-float 0.0 1.0) update-percent))
   (with-slots ((rect sdl-rectangle)) drawable
     (declare (sdl2-ffi:sdl-rect rect))
