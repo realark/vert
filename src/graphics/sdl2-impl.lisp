@@ -124,7 +124,9 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
   (with-slots (%sdl-rotation-degrees wrap-width wrap-height) drawable
     (when wrap-width (setf wrap-width (coerce wrap-width 'world-dimension)))
     (when wrap-height (setf wrap-height (coerce wrap-height 'world-dimension)))
-    (setf %sdl-rotation-degrees (coerce (- (rad->deg (rotation drawable))) 'sdl-rotation-degrees)))
+    ;; FIXME: Setting sdl rotation is consing
+    ;; (setf %sdl-rotation-degrees (coerce (- (rad->deg (rotation drawable))) 'sdl-rotation-degrees))
+    )
   (with-slots (flip-list) drawable
     (let ((tmp-list flip-list))
       (setf flip-list '())
@@ -135,7 +137,9 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
   (with-slots (rotation %sdl-rotation-degrees) sdl-texture-drawable
     (declare (sdl-rotation-degrees %sdl-rotation-degrees)
              (rotation-degrees rotation))
-    (setf %sdl-rotation-degrees (coerce (- (rad->deg rotation)) 'sdl-rotation-degrees))))
+    ;; FIXME: Setting sdl rotation is consing
+    ;; (setf %sdl-rotation-degrees (coerce (- (rad->deg rotation)) 'sdl-rotation-degrees))
+    ))
 
 (defmethod (setf color-mod) (value (drawable sdl-texture-drawable))
   (unless value (setf value *white*))
