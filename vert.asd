@@ -112,6 +112,12 @@
                         :components
                         ((:file "jumper")
                          (:file "platformer-game-scene")))
+               (:module tiled
+                :pathname "src/plugins/tiled"
+                :depends-on (:scene)
+                :serial T
+                :components
+                ((:file "tiled-scene")))
                (:module engine-manager
                         :depends-on (:memory :scene)
                         :pathname "src/engine-manager"
