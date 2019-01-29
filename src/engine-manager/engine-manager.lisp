@@ -169,6 +169,7 @@ It is invoked after the engine is fully started.")
 (defun dev-mode-post-game-loop-iteration (engine-manager)
   ;; (reload-textures-if-changed)
   (compute-framerate engine-manager))
+
 (defun reload-textures-if-changed ()
   "If any textures have changed, flush the texture cache and reload."
   (declare (optimize (speed 3)

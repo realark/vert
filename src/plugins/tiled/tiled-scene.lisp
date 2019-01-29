@@ -5,6 +5,7 @@
   (defclass tiled-scene (game-scene)
     ((tiled-map :initarg :tiled-map
                 :initform (error ":tiled-map required")
+                :reader tiled-map
                 :documentation "Path to tiled map file.")
      (tile-size :initarg :tile-size
                 :reader tile-size
@@ -13,6 +14,7 @@
      (width :initform 1 :accessor width)
      (height :initform 1 :accessor height))
     (:documentation "A scene which reads from tiled json files to initialize itself."))
+  (export 'tiled-map)
   (export 'tile-size))
 
 (defmethod initialize-instance :after ((tiled-scene tiled-scene) &rest args)
