@@ -1,11 +1,19 @@
 (in-package :recurse.vert)
 
-@export
-(defclass tiled-scene (game-scene)
-  ((tiled-map :initarg :tiled-map
-              :initform (error ":tiled-map required")
-              :documentation "Path to tiled map file."))
-  (:documentation "A scene which reads from tiled json files to initialize itself."))
+(progn
+  @export
+  (defclass tiled-scene (game-scene)
+    ((tiled-map :initarg :tiled-map
+                :initform (error ":tiled-map required")
+                :documentation "Path to tiled map file.")
+     (tile-size :initarg :tile-size
+                :reader tile-size
+                :initform (error ":tile-size required"))
+     ;; set defaults for scene width and height, which will be resized when map is read
+     (width :initform 1 :accessor width)
+     (height :initform 1 :accessor height))
+    (:documentation "A scene which reads from tiled json files to initialize itself."))
+  (export 'tile-size))
 
 (defmethod initialize-instance :after ((tiled-scene tiled-scene) &rest args)
   (declare (ignore args))
@@ -13,7 +21,7 @@
 
 @export
 (defgeneric on-map-read (tiled-scene tiled-map-path map-num-cols map-num-rows map-tile-size)
-  (:documentation "Invoked when a tiled tile is read. Implementers will add the appropriate game-object to TILED-SCENE."))
+  (:documentation "Invoked when a tiled tile is read. Implementers will resize TILED-SCENE to have enough space to fit the map."))
 
 (progn
   @export
