@@ -61,9 +61,6 @@
 
 (defmethod (setf path-to-image) :before (value (static-sprite static-sprite))
   (declare (optimize (speed 3) (space 3)))
-  ;; probing file is too expensive for animated sprites
-  ;; (unless (probe-file value)
-  ;;   (error (format nil "file not found: \"~A\"" value)))
   (setf (texture-cache-key static-sprite) value))
 
 (defmethod create-sdl-texture ((static-sprite static-sprite) (renderer sdl2-ffi:sdl-renderer))

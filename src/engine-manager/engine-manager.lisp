@@ -62,17 +62,18 @@ Used to determine the number of update frames to execute and the set the interpo
 (defevent engine-stopped ((engine-manager engine-manager))
     "Fired once when the engine stops running.")
 
-(defgeneric change-scene (engine-manager new-scene &optional release-existing-scene)
+(defgeneric change-scene (engine-manager new-scene &optional release-existing-scene preserve-audio)
   (:documentation "Replace the active-scene with NEW-SCENE.
 If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene will be released.")
-  (:method ((engine-manager engine-manager) new-scene &optional (release-existing-scene T))
+  (:method ((engine-manager engine-manager) new-scene &optional (release-existing-scene T) (preserve-audio nil))
     (let ((old-scene (active-scene engine-manager)))
       (unless (eq old-scene new-scene)
         (when (and old-scene (current-music (audio-player engine-manager)))
           ;; Hack to resume music on unpause
-          (if release-existing-scene
-              (setf (music-state (audio-player engine-manager)) :stopped)
-              (setf (music-state (audio-player engine-manager)) :paused)))
+          (unless preserve-audio
+            (if release-existing-scene
+                (setf (music-state (audio-player engine-manager)) :stopped)
+                (setf (music-state (audio-player engine-manager)) :paused))))
         (when new-scene
           (load-resources new-scene (rendering-context engine-manager))
           (do-input-devices device (input-manager engine-manager)
@@ -84,7 +85,8 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
         (multiple-value-bind (width-px height-px)
             (window-size-pixels (application-window *engine-manager*))
           (%after-resize-window (application-window engine-manager) width-px height-px))
-        (when (and (typep old-scene 'pause-scene)
+        (when (and (not preserve-audio)
+                   (typep old-scene 'pause-scene)
                    (eq :paused (music-state (audio-player engine-manager))))
           (setf (music-state (audio-player engine-manager)) :playing)))
       new-scene)))

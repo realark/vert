@@ -50,9 +50,10 @@
         (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
           (loop for i from 0 below (sdl2:joystick-count) do
                (when (sdl2:game-controller-p i)
-                 (let ((controller (sdl2:game-controller-open i)))
-                   (setf (gethash i sdl-controllers) controller)
-                   (setf (gethash i sdl-to-vert-controllers)
+                 (let* ((controller (sdl2:game-controller-open i))
+                        (joy (sdl2:game-controller-get-joystick controller)))
+                   (setf (gethash (sdl2:joystick-instance-id joy) sdl-controllers) controller)
+                   (setf (gethash (sdl2:joystick-instance-id joy) sdl-to-vert-controllers)
                          (register-input-device
                           (input-manager engine-manager)
                           (make-instance 'input-device :input-name "controller")))))))

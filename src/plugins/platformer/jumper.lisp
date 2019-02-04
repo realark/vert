@@ -5,10 +5,10 @@
 (defclass jumper (agent obb-touch-tracker kinematic-object)
   ((max-jumps :initarg :max-jumps :initform 1 :reader max-jumps
               :documentation "Max jumps which can be preformed without touching the ground.")
-   (jump-velocity :initarg :jump-velocity :initform 400
+   (jump-velocity :initarg :jump-velocity :initform 500
                   :reader jump-velocity
                   :documentation "TODO")
-   (jump-height :initarg :jump-height :initform 120
+   (jump-height :initarg :jump-height :initform 130
                 :reader jump-height
                 :documentation "Max height of a single jump")
    (jumps :initform 0 :accessor jumps

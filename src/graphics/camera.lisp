@@ -180,7 +180,7 @@
         (setf value camera-min-zoom))
       (when (> value camera-max-zoom)
         (setf value camera-max-zoom))
-      (setf (slot-value camera 'zoom) value))))
+      (setf (slot-value camera 'zoom) (coerce value 'single-float)))))
 
 
 ;; when the screen width/height changes, rerun zoom check
