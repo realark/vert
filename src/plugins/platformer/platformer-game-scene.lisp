@@ -2,7 +2,7 @@
 
 ;;;; platformer-game-scene
 
-(defparameter *default-gravity-acceleration-seconds* 2000
+(defparameter *default-gravity-acceleration-seconds* 500
   "The default downward force of gravity in px/s/s")
 (defclass platformer-game-scene (game-scene physics-context-2d)
   ((gravity-vector :initarg :gravity-vector

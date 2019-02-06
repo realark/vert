@@ -24,7 +24,7 @@
                   :documentation "Height of the display screen in pixels")
    (pixels-per-unit :initarg :pixels-per-unit
                     :initform 1
-                    :reader pixels-per-unit
+                    :accessor pixels-per-unit
                     :documentation "The number of pixels in one world unit.")
    (zoom :initarg :zoom
          :initform 1.0
@@ -76,6 +76,11 @@
                (call-next-method new-zoom camera)))
 
   (defmethod (setf zoom) :after (value (camera simple-camera))
+             (setf (slot-value camera 'scale)
+                   (coerce (* (zoom camera) (pixels-per-unit camera)) 'camera-scale))
+             (calculate-and-store-camera-width-height camera))
+
+  (defmethod (setf pixels-per-unit) :after (value (camera simple-camera))
              (setf (slot-value camera 'scale)
                    (coerce (* (zoom camera) (pixels-per-unit camera)) 'camera-scale))
              (calculate-and-store-camera-width-height camera)))
@@ -271,8 +276,41 @@
     (when (eq object (target camera))
       (camera-track-target camera))))
 
+;;;; auto-scaling camera
+
+(defclass auto-scaling-camera (simple-camera)
+  ((world-camera-width :initarg :world-camera-width
+                       :initform (error ":world-camera-width required")
+                       :accessor world-camera-width)
+   (world-camera-height :initarg :world-camera-height
+                       :initform (error ":world-camera-height required")
+                       :accessor world-camera-height))
+  (:documentation "A camera which automatically scales pixels-per-unit so the same world rectangle is always shown no matter the size of the display. "))
+
+(labels ((update-pixels-per-unit (camera)
+           (with-accessors ((screen-width screen-width)
+                            (screen-height screen-height)
+                            (world-width world-camera-width)
+                            (world-height world-camera-height)
+                            (ppu pixels-per-unit))
+               camera
+             (let* ((width-scale (/ screen-width world-width))
+                    (height-scale (/ screen-height world-height)))
+               ;; TODO: draw black bars when scaling is not 1:1 or enforce a specific resolution at startup.
+               (setf ppu (min width-scale height-scale))))))
+
+  (defmethod initialize-instance :after ((camera auto-scaling-camera) &rest args)
+             (declare (ignore args))
+             (update-pixels-per-unit camera))
+
+  (defmethod (setf screen-width) :after (value (camera auto-scaling-camera))
+             (update-pixels-per-unit camera))
+
+  (defmethod (setf screen-height) :after (value (camera auto-scaling-camera))
+             (update-pixels-per-unit camera)))
+
 ;;;; default camera
 
-(defclass camera (bounded-camera target-tracking-camera)
+(defclass camera (auto-scaling-camera bounded-camera target-tracking-camera)
   ()
   (:documentation "The default camera class."))

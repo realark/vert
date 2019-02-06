@@ -44,9 +44,9 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
    (wrap-height :initarg :wrap-height
                 :initform nil
                 :documentation "TODO")
-   (fixed-location :initform nil
-                   :initarg :fixed-location
-                   :documentation "TODO"))
+   (fixed-height :initform nil
+                 :initarg :fixed-height
+                 :documentation "When T, the y axis of the background will not scroll."))
   (:documentation "Image displayed behind a scene."))
 
 (defmethod initialize-instance :after ((background scene-background) &key layers)
@@ -55,7 +55,7 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
     (when wrap-width (setf orig-wrap-width wrap-width))
     (setf
      (slot-value background 'layers)
-     (loop :with parallax-images = (make-array 1 :fill-pointer 0 :adjustable T)
+     (loop :with parallax-images = (make-array (length layers) :fill-pointer 0 :adjustable T)
         :for item :in layers :do
           (cond
             ((stringp item) (vector-push-extend (make-instance 'parallax-image
@@ -69,21 +69,16 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
         :finally (return parallax-images)))))
 
 (defmethod render ((background scene-background) update-percent camera rendering-context)
-  (declare (optimize (speed 3) (space 3) (safety 0))
+  (declare (optimize (speed 3) (safety 0))
            (scene-background background)
            (simple-camera camera))
-  ;; FIXME: This isn't fully implemented
-  ;; Doesn't work correctly with zoom
-  ;; (when (slot-value background 'fixed-location)
-  ;;   (setf (x background) (x camera)
-  ;;         (y background) (y camera)))
-  (with-slots (layers fixed-location wrap-width orig-wrap-width wrap-height) background
+  (with-slots (layers fixed-height wrap-width orig-wrap-width wrap-height) background
     (loop :for layer :across layers :do
-         (when fixed-location
+         (when fixed-height
            (when wrap-width
              (setf (slot-value layer 'wrap-width) (/ orig-wrap-width (scale camera))))
            (setf (width layer) (* 10 (the world-dimension (width camera)))
-                 (height layer)  (height camera)
+                 (height layer) (height camera)
                  (x layer) (if wrap-width 0.0 (x camera))
                  (y layer) (y camera)))
          (render layer update-percent camera rendering-context))))

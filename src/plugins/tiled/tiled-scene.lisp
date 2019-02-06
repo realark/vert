@@ -7,9 +7,6 @@
                 :initform (error ":tiled-map required")
                 :reader tiled-map
                 :documentation "Path to tiled map file.")
-     (tile-size :initarg :tile-size
-                :reader tile-size
-                :initform (error ":tile-size required"))
      ;; set defaults for scene width and height, which will be resized when map is read
      (width :initform 1 :accessor width)
      (height :initform 1 :accessor height))
@@ -20,10 +17,6 @@
 (defmethod initialize-instance :after ((tiled-scene tiled-scene) &rest args)
   (declare (ignore args))
   (read-tiled-file tiled-scene))
-
-@export
-(defgeneric on-map-read (tiled-scene tiled-map-path map-num-cols map-num-rows map-tile-size)
-  (:documentation "Invoked when a tiled tile is read. Implementers will resize TILED-SCENE to have enough space to fit the map."))
 
 (progn
   @export
@@ -40,10 +33,24 @@
 
 (progn
   @export
-  (defstruct tiled-object
+  (defstruct (tiled-object (:constructor %make-tiled-object))
     "An object from a tiled object layer"
     (props nil :type list))
-  (export 'tiled-object-props))
+  (export 'tiled-object-props)
+
+  (defun make-tiled-object (&key props)
+    (when (assoc :gid props)
+      ;; tiled uses a y == up coordinate system for image-objects.
+      ;; convert the y prop to its vert equivalent
+      (setf (cdr (assoc :y props))
+            (- (cdr (assoc :y props))
+               (cdr (assoc :height props)))))
+    (%make-tiled-object :props props)))
+
+@export
+(defgeneric on-map-read (tiled-scene tiled-map-path map-num-cols map-num-rows map-tile-width map-tile-height)
+  (:documentation "Invoked when a tiled tile is read. Implementers will resize TILED-SCENE to have enough space to fit the map."))
+
 
 @export
 (defgeneric on-tile-read (tiled-scene tileset tile-map-col tile-map-row tile-source-col tile-source-row)
@@ -85,9 +92,10 @@
         (let* ((json:*json-identifier-name-to-lisp* #'identity)
                (json:*identifier-name-to-key* #'tilemap-name-to-key)
                (json (json:decode-json stream))
-               (map-width-tiles (json-val json :width))
-               (map-height-tiles (json-val json :height))
+               (map-num-cols (json-val json :width))
+               (map-num-rows (json-val json :height))
                (map-tile-width (json-val json :tilewidth))
+               (map-tile-height (json-val json :tileheight))
                (map-orientation (json-val json :orientation))
                (map-render-order (json-val json :renderorder))
                (tilesets (make-hash-table :test #'equalp))
@@ -101,7 +109,7 @@
             (error "Error reading ~A. render-order = ~A unsupported."
                    tiled-map-path
                    map-render-order))
-          (on-map-read tiled-scene tiled-map-path map-width-tiles map-height-tiles map-tile-width)
+          (on-map-read tiled-scene tiled-map-path map-num-cols map-num-rows map-tile-width map-tile-height)
 
           (loop :for tileset-json :in (json-val json :tilesets) :do
             (setf (gethash (json-val tileset-json :firstgid) tilesets)
@@ -115,7 +123,7 @@
                (loop :for tile-number :in (json-val layer-json :data) :for i :from 0 :do
                  (unless (= 0 tile-number)
                    (multiple-value-bind (tileset gid) (tileset-for-tile tile-number tilesets)
-                     (multiple-value-bind (map-row map-col) (floor i map-width-tiles)
+                     (multiple-value-bind (map-row map-col) (floor i map-num-cols)
                        (multiple-value-bind (source-row source-col) (floor (- tile-number gid) (tileset-columns tileset))
                          (on-tile-read tiled-scene
                                        tileset

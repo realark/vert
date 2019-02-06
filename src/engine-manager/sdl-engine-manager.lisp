@@ -35,7 +35,7 @@
             (sdl2:gl-get-attr :CONTEXT-MINOR-VERSION)
             (sdl2:gl-get-attr :context-profile-mask))
 
-    (sdl2:with-window (win :w 800 :h 600
+    (sdl2:with-window (win :w 1280 :h 720
                            :flags '(:shown :opengl :resizable)
                            :title (game-name engine-manager))
       (sdl2:with-renderer (renderer win :index -1 :flags '(:accelerated :presentvsync))

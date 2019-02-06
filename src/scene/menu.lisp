@@ -21,7 +21,9 @@
     :initform 36)
    (camera :initarg :camera
            :accessor camera
-           :initform (make-instance 'camera :pixels-per-unit 1))
+           :initform (make-instance 'camera
+                                    :world-camera-width 320
+                                    :world-camera-height 180))
    ;; TODO play music
    (music :initarg :music
           :initform nil
@@ -42,10 +44,11 @@
                title-color
                title-font-size item-font-size)
       menu
-    (let ((current-y 25)
-          (y-space-between-items (+ (height node) 25)))
+    (let ((current-y 5)
+          (y-space-between-items (+ (height node) 5)))
       (setf (font-size node) title-font-size)
-      (multiple-value-bind (title-width title-height) (font-dimensions node)
+      (let ((title-width 100)
+             (title-height 20))
         (setf (color-mod node) title-color
               (width node) title-width
               (height node) title-height
@@ -61,7 +64,8 @@
                                   selected-item-color
                                   item-color)))
              (setf (font-size child) item-font-size)
-             (multiple-value-bind (item-width item-height) (font-dimensions child)
+             (let ((item-width 75)
+                   (item-height 15))
                (setf (color-mod child) child-color
                      (width child) item-width
                      (height child) item-height
