@@ -159,8 +159,7 @@ It is invoked after the engine is fully started.")
     ;; stop services
     (stop-audio-system)
     (fire-event engine-manager engine-stopped)
-    ;; TODO: Clear all caches?
-    (clear-cache (get-registered-cache *memory-manager* "text-cache"))
+    (clear-all-caches *memory-manager*)
     (format t "~%~%")))
 
 ;; debugging and dev mode tools

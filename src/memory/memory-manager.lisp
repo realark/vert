@@ -36,3 +36,9 @@ Returns CACHE.")
           (error "~A not registered in ~A" cache-name memory-manager))
         (setf caches (delete cache-name caches :key #'car :test #'equalp))
         (cdr cache)))))
+
+(defun clear-all-caches (memory-manager)
+  "Clear all caches managed by MEMORY-MANAGER."
+  (declare (memory-manager memory-manager))
+  (loop :for (name . cache) :in (caches memory-manager) :do
+       (clear-cache cache)))
