@@ -230,11 +230,7 @@ It is invoked after the engine is fully started.")
 
 (let* ((line-width-px 150.0)
        (line-height-px 100.0)
-       (rendered-text (make-instance 'font-drawable
-                                     :width line-width-px
-                                     :height line-height-px
-                                     :color *red*
-                                     :text "0.0fps"))
+       (rendered-text nil)
        (number-cache (make-instance 'cache
                                     :test #'equal
                                     :on-evict (lambda (line-num line-cache)
@@ -250,6 +246,13 @@ It is invoked after the engine is fully started.")
     "Render dev-mode info to the upper-right corner of the game window"
     (declare (optimize (speed 3)
                        (space 3)))
+    (unless rendered-text
+      (setf rendered-text
+            (make-instance 'font-drawable
+                           :width line-width-px
+                           :height line-height-px
+                           :color *red*
+                           :text "0.0fps")))
     (with-slots (current-fps min-fps) engine-manager
       (let ((camera (camera (active-scene engine-manager)))
             (line-num 0))
