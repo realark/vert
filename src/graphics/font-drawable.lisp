@@ -37,6 +37,9 @@
            (texture (sdl2:create-texture-from-surface renderer surf)))
       (sdl2-ttf:close-font font)
       (sdl2:free-surface surf)
+      ;; sdl2-ttf manually frees the underlying pointer in a finalizer by default.
+      ;; Cancel it because we're handling that ourselves.
+      (tg:cancel-finalization surf)
       texture)))
 
 ;; TODO: directly cache the textures themselves instead of historical uncached-font-drawable cruft
