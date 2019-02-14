@@ -8,6 +8,9 @@
    (scene-ticks :initform 0
                 :reader scene-ticks
                 :documentation "Amount of milliseconds passed in the game scene")
+   (scheduled-tasks :initform (make-array 0 :fill-pointer 0 :adjustable T)
+                    :documentation "key-value plist-vector of (timestamp zero-arg-fn). When SCENE-TICKS equal or exceed the timestamp, the lambda will be invoked.
+List is ascending timestamp ordered.")
    (scene-music :initarg :music
                 :initform nil
                 :accessor scene-music
@@ -81,6 +84,7 @@ On the next render frame, the objects will be given a chance to load and this li
 (defmethod update ((game-scene game-scene) delta-t-ms (null null))
   (declare (optimize (speed 3))
            (ignore null))
+  (%run-scheduled-callbacks game-scene)
   (do-spatial-partition (game-object (spatial-partition game-scene))
     (update game-object delta-t-ms game-scene))
   (incf (slot-value game-scene 'scene-ticks) delta-t-ms)
@@ -101,3 +105,31 @@ On the next render frame, the objects will be given a chance to load and this li
 
 (defevent-callback killed ((object aabb) (game-scene game-scene))
   (remove-from-scene game-scene object))
+
+@export
+(defun schedule (game-scene timestamp zero-arg-fn)
+  "When the value returned by SCENE-TICKS of GAME-SCENE equals or exceeds TIMESTAMP the ZERO-ARG-FN callback will be invoked."
+  (declare (game-scene game-scene))
+  (with-slots (scheduled-tasks) game-scene
+    (vector-push-extend timestamp scheduled-tasks)
+    (vector-push-extend zero-arg-fn scheduled-tasks)))
+
+@export
+(defun cancel-scheduled-callback (zero-arg-fn &key (error-if-not-scheduled T))
+  (declare (ignore zero-arg-fn error-if-not-scheduled))
+  (error "TODO"))
+
+(defun %run-scheduled-callbacks (game-scene)
+  (declare (game-scene game-scene))
+  (with-slots ((tasks scheduled-tasks) (now scene-ticks)) game-scene
+    (loop :for i :from 0 :below (length tasks) :by 2 :do
+         (let ((time-to-run (elt tasks i))
+               (callback (elt tasks (+ i 1))))
+           (if (>= now time-to-run)
+               (progn
+                 (funcall callback)
+                 (setf (elt tasks i) nil
+                       (elt tasks (+ 1 i)) nil))
+               ;; timestamps are ordered so we know nothing else is scheduled
+               (return))))
+    (setf tasks (delete nil tasks))))
