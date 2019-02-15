@@ -47,22 +47,13 @@
         (sdl2-ttf:init)
         (register-input-device (input-manager engine-manager)
                                (slot-value engine-manager 'keyboard-input))
-        (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
-          (loop for i from 0 below (sdl2:joystick-count) do
-               (when (sdl2:game-controller-p i)
-                 (let* ((controller (sdl2:game-controller-open i))
-                        (joy (sdl2:game-controller-get-joystick controller)))
-                   (setf (gethash (sdl2:joystick-instance-id joy) sdl-controllers) controller)
-                   (setf (gethash (sdl2:joystick-instance-id joy) sdl-to-vert-controllers)
-                         (register-input-device
-                          (input-manager engine-manager)
-                          (make-instance 'input-device :input-name "controller")))))))
+        (loop for i from 0 below (sdl2:joystick-count) do
+             (initialize-sdl-controller engine-manager i))
         (call-next-method)))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
-  (loop for id being the hash-keys in (slot-value engine-manager 'sdl-controllers)
-     using (hash-value controller) do
-       (sdl2:game-controller-close controller))
+  (loop :for sdl-joystick-id :being :the hash-keys :in (slot-value engine-manager 'sdl-controllers) :do
+       (remove-sdl-controller engine-manager sdl-joystick-id))
   (sdl2-image:quit)
   (sdl2-ttf:quit))
 
@@ -90,12 +81,38 @@
   ;; TODO: convert to up/down/left/right keys
   )
 
+(defun initialize-sdl-controller (engine-manager device-index)
+  ;; FIXME: Send event to input users
+  (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
+    (when (sdl2:game-controller-p device-index)
+      (let* ((controller (sdl2:game-controller-open device-index))
+             (joy (sdl2:game-controller-get-joystick controller)))
+        (setf (gethash (sdl2:joystick-instance-id joy) sdl-controllers) controller)
+        (setf (gethash (sdl2:joystick-instance-id joy) sdl-to-vert-controllers)
+              (register-input-device
+               (input-manager engine-manager)
+               (make-instance 'input-device :input-name "controller")))))))
+
+(defun remove-sdl-controller (engine-manager sdl-joystick-id)
+  ;; FIXME: Send event to input users
+  (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
+    (sdl2:game-controller-close (gethash sdl-joystick-id sdl-controllers))
+    (remhash sdl-joystick-id sdl-controllers)
+    (remhash sdl-joystick-id sdl-to-vert-controllers)))
+
 (defmethod run-game-loop ((engine-manager sdl-engine-manager))
   (sdl2:with-event-loop (:method :poll)
     (:keydown (:keysym keysym)
               (sdl-key-down (slot-value engine-manager 'keyboard-input) keysym))
     (:keyup (:keysym keysym)
             (sdl-key-up (slot-value engine-manager 'keyboard-input) keysym))
+    (:controllerdeviceadded (:which device-index)
+                            (initialize-sdl-controller engine-manager device-index))
+    (:controllerdeviceremapped (:which id)
+                               ;; TODO: what does this mean and how do I handle it?
+                               (format T "Controller remapped: ~A~%" id))
+    (:controllerdeviceremoved (:which sdl-joystick-id)
+                              (remove-sdl-controller engine-manager sdl-joystick-id))
     ;; TODO: convert to up/down/left/right keys
     ;;  (:controlleraxismotion (:which controller-id :axis axis-id :value value)
     ;;   (sdl-joystick-movement controller-id axis-id value))
