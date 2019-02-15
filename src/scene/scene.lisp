@@ -11,16 +11,26 @@
                                     :screen-height 100)
            :accessor camera)
    (scene-input :initform (make-array 4 :adjustable T :fill-pointer 0)
-                :reader scene-input
+                :accessor scene-input
                 :documentation "list of input-devices hooked up to the scene"))
   (:documentation "Generic scene class."))
 
-(defgeneric add-scene-input (scene input)
-  (:documentation "Hook up INPUT to SCENE")
-  (:method ((scene scene) (input input-device))
-    (unless (find input (scene-input scene))
-      (vector-push-extend input (scene-input scene)))
-    input))
+(defun add-scene-input (scene input)
+  "Hook up INPUT to SCENE"
+  (declare (scene scene)
+           (input-device input))
+  ;; TODO: Fire an event
+  (unless (find input (scene-input scene))
+    (vector-push-extend input (scene-input scene))))
+
+(defun remove-scene-input (scene input)
+  "Remove INPUT from SCENE"
+  (declare (scene scene)
+           (input-device input))
+  ;; TODO: Fire an event
+  (when (find input (scene-input scene))
+    (with-accessors ((scene-input scene-input)) scene
+      (setf scene-input (delete input scene-input)))))
 
 (defmethod update ((scene scene) (delta-t-ms real) (null null))
   (declare (ignore scene delta-t-ms null)))

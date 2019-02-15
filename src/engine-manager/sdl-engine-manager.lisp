@@ -86,19 +86,25 @@
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
     (when (sdl2:game-controller-p device-index)
       (let* ((controller (sdl2:game-controller-open device-index))
-             (joy (sdl2:game-controller-get-joystick controller)))
+             (joy (sdl2:game-controller-get-joystick controller))
+             (vert-input-device (make-instance 'input-device :input-name "controller")))
         (setf (gethash (sdl2:joystick-instance-id joy) sdl-controllers) controller)
         (setf (gethash (sdl2:joystick-instance-id joy) sdl-to-vert-controllers)
               (register-input-device
                (input-manager engine-manager)
-               (make-instance 'input-device :input-name "controller")))))))
+               vert-input-device))
+        (when (active-scene engine-manager)
+          (add-scene-input (active-scene engine-manager) vert-input-device))))))
 
 (defun remove-sdl-controller (engine-manager sdl-joystick-id)
   ;; FIXME: Send event to input users
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
     (sdl2:game-controller-close (gethash sdl-joystick-id sdl-controllers))
     (remhash sdl-joystick-id sdl-controllers)
-    (remhash sdl-joystick-id sdl-to-vert-controllers)))
+    (let ((vert-input-device (gethash sdl-joystick-id sdl-to-vert-controllers)))
+      (remhash sdl-joystick-id sdl-to-vert-controllers)
+      (when (active-scene engine-manager)
+        (remove-scene-input (active-scene engine-manager) vert-input-device)))))
 
 (defmethod run-game-loop ((engine-manager sdl-engine-manager))
   (sdl2:with-event-loop (:method :poll)
