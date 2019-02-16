@@ -112,6 +112,12 @@
                         :components
                         ((:file "jumper")
                          (:file "platformer-game-scene")))
+               (:module state-machine
+                :pathname "src/plugins"
+                :depends-on (:core)
+                :serial T
+                :components
+                ((:file "state-machine")))
                (:module tiled
                 :pathname "src/plugins/tiled"
                 :depends-on (:scene)
