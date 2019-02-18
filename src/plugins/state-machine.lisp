@@ -47,44 +47,34 @@
       (%state-name (elt (%state-machine-states state-machine) (%state-machine-active state-machine))))))
 
 @export
-(defun change-state (stateful-game-object state-machine-name new-state-name)
+(defun change-state (stateful-game-object world-context state-machine-name new-state-name)
   "Queue up a state change for STATEFUL-GAME-OBJECT to run on next UPDATE-USER."
   (declare (stateful stateful-game-object)
            (keyword state-machine-name new-state-name))
-  (with-slots (pending-state-changes state-machines) stateful-game-object
-    (let((state-machine (gethash state-machine-name state-machines)))
+  (with-slots (state-machines) stateful-game-object
+    (let* ((state-machine (gethash state-machine-name state-machines))
+           (current-state (when state-machine (elt (%state-machine-states state-machine) (%state-machine-active state-machine)))))
       (unless state-machine
         (error "~A state-machine not present in ~A"
                state-machine-name
-               stateful-game-object)))
-    (setf (gethash state-machine-name pending-state-changes)
-          (nconc (gethash state-machine-name pending-state-changes)
-                 (list new-state-name)))))
+               stateful-game-object))
+      (unless (eq (%state-name current-state) new-state-name)
+        (loop :for i :from 0
+           :for state :across (%state-machine-states state-machine) :do
+             (when (eq new-state-name (%state-name state))
+               (let ((old-state (elt (%state-machine-states state-machine) (%state-machine-active state-machine)))
+                     (new-state (elt (%state-machine-states state-machine) i)))
+                 (when (%state-on-deactivate old-state)
+                   (funcall (%state-on-deactivate old-state)
+                            :game-object stateful-game-object :world-context world-context :next-state new-state))
+                 (setf (%state-machine-active state-machine) i)
+                 (when (%state-on-activate new-state)
+                   (funcall (%state-on-activate new-state)
+                            :game-object stateful-game-object :world-context world-context :previous-state old-state)))
+               (return))
+           :finally (error "State ~A not found in state machine ~A" new-state-name state-machine-name))))))
 
 (defmethod update-user :after ((stateful stateful) delta-t-ms world-context)
-  (with-slots (state-machines pending-state-changes) stateful ; run pending state changes
-    (loop :for state-machine-name :being :the hash-keys :of pending-state-changes
-       :using (hash-value new-states) :do
-         (loop :with state-machine = (gethash state-machine-name state-machines)
-            :for new-state-name :in new-states :do
-              (let ((current-state (elt (%state-machine-states state-machine) (%state-machine-active state-machine))))
-                (unless (eq (%state-name current-state) new-state-name)
-                  (loop :for i :from 0
-                     :for state :across (%state-machine-states state-machine) :do
-                       (when (eq new-state-name (%state-name state))
-                         (let ((old-state (elt (%state-machine-states state-machine) (%state-machine-active state-machine)))
-                               (new-state (elt (%state-machine-states state-machine) i)))
-                           (when (%state-on-deactivate old-state)
-                             (funcall (%state-on-deactivate old-state)
-                                      :game-object stateful :delta-t-ms delta-t-ms :world-context world-context :next-state new-state))
-                           (setf (%state-machine-active state-machine) i)
-                           (when (%state-on-activate new-state)
-                             (funcall (%state-on-activate new-state)
-                                      :game-object stateful :delta-t-ms delta-t-ms :world-context world-context :previous-state old-state)))
-                         (return))
-                     :finally (error "State ~A not found in state machine ~A" new-state-name state-machine-name)))))
-         (remhash state-machine-name pending-state-changes)))
-
   (with-slots (state-machines) stateful ; invoke active state actions
     (loop :for state-machine :being :the hash-values :of state-machines :do
          (let ((while-active-fn (%state-while-active  (elt (%state-machine-states state-machine) (%state-machine-active state-machine)))))
