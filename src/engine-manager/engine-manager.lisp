@@ -119,15 +119,26 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                  (setf next-update-timestamp (+ start-of-loop-ts +update-timestep+))
                  (return)))
              (update active-scene +update-timestep+ nil)
-             (incf next-update-timestamp +update-timestep+))
-        ;; render
-        (render active-scene
-                (coerce
-                 (/ (- (+ start-of-loop-ts +update-timestep+) next-update-timestamp)
-                    +update-timestep+)
-                 'single-float)
-                nil
-                renderer)
+             (incf next-update-timestamp +update-timestep+)
+             ;; render here?
+             (render active-scene
+                     (coerce
+                      (/ (- (+ start-of-loop-ts +update-timestep+) next-update-timestamp)
+                         +update-timestep+)
+                      'single-float)
+                     nil
+                     renderer)
+             ;; (incf start-of-loop-ts +update-timestep+)
+           :finally
+             (when (< i 1)
+               ;; ensure rendering happens even when no updates do
+               (render active-scene
+                       (coerce
+                        (/ (- (+ start-of-loop-ts +update-timestep+) next-update-timestamp)
+                           +update-timestep+)
+                        'single-float)
+                       nil
+                       renderer)))
         (when *dev-mode* (dev-mode-pre-render engine-manager))
         (render-game-window engine-manager)
         (when *dev-mode* (dev-mode-post-game-loop-iteration engine-manager))))))
