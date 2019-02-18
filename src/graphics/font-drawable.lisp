@@ -134,7 +134,9 @@
                     (x char) (+ (the world-position (x font-drawable))
                                 (the world-dimension (* n char-width)))
                     (color-mod char) (color-mod font-drawable)
-                    (elt char-last-positions 0) (+ (elt last-positions 0) (* n interpolated-width))
-                    (elt char-last-positions 1) (elt last-positions 1)
+                    ;; (elt char-last-positions 0) (+ (elt last-positions 0) (* n interpolated-width))
+                    ;; (elt char-last-positions 1) (elt last-positions 1)
                     n (+ n 1))
+              ;; FIXME: font-drawable must set interpolation values for its chars before its own interpolations are updated in the :before method
+              (recycle char)
               (render char update-percent camera rendering-context)))))
