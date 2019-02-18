@@ -1,11 +1,6 @@
 ;;;; Implement rendering using sdl2 texture and rectangle
 (in-package :recurse.vert)
 
-;; performance hack to mark an object a uninitialized
-;; objects will rarely be on the far negative boundary so this
-;; will likely never be a problem
-(defconstant %uninitialized-interpolated-value% (expt -2 31))
-
 (deftype sdl-rotation-degrees ()
   "Counter-clockwise rotation of an sdl texture about its local center"
   ;; reverse sdl angle because our
@@ -16,14 +11,7 @@
 (defclass sdl-rectangle-drawable (aabb)
   ((sdl-rectangle :accessor sdl-rectangle
                   :type sdl2-ffi:sdl-rect
-                  :documentation "SDL Rendering rectangle")
-   (last-positions
-    :type (vector screen-unit)
-    ;; TODO: make interpolation work with new vector
-    :initform (make-array 2
-                          :initial-element %uninitialized-interpolated-value%
-                          :element-type 'screen-unit)
-    :documentation "last two screen x-y positions. Used for render interpolation."))
+                  :documentation "SDL Rendering rectangle"))
   (:documentation "A drawable which uses an sdl rectangle for rendering"))
 
 (defmethod initialize-instance :after ((drawable sdl-rectangle-drawable) &rest args)
@@ -31,28 +19,10 @@
   (with-accessors ((rect sdl-rectangle)) drawable
     (setf rect (sdl2:make-rect 0 0 1 1))))
 
-(proclaim '(inline %interpolate))
-(defun %interpolate (drawable x0 y0 update-percent)
-  (declare (optimize (speed 3)
-                     (space 3)))
-  (with-slots ((last last-positions)) drawable
-    (declare (screen-unit x0 y0)
-             ((single-float 0.0 1.0) update-percent)
-             ((simple-array screen-unit) last))
-    ;; 0 = last render frame
-    ;; 1 = two renders ago
-    (when (= %uninitialized-interpolated-value%
-             (elt last 0))
-      (setf (elt last 0) x0)
-      (setf (elt last 1) y0))
-    (let* ((x1 (elt last 0))
-           (y1 (elt last 1))
-           (ix (+ x1 (ceiling (* update-percent (- x0 x1)))))
-           (iy (+ y1 (ceiling (* update-percent (- y0 y1))))))
-      (setf (elt last 0) x0)
-      (setf (elt last 1) y0)
-      (the (values screen-unit screen-unit)
-           (values ix iy)))))
+(defmethod update :before ((drawable sdl-rectangle-drawable) delta-t-ms world-context)
+  (declare (optimize (speed 3)))
+
+  (values))
 
 (defmethod render :before ((drawable sdl-rectangle-drawable) update-percent (camera simple-camera) renderer)
   ;; Update the sdl-rect relative to CAMERA's position
@@ -64,12 +34,10 @@
         (world-to-screen-dimensions drawable camera)
       (setf (sdl2:rect-width rect) screen-width
             (sdl2:rect-height rect) screen-height))
-    (multiple-value-bind (x y) (world-to-screen-cords drawable camera)
-      (declare (screen-unit x y))
-      (multiple-value-bind (x y) (%interpolate drawable x y update-percent)
-        (declare (screen-unit x y))
-        (setf (sdl2:rect-x rect) x
-              (sdl2:rect-y rect) y))))
+    (multiple-value-bind (screen-x screen-y) (world-to-screen-cords drawable camera update-percent)
+      (declare (screen-unit screen-x screen-y))
+      (setf (sdl2:rect-x rect) screen-x
+            (sdl2:rect-y rect) screen-y)))
   (values))
 
 (defmethod recycle :after ((sdl-rectangle-drawable sdl-rectangle-drawable))

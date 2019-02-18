@@ -16,23 +16,22 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
                       :accessor vertical-parallax
                       :documentation "y-axis scrolling factor")))
 
-(defmethod world-to-screen-cords ((background parallax-image) (camera simple-camera))
-  (declare (optimize (speed 3)
-                     (space 3))
+(defmethod world-to-screen-cords ((background parallax-image) (camera simple-camera) update-percent)
+  (declare (optimize (speed 3))
            (sdl-rectangle-drawable background)
            (simple-camera camera))
-  (with-accessors ((drawable-x x)
-                   (drawable-y y)
-                   (horizontal-parallax horizontal-parallax)
+  (with-accessors ((horizontal-parallax horizontal-parallax)
                    (vertical-parallax vertical-parallax))
       background
-    (with-accessors ((scale scale) (camera-x x) (camera-y y)) camera
-      (declare (world-position drawable-x drawable-y camera-x camera-y)
-               (parallax-factor horizontal-parallax vertical-parallax)
-               (camera-scale scale))
-      (the (values screen-unit screen-unit)
-           (values (ceiling (* scale (- drawable-x (* horizontal-parallax camera-x))))
-                   (ceiling (* scale (- drawable-y (* vertical-parallax camera-y)))))))))
+    (multiple-value-bind (drawable-x drawable-y) (interpolate-position background update-percent)
+      (with-accessors ((scale scale)) camera
+        (multiple-value-bind (camera-x camera-y) (interpolate-position camera update-percent)
+          (declare (world-position drawable-x drawable-y camera-x camera-y)
+                   (parallax-factor horizontal-parallax vertical-parallax)
+                   (camera-scale scale))
+          (the (values screen-unit screen-unit)
+               (values (ceiling (* scale (- drawable-x (* horizontal-parallax camera-x))))
+                       (ceiling (* scale (- drawable-y (* vertical-parallax camera-y)))))))))))
 
 @export-class
 (defclass scene-background (aabb)
@@ -69,7 +68,7 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
         :finally (return parallax-images)))))
 
 (defmethod render ((background scene-background) update-percent camera rendering-context)
-  (declare (optimize (speed 3) (safety 0))
+  (declare (optimize (speed 3))
            (scene-background background)
            (simple-camera camera))
   (with-slots (layers fixed-height wrap-width orig-wrap-width wrap-height) background
@@ -81,7 +80,7 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
                  (height layer) (height camera)
                  (x layer) (if wrap-width 0.0 (x camera))
                  (y layer) (y camera)))
-         (render layer update-percent camera rendering-context))))
+         (render layer 1.0 camera rendering-context))))
 
 ;; TODO: apply this logic to parallax-image
 #+nil

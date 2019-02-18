@@ -13,6 +13,10 @@
 (defparameter *min-world-unit*
   (- *max-world-unit*)
   "Min x/y/z value of the world")
+
+(defparameter %uninitialized-interpolated-value% *min-world-unit*
+  "Performance hack to mark an object a uninitialized. Objects will rarely be on the far negative boundary so this will likely never be a problem.")
+
 (defparameter *max-world-dimension* *max-world-unit*
   "Max width/height of an object face.")
 (defparameter *min-world-dimension* #.(expt 10.0 -5)

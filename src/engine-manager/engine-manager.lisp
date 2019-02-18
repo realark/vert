@@ -1,6 +1,7 @@
 (in-package :recurse.vert)
 
-(defconstant +update-timestep+ (floor (/ 1000 60))
+;; TODO: rename to timestep
+(defconstant +update-timestep+ 16
   "Duration of the update timeslice in milliseconds. Just over 60 update frames per second.")
 
 (defparameter *num-framerate-samples* 6
@@ -40,11 +41,9 @@
    (clear-color :initform *black*
                 :accessor clear-color
                 :documentation "Set the clear color for the rendering window.")
-   (next-update-timestamp :initarg :next-update-timestamp
-                          :initform (ticks)
-                          :accessor next-update-timestamp
-                          :documentation "Timestamp (ms) of the next desired update frame.
-Used to determine the number of update frames to execute and the set the interpolation value for the render frame.")
+   (lag-ns :initform 0
+           :accessor lag-ns)
+   (last-loop-start-ns :initform (ticks-nanos) :accessor last-loop-start-ns)
    ;; debugging
    (current-fps :initform 60.0)
    (min-fps :initform 300.0)
@@ -77,8 +76,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
         (when new-scene
           (load-resources new-scene (rendering-context engine-manager))
           (do-input-devices device (input-manager engine-manager)
-            (add-scene-input new-scene device))
-          (setf (next-update-timestamp engine-manager) nil))
+            (add-scene-input new-scene device)))
         (when (and old-scene release-existing-scene)
           (release-resources old-scene))
         (setf (active-scene engine-manager) new-scene)
@@ -91,54 +89,38 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           (setf (music-state (audio-player engine-manager)) :playing)))
       new-scene)))
 
-(defmethod (setf next-update-timestamp) :around (value (engine-manager engine-manager))
-  (if value
-      (call-next-method value engine-manager)
-      (call-next-method (ticks) engine-manager)))
-
 (defgeneric game-loop-iteration (engine-manager)
   (:documentation "Run a single iteration of the game loop.")
   (:method ((engine-manager engine-manager))
-    (declare (optimize (space 3)))
+    (declare (optimize (speed 3)))
     (with-accessors ((active-scene active-scene)
                      (renderer rendering-context)
-                     (next-update-timestamp next-update-timestamp))
+                     (lag lag-ns)
+                     (last-loop-start last-loop-start-ns))
         engine-manager
-      (let ((start-of-loop-ts (ticks)))
-        (declare
-         ((integer 1 100) +update-timestep+)
-         (fixnum next-update-timestamp start-of-loop-ts))
-        ;; update
-        (loop with i = 0
-           while (<= next-update-timestamp start-of-loop-ts) do
-             (locally
-                 (declare ((integer 0 11) i))
-               (when (>= (incf i) 10)
-                 ;; after 10 iterations something is really wrong (maybe slow hardware).
-                 ;; Give up trying to catch up and just reset to a normal state.
-                 (setf next-update-timestamp (+ start-of-loop-ts +update-timestep+))
-                 (return)))
-             (update active-scene +update-timestep+ nil)
-             (incf next-update-timestamp +update-timestep+)
-             ;; render here?
-             (render active-scene
-                     (coerce
-                      (/ (- (+ start-of-loop-ts +update-timestep+) next-update-timestamp)
-                         +update-timestep+)
-                      'single-float)
-                     nil
-                     renderer)
-             ;; (incf start-of-loop-ts +update-timestep+)
-           :finally
-             (when (< i 1)
-               ;; ensure rendering happens even when no updates do
-               (render active-scene
-                       (coerce
-                        (/ (- (+ start-of-loop-ts +update-timestep+) next-update-timestamp)
-                           +update-timestep+)
-                        'single-float)
-                       nil
-                       renderer)))
+      (declare (fixnum last-loop-start lag))
+      (let* ((now-ns (ticks-nanos))
+             (delta-ns (- (the fixnum now-ns) last-loop-start))
+             (timestep-ns (* +update-timestep+ #.(expt 10 6))))
+        (declare (fixnum now-ns delta-ns timestep-ns))
+        (setf last-loop-start now-ns)
+        (incf lag delta-ns)
+
+        (loop :for i :from 0
+           :while (>= lag timestep-ns) :do
+           ;; TODO: what if we debug and pause for a really long time?
+             (locally (declare ((integer 0 100) i))
+               (when (> i 10)
+                 ;; update thread was likely just blocked on debugging. Give up trying to catch up.
+                 (format T "Update thread very far behind. Resetting to a good state.~%")
+                 (setf lag timestep-ns)))
+             (decf lag timestep-ns)
+             (update active-scene +update-timestep+ nil))
+
+        (render active-scene
+                (coerce (/ lag timestep-ns) 'single-float)
+                nil
+                renderer)
         (when *dev-mode* (dev-mode-pre-render engine-manager))
         (render-game-window engine-manager)
         (when *dev-mode* (dev-mode-post-game-loop-iteration engine-manager))))))

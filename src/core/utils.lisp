@@ -17,6 +17,11 @@
   "Wallclock millisecond timestamp starting from an arbitrary point in time."
   `(sdl2:get-ticks))
 
+(defun ticks-nanos ()
+  "Wallclock nanosecond timestamp starting from an arbitrary point in time."
+  (multiple-value-bind (sec microsec) (sb-ext:get-time-of-day)
+    (+ (* sec #.(expt 10 9)) (* microsec #.(expt 10 3)))))
+
 (defun merge-symbols (package &rest symbols)
   (intern (apply #'concatenate 'string
                  (mapcar #'symbol-name symbols))

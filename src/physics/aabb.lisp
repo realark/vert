@@ -10,6 +10,12 @@
            :initform 1.0
            :type world-dimension
            :accessor height)
+   (last-positions
+    :type (vector world-position)
+    :initform (make-array 3
+                          :initial-element %uninitialized-interpolated-value%
+                          :element-type 'world-position)
+    :documentation "x-y-z positions of this object at the end of the last update frame. Used for interpolation.")
    (local-points :initform nil)
    (world-points :initform
                  (make-array
@@ -48,6 +54,37 @@
   (setf (point-z (slot-value aabb 'world-position)) (coerce value 'world-position)))
 
 (defmethod rotation ((aabb aabb)) 0f0)
+
+(defmethod interpolate-position ((game-object aabb) update-percent)
+  (declare (optimize (speed 3)))
+  (with-slots ((last last-positions) ) game-object
+    (with-accessors ((x1 x) (y1 y) (z1 z)) game-object
+      (declare (world-position x1 y1 z1)
+               ((single-float 0.0 1.0) update-percent)
+               ((simple-array world-position) last))
+      (when (= %uninitialized-interpolated-value%
+               (elt last 0))
+        (setf (elt last 0) x1
+              (elt last 1) y1
+              (elt last 2) z1))
+      ;; 0 = two update frames ago
+      ;; 1 = last update frame
+      (let* ((x0 (elt last 0))
+             (y0 (elt last 1))
+             (z0 (elt last 2))
+             (ix (+ x0 (* update-percent (- x1 x0))))
+             (iy (+ y0 (* update-percent (- y1 y0))))
+             (iz (+ z0 (* update-percent (- z1 z0)))))
+        (the (values world-position world-position)
+             (values ix iy iz))))))
+
+(defmethod pre-update ((aabb aabb))
+  (with-slots ((last last-positions)) aabb
+    (declare ((simple-array world-position) last))
+    (setf (elt last 0) (x aabb)
+          (elt last 1) (y aabb)
+          (elt last 2) (z aabb)))
+  (values))
 
 (defmethod print-object ((aabb aabb) out)
   (print-unreadable-object (aabb out :type t)

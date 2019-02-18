@@ -50,6 +50,5 @@
   )
 
 (defmethod update :after ((scene scene) delta-t-ms context)
-  (declare (ignore delta-t-ms context))
   (loop for device across (scene-input scene) do
        (after-input-update device)))
