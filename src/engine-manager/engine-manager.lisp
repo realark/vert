@@ -270,7 +270,7 @@ It is invoked after the engine is fully started.")
                      (setf (text rendered-text) text
                            (y rendered-text) (+ camera-y (/ (* line-num line-height-px) camera-zoom)))
                      (render rendered-text
-                             0.0
+                             1.0
                              camera
                              (rendering-context engine-manager))
                      (incf line-num)))
