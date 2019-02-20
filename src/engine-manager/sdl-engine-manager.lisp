@@ -77,9 +77,35 @@
                     (alexandria:make-keyword (write-to-string button-id))))
 
 (defun sdl-joystick-movement (controller-id axis-id value)
-  (declare (ignore controller-id axis-id value))
-  ;; TODO: convert to up/down/left/right keys
-  )
+  ;; TODO: properly handle analog input in the input system instead of mocking dpad left and right
+  (let ((dead-zone 8000))
+    (cond ((= 0 axis-id)
+           (cond ((> value dead-zone)
+                  ;; right
+                  (activate-input (gethash controller-id (slot-value *engine-manager*
+                                                                     'sdl-to-vert-controllers))
+                                  :14))
+                 ((< value (- dead-zone))
+                  ;; left
+                  (activate-input (gethash controller-id (slot-value *engine-manager*
+                                                                     'sdl-to-vert-controllers))
+                                  :13))
+                 (T
+                  ;; stop right
+                  (deactivate-input (gethash controller-id (slot-value *engine-manager*
+                                                                       'sdl-to-vert-controllers))
+                                    :14)
+                  ;; stop left
+                  (deactivate-input (gethash controller-id (slot-value *engine-manager*
+                                                                       'sdl-to-vert-controllers))
+                                    :13))))
+          #+nil((= 1 axis-id)
+                (cond ((> value dead-zone)
+                       ;; down
+                       (format T "down! ~A~%" value))
+                      ((< value (- dead-zone))
+                       ;; up
+                       (format T "up! ~A~%" value)))))))
 
 (defun initialize-sdl-controller (engine-manager device-index)
   ;; FIXME: Send event to input users
@@ -119,9 +145,8 @@
                                (format T "Controller remapped: ~A~%" id))
     (:controllerdeviceremoved (:which sdl-joystick-id)
                               (remove-sdl-controller engine-manager sdl-joystick-id))
-    ;; TODO: convert to up/down/left/right keys
-    ;;  (:controlleraxismotion (:which controller-id :axis axis-id :value value)
-    ;;   (sdl-joystick-movement controller-id axis-id value))
+    (:controlleraxismotion (:which controller-id :axis axis-id :value value)
+                           (sdl-joystick-movement controller-id axis-id value))
     (:controllerbuttondown (:which controller-id :button button-id)
                            (sdl-controller-button-down controller-id button-id))
     (:controllerbuttonup (:which controller-id :button button-id)
