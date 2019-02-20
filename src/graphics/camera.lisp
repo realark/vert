@@ -88,12 +88,11 @@
 (defgeneric world-to-screen-cords (game-object camera update-percent)
   (:documentation "Return x-y screen coordinates of the world object.")
   (:method ((object game-object) (camera simple-camera) update-percent)
-    (declare (optimize (speed 3))
-             (sdl-rectangle-drawable object)
-             (simple-camera camera))
+    (declare (optimize (speed 3)))
     (multiple-value-bind (drawable-x drawable-y) (interpolate-position object update-percent)
       (%world-to-screen-cords drawable-x drawable-y camera update-percent))))
 
+@inline
 (defun %world-to-screen-cords (world-x world-y camera update-percent)
   (declare (optimize (speed 3))
            (world-position world-x world-y)
