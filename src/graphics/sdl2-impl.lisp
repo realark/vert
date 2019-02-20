@@ -120,6 +120,34 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
       (setf texture-cache-key value)))
   (texture-cache-key drawable))
 
+(defmethod world-to-screen-dimensions ((drawable sdl-texture-drawable) (camera simple-camera))
+  (declare (optimize (speed 3)))
+  (with-accessors ((scale scale)) camera
+    (with-slots ((world-width width)
+                 (world-height height))
+        drawable
+      (declare (world-dimension world-width world-height)
+               (camera-scale scale))
+      (the (values screen-unit screen-unit)
+           (values (ceiling (* scale world-width))
+                   (ceiling (* scale world-height)))))))
+
+(defgeneric world-to-wrapped-screen-dimensions (drawable camera)
+  (:documentation "TODO: doc. override exposed so parallax images can work.")
+  (:method ((drawable sdl-texture-drawable) (camera simple-camera))
+    (declare (optimize (speed 3)))
+    (with-accessors ((scale scale)) camera
+      (with-slots ((world-width width)
+                   (wrap-width wrap-width)
+                   (world-height height)
+                   (wrap-height wrap-height))
+          drawable
+        (declare (world-dimension world-width world-height)
+                 (camera-scale scale))
+        (the (values screen-unit screen-unit)
+             (values (ceiling (* scale (the world-dimension (or wrap-width world-width))))
+                     (ceiling (* scale (the world-dimension (or wrap-height world-height))))))))))
+
 (defmethod render ((drawable sdl-texture-drawable) update-percent (camera camera) (renderer sdl2-ffi:sdl-renderer))
   (declare (optimize (speed 3)))
   (with-slots (texture %sdl-rotation-degrees color-mod flip-list (sdl-rect sdl-rectangle) sdl-source-rectangle wrap-width wrap-height width height)
@@ -137,31 +165,30 @@ Must be :NONE, :HORIZONTAL, or :VERTICAL")
                (screen-y (sdl2:rect-y sdl-rect))
                (screen-w (sdl2:rect-width sdl-rect))
                (screen-h (sdl2:rect-height sdl-rect))
-               (wrap-screen-w (ceiling (* (scale camera) (or wrap-width width))))
-               (wrap-screen-h (ceiling (* (scale camera) (or wrap-height height))))
                (render-x screen-x)
                (render-y screen-y))
-          (declare (screen-unit screen-x screen-y screen-w screen-h wrap-screen-w wrap-screen-h render-x render-y))
+          (multiple-value-bind (wrap-screen-w wrap-screen-h) (world-to-wrapped-screen-dimensions drawable camera)
+            (declare (screen-unit screen-x screen-y screen-w screen-h wrap-screen-w wrap-screen-h render-x render-y))
 
-          (setf (sdl2:rect-width sdl-rect) wrap-screen-w
-                (sdl2:rect-height sdl-rect) wrap-screen-h)
-          (loop :while (and (< render-x (+ screen-x screen-w)) (< render-y (+ screen-y screen-h))) :do
-             (setf (sdl2:rect-x sdl-rect) render-x
-                   (sdl2:rect-y sdl-rect) render-y)
+            (setf (sdl2:rect-width sdl-rect) wrap-screen-w
+                  (sdl2:rect-height sdl-rect) wrap-screen-h)
+            (loop :while (and (< render-x (+ screen-x screen-w)) (< render-y (+ screen-y screen-h))) :do
+                 (setf (sdl2:rect-x sdl-rect) render-x
+                       (sdl2:rect-y sdl-rect) render-y)
 
-             (sdl2-ffi.functions:sdl-render-copy-ex ; do rendering
-              renderer
-              texture
-              sdl-source-rectangle
-              sdl-rect
-              %sdl-rotation-degrees
-              nil
-              (autowrap::mask-apply 'sdl2::sdl-renderer-flip flip-list))
-             ;; update render target to next square
-             (incf render-x wrap-screen-w)
-             (unless (< render-x (+ screen-x screen-w))
-               (setf render-x screen-x
-                     render-y (+ render-y wrap-screen-h)))))
+                 (sdl2-ffi.functions:sdl-render-copy-ex ; do rendering
+                  renderer
+                  texture
+                  sdl-source-rectangle
+                  sdl-rect
+                  %sdl-rotation-degrees
+                  nil
+                  (autowrap::mask-apply 'sdl2::sdl-renderer-flip flip-list))
+               ;; update render target to next square
+                 (incf render-x wrap-screen-w)
+                 (unless (< render-x (+ screen-x screen-w))
+                   (setf render-x screen-x
+                         render-y (+ render-y wrap-screen-h))))))
         ;; render-copy is coercing rotation to double-float and consing a lot
         ;; so we'll just invoke the ffi function directly
         (sdl2-ffi.functions:sdl-render-copy-ex

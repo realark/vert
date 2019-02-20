@@ -22,14 +22,40 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
                    (vertical-parallax vertical-parallax))
       image
     (multiple-value-bind (drawable-x drawable-y) (interpolate-position image update-percent)
-      (with-accessors ((scale scale)) camera
+      (with-accessors ((ppu pixels-per-unit)) camera
         (multiple-value-bind (camera-x camera-y) (interpolate-position camera update-percent)
           (declare (world-position drawable-x drawable-y camera-x camera-y)
                    (parallax-factor horizontal-parallax vertical-parallax)
-                   (camera-scale scale))
+                   ((integer 0 1000) ppu))
           (the (values screen-unit screen-unit)
-               (values (ceiling (* scale (- drawable-x (* horizontal-parallax camera-x))))
-                       (ceiling (* scale (- drawable-y (* vertical-parallax camera-y)))))))))))
+               (values (ceiling (* ppu (- drawable-x (* horizontal-parallax camera-x))))
+                       (ceiling (* ppu (- drawable-y (* vertical-parallax camera-y)))))))))))
+
+(defmethod world-to-screen-dimensions ((image parallax-image) (camera simple-camera))
+  (declare (optimize (speed 3)))
+  (with-accessors ((ppu pixels-per-unit)) camera
+    (with-slots ((world-width width)
+                 (world-height height))
+        image
+      (declare (world-dimension world-width world-height)
+               ((integer 0 1000) ppu))
+      (the (values screen-unit screen-unit)
+           (values (ceiling (* ppu world-width))
+                   (ceiling (* ppu world-height)))))))
+
+(defmethod world-to-wrapped-screen-dimensions ((image parallax-image) (camera simple-camera))
+  (declare (optimize (speed 3)))
+  (with-accessors ((ppu pixels-per-unit)) camera
+    (with-slots ((world-width width)
+                 (wrap-width wrap-width)
+                 (world-height height)
+                 (wrap-height wrap-height))
+        image
+      (declare (world-dimension world-width world-height)
+               ((integer 1 1000) ppu))
+      (the (values screen-unit screen-unit)
+           (values (ceiling (* ppu (the world-dimension (or wrap-width world-width))))
+                   (ceiling (* ppu (the world-dimension (or wrap-height world-height)))))))))
 
 @export-class
 (defclass scene-background (aabb)

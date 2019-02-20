@@ -111,8 +111,7 @@
 (defgeneric world-to-screen-dimensions (game-object camera)
   (:documentation "Return width/height screen dimensions for GAME-OBJECT")
   (:method ((game-object game-object) (camera simple-camera))
-    (declare (optimize (speed 3)
-                       (space 3)))
+    (declare (optimize (speed 3)))
     (with-slots (scale) camera
       (with-slots ((world-width width) (world-height height)) game-object
         (declare (world-dimension world-width world-height)
