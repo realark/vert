@@ -233,7 +233,8 @@ It is invoked after the engine is fully started.")
 
   (defmethod cleanup-engine :after (engine-manager)
     (clear-cache number-cache)
-    (release-resources rendered-text))
+    (when rendered-text
+      (release-resources rendered-text)))
 
   (defun render-dev-mode-info (engine-manager)
     "Render dev-mode info to the upper-right corner of the game window"
