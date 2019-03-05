@@ -40,11 +40,8 @@
            (keyword state-machine-name))
   (with-slots (state-machines) stateful-game-object
     (let ((state-machine (gethash state-machine-name state-machines)))
-      (unless state-machine
-        (error "~A state-machine not present in ~A"
-               state-machine-name
-               stateful-game-object))
-      (%state-name (elt (%state-machine-states state-machine) (%state-machine-active state-machine))))))
+      (when state-machine
+        (%state-name (elt (%state-machine-states state-machine) (%state-machine-active state-machine)))))))
 
 @export
 (defun change-state (stateful-game-object world-context state-machine-name new-state-name)
