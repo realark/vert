@@ -17,6 +17,7 @@
   "Wallclock millisecond timestamp starting from an arbitrary point in time."
   `(sdl2:get-ticks))
 
+@export
 (defun ticks-nanos ()
   "Wallclock nanosecond timestamp starting from an arbitrary point in time."
   (multiple-value-bind (sec microsec) (sb-ext:get-time-of-day)
