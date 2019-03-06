@@ -45,15 +45,10 @@
            :accessor lag-ns)
    (last-loop-start-ns :initform (ticks-nanos) :accessor last-loop-start-ns)
    ;; debugging
+   (fps-timer-start-ns :initform (ticks-nanos))
    (current-fps :initform 60.0)
-   (min-fps :initform 300.0)
-   (framerate-samples :initform (make-array *num-framerate-samples*
-                                            :initial-element (get-internal-real-time)
-                                            :adjustable nil
-                                            :element-type *internal-real-time-type*)
-                      :documentation "An array of the timestamp of the past N render frames.")
-   (framerate-samples-fp :initform 0
-                      :documentation "framerate-samples fill-pointer"))
+   (fps-timer-duration-seconds :initform 4)
+   (num-render-frames :initform 0))
   (:documentation "Starts and stops the game. Manages global engine state and services."))
 
 (defevent engine-started ((engine-manager engine-manager))
@@ -106,14 +101,11 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
         (setf last-loop-start now-ns)
         (incf lag delta-ns)
 
-        (loop :for i :from 0
-           :while (>= lag timestep-ns) :do
-           ;; TODO: what if we debug and pause for a really long time?
-             (locally (declare ((integer 0 100) i))
-               (when (> i 10)
-                 ;; update thread was likely just blocked on debugging. Give up trying to catch up.
-                 (format T "Update thread very far behind. Resetting to a good state.~%")
-                 (setf lag timestep-ns)))
+        (when (>= lag (* 10 timestep-ns))
+          ;; update thread was likely just blocked on debugging. Don't try to catch up.
+          (format T "Update thread very far behind. Resetting to a good state.~%")
+          (setf lag timestep-ns))
+        (loop :while (>= lag timestep-ns) :do
              (decf lag timestep-ns)
              (update active-scene +update-timestep+ nil))
 
@@ -162,12 +154,13 @@ It is invoked after the engine is fully started.")
 
 (defun dev-mode-post-game-loop-iteration (engine-manager)
   ;; (reload-textures-if-changed)
+  (with-slots (num-render-frames) engine-manager
+    (incf num-render-frames))
   (compute-framerate engine-manager))
 
 (defun reload-textures-if-changed ()
   "If any textures have changed, flush the texture cache and reload."
-  (declare (optimize (speed 3)
-                     (space 3)))
+  (declare (optimize (speed 3)))
   (flet ((reload-texture (objects-using-texture)
            (loop :for object :across (copy-seq objects-using-texture) :do
                 (release-resources object))))
@@ -178,30 +171,14 @@ It is invoked after the engine is fully started.")
         (when (/= current-mtime original-mtime)
           (reload-texture objects-using-texture))))))
 
-(let ((last-min-fps-update 0))
-  (defun compute-framerate (engine-manager)
-    (declare (optimize (speed 3)
-                       (space 3)))
-    (with-slots (measure-framerate framerate-samples framerate-samples-fp current-fps min-fps)
-        engine-manager
-      (declare (simple-array framerate-samples)
-               ((integer 0 60) framerate-samples-fp))
-      (let* ((now (get-internal-real-time))
-             (oldest (elt framerate-samples framerate-samples-fp))
-             (units-since-oldest-frame (- now oldest))
-             (frames-per-unit (/ *num-framerate-samples*
-                                 (if (= 0 units-since-oldest-frame)
-                                     1
-                                     units-since-oldest-frame))))
-        ;; compute framerate here
-        (setf current-fps (float (floor (* frames-per-unit internal-time-units-per-second)))
-              (elt framerate-samples framerate-samples-fp) now
-              framerate-samples-fp (mod (+ 1 framerate-samples-fp) *num-framerate-samples*))
-        (when (or (< current-fps min-fps)
-                  ;; reset min-fps every 10 seconds
-                  (> (/ (- now last-min-fps-update) internal-time-units-per-second) 10))
-          (setf min-fps current-fps
-                last-min-fps-update now))))))
+(defun compute-framerate (engine-manager)
+  (declare (optimize (speed 3)))
+  (with-slots (fps-timer-start-ns current-fps fps-timer-duration num-render-frames) engine-manager
+    (let ((duration-seconds (/ (- (ticks-nanos) fps-timer-start-ns) (expt 10 9))))
+      (when (> duration-seconds 2)
+        (setf current-fps (/ (floor (* (/ num-render-frames (if (= 0 duration-seconds) 1 duration-seconds)) 100)) 100.0)
+              fps-timer-start-ns (ticks-nanos)
+              num-render-frames 0)))))
 
 (let ((gc-count 0)
       (last-gc-time-ms 0)
@@ -247,7 +224,7 @@ It is invoked after the engine is fully started.")
                            :height line-height-px
                            :color *red*
                            :text "0.0fps")))
-    (with-slots (current-fps min-fps) engine-manager
+    (with-slots (current-fps) engine-manager
       (let ((camera (camera (active-scene engine-manager)))
             (line-num 0))
         (with-accessors ((camera-zoom scale)
@@ -297,10 +274,7 @@ It is invoked after the engine is fully started.")
                 (let ((dynamic-use (/ (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 5)) 10.0)))
                   (render-debug-line (getcache-default dynamic-use
                                                        (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
-                                                       (format nil "~Amb" dynamic-use))))
-                (render-debug-line (getcache-default min-fps
-                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
-                                                     (format nil "~Amin-fps" min-fps)))))))))))
+                                                       (format nil "~Amb" dynamic-use))))))))))))
 
 ;;;; methods which will be provided by the implementation
 
