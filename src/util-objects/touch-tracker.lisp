@@ -45,17 +45,21 @@ May be extended or overridden by subclasses.")
    (all-objects-touching :initform (list)))
   (:documentation "An object that tracks the objects it is touching."))
 
-(defgeneric add-touch-region (touch-tracker region-name touch-region)
-  (:documentation "TODO doc")
-  (:method ((touch-tracker touch-tracker) (region-name symbol) (touch-region touch-region))
-    (with-slots (touch-regions) touch-tracker
-      (when (eq :all region-name)
-        (error ":all region-name is reserved"))
-      (when (assoc region-name touch-regions)
-        (error "~A region already exists" region-name))
-      (pin-to touch-region touch-tracker)
-      (push (cons region-name touch-region) touch-regions)
-      touch-tracker)))
+@export
+(defun add-touch-region (touch-tracker region-name touch-region &optional override-existing)
+  (declare (touch-tracker touch-tracker)
+           (symbol region-name)
+           (touch-region touch-region))
+  (with-slots (touch-regions) touch-tracker
+    (when (eq :all region-name)
+      (error ":all region-name is reserved"))
+    (when (assoc region-name touch-regions)
+      (if override-existing
+          (setf touch-regions (delete (assoc region-name touch-regions) touch-regions))
+          (error "~A region already exists" region-name)))
+    (pin-to touch-region touch-tracker)
+    (push (cons region-name touch-region) touch-regions)
+    touch-tracker))
 
 (defgeneric objects-touching (touch-tracker &optional region-name)
   (:documentation "Get all objects touching the REGION-NAME touch-region.
