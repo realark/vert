@@ -154,11 +154,10 @@
                (height boundary) (ceiling (- (point-y down) (point-y up))))))
   polygon)
 
-(proclaim '(inline %convex-polygon-collide))
+@inline
 (defun %convex-polygon-collide (poly1 poly2)
   "Check POLY1 and POLY2 collision with separating axis theorem"
-  (declare (optimize (speed 3)
-                     (space 3)))
+  (declare (optimize (speed 3)))
   (let ((poly1-points (world-points poly1))
         (poly2-points (world-points poly2)))
     (declare ((simple-array point) poly1-points poly2-points))
@@ -185,4 +184,8 @@
 
 (defcollision ((polygon convex-polygon) (aabb aabb))
   (declare (optimize (speed 3)))
-  (%convex-polygon-collide polygon aabb))
+  (flet ((custom-hit-box? (object)
+           (not (eq object (hit-box object)))))
+    (if (or (custom-hit-box? polygon) (custom-hit-box? aabb))
+        (collidep (hit-box polygon) (hit-box aabb))
+        (%convex-polygon-collide polygon aabb))))

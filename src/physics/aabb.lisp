@@ -36,9 +36,15 @@
      (point-y world-position) (coerce y 'world-position)
      (point-z world-position) (coerce z 'world-position))))
 
+@export
 (defgeneric bounding-box (game-object)
-  (:documentation "Returns an AABB which surrounds the entire GAME-OBJECT")
+  (:documentation "Returns an AABB which must surround the entire GAME-OBJECT")
   (:method ((aabb aabb)) aabb))
+
+@export
+(defgeneric hit-box (game-object)
+  (:documentation "Returns a game-object which ultimately will decide if a collision occurs.")
+  (:method ((object game-object)) object))
 
 (defmethod x ((aabb aabb))
   (point-x (slot-value aabb 'world-position)))
@@ -139,7 +145,7 @@
                world-points))
         world-points))))
 
-(declaim (inline %aabb-collision-check))
+@inline
 (defun %aabb-collision-check (rect1 rect2)
   (declare (optimize (speed 3))
            (aabb rect1 rect2))
@@ -163,7 +169,6 @@
                ;; y1 falls inside rect2-y
                ;; in the same 2d plane
                (= z1 z2)))))))
-
 
 @export
 @inline
@@ -189,4 +194,4 @@
 
 (defcollision ((rect1 aabb) (rect2 aabb))
   (declare (optimize (speed 3)))
-  (%aabb-collision-check rect1 rect2))
+  (%aabb-collision-check (hit-box rect1) (hit-box rect2)))
