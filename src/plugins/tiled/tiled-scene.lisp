@@ -53,7 +53,7 @@
 
 
 @export
-(defgeneric on-tile-read (tiled-scene tileset tile-map-col tile-map-row tile-source-col tile-source-row)
+(defgeneric on-tile-read (tiled-scene layer-json tileset tile-map-col tile-map-row tile-source-col tile-source-row)
   (:documentation "Invoked when a tiled tile is read. Implementers will add the appropriate game-object to TILED-SCENE."))
 
 @export
@@ -126,6 +126,7 @@
                      (multiple-value-bind (map-row map-col) (floor i map-num-cols)
                        (multiple-value-bind (source-row source-col) (floor (- tile-number gid) (tileset-columns tileset))
                          (on-tile-read tiled-scene
+                                       layer-json
                                        tileset
                                        map-col
                                        map-row
