@@ -62,3 +62,11 @@ COMPARATOR-FN == one arg function that returns T if ITEM is greater than the arg
   "Macro for writing un-eval'd notes and pseudo code."
   (declare (ignore body))
   '())
+
+@export
+(defmacro null-fallback (object fallback-form)
+  "If OBJECT is non-nil, return it. Otherwise eval and return FALLBACK-FORM."
+  (alexandria:once-only (object)
+    `(if (null ,object)
+         ,fallback-form
+         ,object)))
