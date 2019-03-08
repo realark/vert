@@ -140,3 +140,13 @@ On the next render frame, the objects will be given a chance to load and this li
                ;; timestamps are ordered so we know nothing else is scheduled
                (return))))
     (setf tasks (delete nil tasks))))
+
+@export
+(defun get-object-by-id (scene id)
+  "Return the (presumably) unique game-object identified by ID in SCENE."
+  (declare (game-scene scene)
+           (integer id))
+  (block find-object
+    (do-spatial-partition (game-object (spatial-partition scene))
+      (when (equalp (object-id game-object) id)
+        (return-from find-object game-object)))))

@@ -1,7 +1,11 @@
 (in-package :recurse.vert)
 
+@export-class
 (defclass game-object (event-publisher)
   ((pinned-objects :initform nil)
+   (object-id :initform nil
+              :initarg :object-id
+              :reader object-id)
    (motion-lock :initform nil
                 :documentation "When non-nil, the game-object is in an intermediary position.
 OBJECT-MOVED-ALL events will fire, but OBJECT-MOVED will not."))
