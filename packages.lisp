@@ -209,16 +209,4 @@
    :facing
    :is-facing
    :push-direction
-   :agent-acceleration
-
-   ;; platformer plugin
-   :platformer-game-scene
-   :gravity-vector
-   :apply-gravity
-   :jump-start-ts
-   :jumper
-   :jump
-   :is-touching-ground
-   :is-jumping
-   :on-jump
-   :max-jumps))
+   :agent-acceleration))

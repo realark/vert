@@ -105,19 +105,19 @@
                          (:file "game-scene")
                          (:file "pause-scene")
                          (:file "pause-menu")))
-               (:module platformer
-                        :pathname "src/plugins/platformer"
-                        :depends-on (:scene)
-                        :serial T
-                        :components
-                        ((:file "jumper")
-                         (:file "platformer-game-scene")))
                (:module state-machine
                 :pathname "src/plugins"
                 :depends-on (:core)
                 :serial T
                 :components
                 ((:file "state-machine")))
+               (:module platformer
+                        :pathname "src/plugins/platformer"
+                        :depends-on (:scene :state-machine)
+                        :serial T
+                        :components
+                        ((:file "platformer-game-scene")
+                         (:file "jumper")))
                (:module tiled
                 :pathname "src/plugins/tiled"
                 :depends-on (:scene)
