@@ -63,6 +63,7 @@ On the next render frame, the objects will be given a chance to load and this li
   (when (scene-background game-scene)
     (release-resources (scene-background game-scene))))
 
+@export
 (defgeneric add-to-scene (scene object)
   (:documentation "Add an object to the game scene")
   (:method ((scene game-scene) (object game-object))
@@ -72,7 +73,7 @@ On the next render frame, the objects will be given a chance to load and this li
       (push object (unloaded-game-objects scene)))))
 
 (defmethod add-to-scene :after ((scene game-scene) (object-manager object-manager))
-  (loop for managed-obj in (get-managed-objects object-manager) do
+  (loop :for managed-obj :in (get-managed-objects object-manager) :do
        (add-to-scene scene managed-obj)))
 
 (defgeneric remove-from-scene (scene object)

@@ -5,5 +5,6 @@
   ()
   (:documentation "A game object which manages other game objects."))
 
-(defmethod get-managed-objects ((object-manager object-manager))
-  nil)
+@export
+(defgeneric get-managed-objects (object-manager)
+  (:method ((object-manager object-manager)) '()))

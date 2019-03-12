@@ -16,10 +16,14 @@
                      :initform 25
                      :documentation "Number of units to move vertically for a short jump in normal gravity.")
    (num-jumps-available :initform 1 :reader num-jumps-available)
-   (target-y :initform nil))
+   (target-y :initform nil)
+   (tmp-jump-boost :initform nil
+                   :accessor tmp-jump-boost
+                   :documentation "Modify the long jump height for only the next jump."))
   (:documentation "An agent which can jump."))
 
 (export 'num-jumps-available)
+(export 'tmp-jump-boost)
 
 (defmethod initialize-instance :after ((jumper jumper) &rest args)
   (declare (ignore args))
@@ -56,16 +60,18 @@
                            (if (eq (current-state-for jumper :jump-command) :sending-jump-command)
                              (change-state jumper scene :jump-state :long-jumping)
                              (when (> (velocity-y jumper) 0)
+                               (setf (tmp-jump-boost jumper) nil)
                                (change-state jumper scene :jump-state :falling)))
                          (%apply-jump-forces jumper)))))
      (:long-jumping
       (:on-activate (:game-object jumper)
-                    (with-slots (num-jumps-available target-y long-jump-height short-jump-height) jumper
-                      (setf target-y (- (y jumper) (- long-jump-height short-jump-height)))))
+                    (with-slots (num-jumps-available target-y tmp-jump-boost long-jump-height short-jump-height) jumper
+                      (setf target-y (- (y jumper) (- (or tmp-jump-boost long-jump-height) short-jump-height)))))
       (:while-active (:game-object jumper :world-context scene)
                      (let ((distance-to-target (- (y jumper) (slot-value jumper 'target-y))))
                        (if (<= distance-to-target 0)
                            (when (>= (velocity-y jumper) 0)
+                             (setf (tmp-jump-boost jumper) nil)
                              (change-state jumper scene :jump-state :falling))
                            (%apply-jump-forces jumper)))))
      (:falling
@@ -84,12 +90,12 @@
 @inline
 (defun %apply-jump-forces (jumper)
   (declare (jumper jumper))
-  (with-slots (long-jump-height target-y normal-gravity-seconds) jumper
+  (with-slots (tmp-jump-boost long-jump-height target-y normal-gravity-seconds) jumper
     ;; keep moving player up towards the jump-target
-    (let* ((time-to-jump (* 0.75 (sqrt (/ (* 2 long-jump-height)
+    (let* ((time-to-jump (* 0.75 (sqrt (/ (* 2 (or tmp-jump-boost long-jump-height))
                                           (/ normal-gravity-seconds (expt 1000.0 2))))))
            ;; time to jump = 75% of time to fall
-           (velocity-to-reach-jump (/ long-jump-height time-to-jump)))
+           (velocity-to-reach-jump (/ (or tmp-jump-boost long-jump-height) time-to-jump)))
       (setf (velocity-y jumper) (min 0 (- velocity-to-reach-jump))))))
 
 (defmethod update-user :after ((jumper jumper) delta-t-ms scene)
