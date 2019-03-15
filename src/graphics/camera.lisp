@@ -105,8 +105,8 @@
       (declare (camera-scale scale)
                (world-position camera-x camera-y))
       (the (values screen-unit screen-unit)
-           (values (ceiling (* scale (- world-x camera-x)))
-                   (ceiling (* scale (- world-y camera-y))))))))
+           (values (round (* scale (- world-x camera-x)))
+                   (round (* scale (- world-y camera-y))))))))
 
 (defgeneric world-to-screen-dimensions (game-object camera)
   (:documentation "Return width/height screen dimensions for GAME-OBJECT")

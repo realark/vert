@@ -28,8 +28,8 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
                    (parallax-factor horizontal-parallax vertical-parallax)
                    ((integer 0 1000) ppu))
           (the (values screen-unit screen-unit)
-               (values (ceiling (* ppu (- drawable-x (* horizontal-parallax camera-x))))
-                       (ceiling (* ppu (- drawable-y (* vertical-parallax camera-y)))))))))))
+               (values (round (* ppu (- drawable-x (* horizontal-parallax camera-x))))
+                       (round (* ppu (- drawable-y (* vertical-parallax camera-y)))))))))))
 
 (defmethod world-to-screen-dimensions ((image parallax-image) (camera simple-camera))
   (declare (optimize (speed 3)))
