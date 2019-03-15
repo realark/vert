@@ -206,7 +206,11 @@ It is invoked after the engine is fully started.")
                                     :on-evict (lambda (line-num line-cache)
                                                 (declare (ignore line-num))
                                                 (clear-cache line-cache))))
-       (last-known-gc-count (current-gc-count)))
+       (last-known-gc-count (current-gc-count))
+       (dynamic-use-measure-duration-ms 4000)
+       (last-dynamic-use-measure (ticks))
+       (dynamic-delta 0)
+       (previous-dynamic-usage 0))
 
   (defmethod cleanup-engine :after (engine-manager)
     (clear-cache number-cache)
@@ -271,10 +275,17 @@ It is invoked after the engine is fully started.")
                   (render-debug-line (getcache-default gc-time-ms
                                                        (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
                                                        (format nil "GC-MS: ~A" gc-time-ms))))
-                (let ((dynamic-use (/ (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 5)) 10.0)))
+                (let* ((dynamic-use (/ (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 5)) 10.0)))
                   (render-debug-line (getcache-default dynamic-use
                                                        (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
-                                                       (format nil "~Amb" dynamic-use))))))))))))
+                                                       (format nil "~Amb" dynamic-use)))
+                  (render-debug-line (getcache-default dynamic-delta
+                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                       (format nil "~Amb/s" dynamic-delta)))
+                  (when (>= (- (ticks) last-dynamic-use-measure) dynamic-use-measure-duration-ms)
+                    (setf dynamic-delta (/ (round (* 100 (/ (- dynamic-use previous-dynamic-usage) (/ (- (ticks) last-dynamic-use-measure) 1000)))) 100.0))
+                    (setf previous-dynamic-usage dynamic-use
+                          last-dynamic-use-measure (ticks))))))))))))
 
 ;;;; methods which will be provided by the implementation
 
