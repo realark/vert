@@ -5,8 +5,7 @@
   (defcollision-resolution linear-resolution ((moving-object kinematic-object)
                                               (stationary-object AABB)
                                               &key original-position)
-    (declare (optimize (speed 3)
-                       (space 3))
+    (declare (optimize (speed 3))
              (ftype (function (point point) world-position) distance-between))
     (setf (point-x colliding-point) (x moving-object)
           (point-y colliding-point) (y moving-object)
@@ -66,8 +65,7 @@
 
 (let ((original-position (make-point)))
   (defmotion linear-motion ((object kinematic-object) delta-t-ms (physics-context physics-context-2d))
-    (declare (optimize (speed 3)
-                       (space 3))
+    (declare (optimize (speed 3))
              ((integer 1 100) delta-t-ms))
     ;; update position
     (unless (= 0.0

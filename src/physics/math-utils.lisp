@@ -126,4 +126,4 @@
                (setf poly2-max distance))
              (when (or (null poly2-min) (< distance poly2-min))
                (setf poly2-min distance))))
-      (and (<= poly2-min poly1-max) (>= poly2-max poly1-min)))))
+      (and (< poly2-min poly1-max) (>= poly2-max poly1-min)))))
