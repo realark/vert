@@ -42,6 +42,10 @@
 @export
 (defparameter *white* (make-color :r 255 :g 255 :b 255 :a 255))
 @export
+(defparameter *grey* (make-color :r 128 :g 128 :b 128))
+@export
+(defparameter *gray* *grey*)
+@export
 (defparameter *red*   (make-color :r 255 :g 0 :b 0 :a 255))
 @export
 (defparameter *orange*(make-color :r 255 :g 140 :b 0 :a 255))
