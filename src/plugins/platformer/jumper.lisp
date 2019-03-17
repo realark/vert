@@ -42,7 +42,7 @@
       ;; meep-meep. Let jumpers hover in the air a short while after walking off a ledge (makes controls feel more responsive).
       (:on-activate (:game-object jumper :world-context scene)
                     (schedule scene
-                              (+ (scene-ticks scene) 100)
+                              (+ (scene-ticks scene) 50)
                               (lambda ()
                                 (when (eq :coyote (current-state-for jumper :jump-state))
                                   ;; only update state if no jumping has occurred
