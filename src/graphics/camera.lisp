@@ -85,6 +85,18 @@
                    (coerce (* (zoom camera) (pixels-per-unit camera)) 'camera-scale))
              (calculate-and-store-camera-width-height camera)))
 
+
+@export
+(defun screen-cords-to-world-cords (camera screen-x screen-y)
+  "Return x-y world coordinates of camera's screen X and Y."
+  (declare (optimize (speed 3))
+           (camera camera)
+           (screen-unit screen-x screen-y))
+  (with-accessors ((camera-x x) (camera-y y)) camera
+    (declare (world-position camera-x camera-y))
+    (values (+ camera-x screen-x)
+            (+ camera-y screen-y))))
+
 (defgeneric world-to-screen-cords (game-object camera update-percent)
   (:documentation "Return x-y screen coordinates of the world object.")
   (:method ((object game-object) (camera simple-camera) update-percent)
