@@ -99,13 +99,26 @@
                   (deactivate-input (gethash controller-id (slot-value *engine-manager*
                                                                        'sdl-to-vert-controllers))
                                     :13))))
-          #+nil((= 1 axis-id)
-                (cond ((> value dead-zone)
-                       ;; down
-                       (format T "down! ~A~%" value))
-                      ((< value (- dead-zone))
-                       ;; up
-                       (format T "up! ~A~%" value)))))))
+          ((= 1 axis-id)
+           (cond ((> value dead-zone)
+                  ;; down
+                  (activate-input (gethash controller-id (slot-value *engine-manager*
+                                                                     'sdl-to-vert-controllers))
+                                  :12))
+                 ((< value (- dead-zone))
+                  ;; up
+                  (activate-input (gethash controller-id (slot-value *engine-manager*
+                                                                     'sdl-to-vert-controllers))
+                                  :11))
+                 (T
+                  ;; stop up
+                  (deactivate-input (gethash controller-id (slot-value *engine-manager*
+                                                                       'sdl-to-vert-controllers))
+                                    :11)
+                  ;; stop down
+                  (deactivate-input (gethash controller-id (slot-value *engine-manager*
+                                                                       'sdl-to-vert-controllers))
+                                    :12)))))))
 
 (defun initialize-sdl-controller (engine-manager device-index)
   ;; FIXME: Send event to input users
