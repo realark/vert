@@ -219,8 +219,7 @@ It is invoked after the engine is fully started.")
 
   (defun render-dev-mode-info (engine-manager)
     "Render dev-mode info to the upper-right corner of the game window"
-    (declare (optimize (speed 3)
-                       (space 3)))
+    (declare (optimize (speed 3)))
     (unless rendered-text
       (setf rendered-text
             (make-instance 'font-drawable
@@ -266,26 +265,27 @@ It is invoked after the engine is fully started.")
                     (sdl2:render-clear (slot-value engine-manager 'rendering-context))
                     (setf (clear-color engine-manager) clear-color)))
                 (render-debug-line (getcache-default current-fps
-                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
                                                      (format nil "~Afps" current-fps)))
                 (render-debug-line (getcache-default gc-count
-                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
                                                      (format nil "GC# ~A" gc-count)))
                 (let ((gc-time-ms (last-gc-time-ms)))
                   (render-debug-line (getcache-default gc-time-ms
-                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
                                                        (format nil "GC-MS: ~A" gc-time-ms))))
-                (let* ((dynamic-use (/ (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 5)) 10.0)))
+                (let* ((dynamic-use (/ (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 5)) 10.0))
+                       (now (ticks)))
                   (render-debug-line (getcache-default dynamic-use
-                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
+                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
                                                        (format nil "~Amb" dynamic-use)))
-                  (render-debug-line (getcache-default dynamic-delta
-                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equal))
-                                                       (format nil "~Amb/s" dynamic-delta)))
-                  (when (>= (- (ticks) last-dynamic-use-measure) dynamic-use-measure-duration-ms)
-                    (setf dynamic-delta (/ (round (* 100 (/ (- dynamic-use previous-dynamic-usage) (/ (- (ticks) last-dynamic-use-measure) 1000)))) 100.0))
+                  (when (>= (- now last-dynamic-use-measure) dynamic-use-measure-duration-ms)
+                    (setf dynamic-delta (/ (round (* 1000 (/ (- dynamic-use previous-dynamic-usage) (/ (- now last-dynamic-use-measure) 1000)))) 1000.0))
                     (setf previous-dynamic-usage dynamic-use
-                          last-dynamic-use-measure (ticks))))))))))))
+                          last-dynamic-use-measure now))
+                  (render-debug-line (getcache-default dynamic-delta
+                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
+                                                       (format nil "~Amb/s" dynamic-delta))))))))))))
 
 ;;;; methods which will be provided by the implementation
 

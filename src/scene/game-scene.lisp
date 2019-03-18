@@ -7,7 +7,8 @@
                      :accessor scene-background)
    (scene-ticks :initform 0
                 :reader scene-ticks
-                :documentation "Amount of milliseconds passed in the game scene")
+                :documentation "Amount of milliseconds passed in the game scene.
+Will be incremented by the update timestep after every update frame.")
    (scheduled-tasks :initform (make-array 0 :fill-pointer 0 :adjustable T)
                     :documentation "key-value plist-vector of (timestamp zero-arg-fn). When SCENE-TICKS equal or exceed the timestamp, the lambda will be invoked.
 List is ascending timestamp ordered.")
