@@ -19,7 +19,10 @@
    (target-y :initform nil)
    (tmp-jump-boost :initform nil
                    :accessor tmp-jump-boost
-                   :documentation "Modify the long jump height for only the next jump."))
+                   :documentation "Modify the long jump height for only the next jump.")
+   (coyote-time-ms :initform 50
+                   :initarg :coyote-time-ms
+                   :documentation "meep-meep. Let jumpers hover in the air a short while after walking off a ledge (makes controls feel more responsive)."))
   (:documentation "An agent which can jump."))
 
 (export 'num-jumps-available)
@@ -39,10 +42,9 @@
                     (with-slots (num-jumps-available max-jumps) jumper
                         (setf num-jumps-available max-jumps))))
      (:coyote
-      ;; meep-meep. Let jumpers hover in the air a short while after walking off a ledge (makes controls feel more responsive).
       (:on-activate (:game-object jumper :world-context scene)
                     (schedule scene
-                              (+ (scene-ticks scene) 50)
+                              (+ (scene-ticks scene) (slot-value jumper 'coyote-time-ms))
                               (lambda ()
                                 (when (eq :coyote (current-state-for jumper :jump-state))
                                   ;; only update state if no jumping has occurred
