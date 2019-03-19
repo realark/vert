@@ -9,12 +9,9 @@
    (normal-gravity-seconds :initarg :normal-gravity-seconds
                            :initform *default-gravity-acceleration-seconds*
                            :documentation "Assumed gravity (units/second/second) for computing short and long jump heights.")
-   (short-jump-height :initarg :short-jump-height
-                      :initform 10
-                      :documentation "Number of units to move vertically for a short jump in normal gravity.")
    (long-jump-height :initarg :long-jump-height
                      :initform 25
-                     :documentation "Number of units to move vertically for a short jump in normal gravity.")
+                     :documentation "Number of units to move vertically for a jump in normal gravity.")
    (num-jumps-available :initform 1 :reader num-jumps-available)
    (target-y :initform nil)
    (tmp-jump-boost :initform nil
@@ -51,34 +48,21 @@
                                   (if (%is-touching-ground jumper)
                                       (change-state jumper scene :jump-state :on-ground)
                                       (change-state jumper scene :jump-state :falling)))))))
-     (:short-jumping
-      (:on-activate (:game-object jumper)
-                    (with-slots (num-jumps-available target-y short-jump-height) jumper
-                      (decf num-jumps-available)
-                      (setf target-y (- (y jumper) short-jump-height))))
-      (:while-active (:game-object jumper :world-context scene)
-                     (let ((distance-to-target (- (y jumper) (slot-value jumper 'target-y))))
-                       (if (<= distance-to-target 0)
-                           (if (eq (current-state-for jumper :jump-command) :sending-jump-command)
-                             (change-state jumper scene :jump-state :long-jumping)
-                             (when (> (velocity-y jumper) 0)
-                               (setf (tmp-jump-boost jumper) nil)
-                               (change-state jumper scene :jump-state :falling)))
-                         (%apply-jump-forces jumper)))))
      (:long-jumping
       (:on-activate (:game-object jumper)
-                    (with-slots (num-jumps-available target-y tmp-jump-boost long-jump-height short-jump-height) jumper
-                      (setf target-y (- (y jumper) (- (or tmp-jump-boost long-jump-height) short-jump-height)))))
+                    (with-slots (num-jumps-available target-y tmp-jump-boost long-jump-height) jumper
+                      (setf target-y (- (y jumper) (or tmp-jump-boost long-jump-height)))))
       (:while-active (:game-object jumper :world-context scene)
                      (let ((distance-to-target (- (y jumper) (slot-value jumper 'target-y))))
                        (if (<= distance-to-target 0)
                            (when (>= (velocity-y jumper) 0)
-                             (setf (tmp-jump-boost jumper) nil)
                              (change-state jumper scene :jump-state :falling))
-                           (%apply-jump-forces jumper)))))
+                           (%apply-jump-forces jumper))))
+      (:on-deactivate (:game-object jumper :world-context scene)
+                      (setf (tmp-jump-boost jumper) nil)))
      (:falling
       (:on-activate (:game-object jumper)
-                    (with-slots (num-jumps-available target-y short-jump-height) jumper
+                    (with-slots (num-jumps-available target-y) jumper
                       (setf num-jumps-available 0)))
       (:while-active (:game-object jumper :world-context scene)
                      (when (%is-touching-ground jumper)
@@ -87,7 +71,10 @@
    jumper
    (make-state-machine (:name :jump-command :initial-state :not-sending-jump-command)
      (:sending-jump-command)
-     (:not-sending-jump-command))))
+     (:not-sending-jump-command
+      (:on-activate (:game-object jumper :world-context scene)
+                    (setf (acceleration-y jumper) (max 0 (acceleration-y jumper)))
+                    (change-state jumper scene :jump-state :falling))))))
 
 @inline
 (defun %apply-jump-forces (jumper)
