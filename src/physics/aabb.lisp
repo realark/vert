@@ -173,8 +173,7 @@
 @export
 @inline
 (defun center-of (aabb)
-  (declare (optimize (speed 3)
-                     (space 3))
+  (declare (optimize (speed 3))
            (aabb aabb))
   (compute-center-of aabb (make-point)))
 

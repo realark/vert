@@ -77,11 +77,16 @@ On the next render frame, the objects will be given a chance to load and this li
   (loop :for managed-obj :in (get-managed-objects object-manager) :do
        (add-to-scene scene managed-obj)))
 
+@export
 (defgeneric remove-from-scene (scene object)
   (:documentation "Remove an object from the game scene")
   (:method ((scene game-scene) (object game-object))
     (stop-tracking (spatial-partition scene) object)
     (release-resources object)))
+
+(defmethod remove-from-scene :after ((scene game-scene) (object-manager object-manager))
+  (loop :for managed-obj :in (get-managed-objects object-manager) :do
+       (remove-from-scene scene managed-obj)))
 
 (defmethod update ((game-scene game-scene) delta-t-ms (null null))
   (declare (optimize (speed 3))

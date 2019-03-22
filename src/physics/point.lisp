@@ -14,15 +14,15 @@
                      arg
                      `(coerce ,arg 'world-position)))))
 
-(proclaim '(inline distance-between))
+(declaim (inline distance-between)
+         (ftype (function (point point) world-dimension) distance-between))
 (defun distance-between (p1 p2)
   "Compute the distance between P1 and P2."
-  (declare (optimize (speed 3)
-                     (space 3))
+  (declare (optimize (speed 3))
            (point p1 p2))
   (with-accessors ((x1 point-x) (y1 point-y) (z1 point-z)) p1
     (with-accessors ((x2 point-x) (y2 point-y) (z2 point-z)) p2
-      (the world-position
+      (the world-dimension
            (sqrt (+ (expt (- x1 x2) 2)
                     (expt (- y1 y2) 2)
                     (expt (- z1 z2) 2)))))))

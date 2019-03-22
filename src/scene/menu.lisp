@@ -103,6 +103,7 @@
                  (:scancode-up :menu-up)
                  (:scancode-k :menu-up)
                  (:scancode-down :menu-down)
+                 (:scancode-f11 :fullscreen-toggle)
                  (:scancode-j :menu-down))
  ("controller" (:11 :menu-up)
                (:12 :menu-down)
@@ -111,6 +112,8 @@
 
 (set-default-command-action-map
  menu
+ (:fullscreen-toggle (on-deactivate (toggle-fullscreen
+                                     (application-window *engine-manager*))))
  (:menu-activate (on-deactivate (activate menu (node menu) device-id)))
  (:menu-up (on-deactivate (select-up (node menu))
                           (%set-menu-position-and-color menu)))
