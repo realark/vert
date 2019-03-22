@@ -3,6 +3,7 @@
 @export-class
 (defclass game-object (event-publisher)
   ((pinned-objects :initform nil)
+   (pinned-size-objects :initform nil)
    (object-id :initform nil
               :initarg :object-id
               :reader object-id)
@@ -13,13 +14,16 @@ OBJECT-MOVED-ALL events will fire, but OBJECT-MOVED will not."))
 
 ;; object pinning
 
-(defgeneric pin-to (object object-to-pin-to)
+(defgeneric pin-to (object object-to-pin-to &optional pin-size)
   (:documentation "Pin OBJECT to OBJECT-TO-PIN-TO.
 Afterwards, OBJECT match all of OBJECT-TO-PIN-TO's movements.")
-  (:method ((object game-object) (object-to-pin-to game-object))
-    (with-slots (pinned-objects) object-to-pin-to
+  (:method ((object game-object) (object-to-pin-to game-object) &optional pin-size)
+    (with-slots (pinned-objects pinned-size-objects) object-to-pin-to
       (unless (find object pinned-objects)
         (push object pinned-objects))
+      (when pin-size
+        (unless (find object pinned-size-objects)
+          (push object pinned-size-objects)))
       object)))
 
 (defgeneric unpin-from (object object-to-unpin-from)
@@ -116,6 +120,28 @@ Subscribers to this event need not sub OBJECT-MOVED, as OBJECT-MOVED-ALL is a su
          (delta (- (rotation object) old-val)))
     (loop for pinned-object in (slot-value object 'pinned-objects)
        do (incf (rotation pinned-object) delta))
+    (object-moved object)
+    result))
+
+(defmethod (setf width) :around (value (object game-object))
+  (let* ((old-val (width object))
+         (result (call-next-method value object))
+         (delta (- (width object) old-val)))
+    (loop :for pinned-object :in (slot-value object 'pinned-size-objects) :do
+         (setf (width pinned-object)
+               (max #.(expt 10.0 -3)
+                    (+ (width pinned-object) delta))))
+    (object-moved object)
+    result))
+
+(defmethod (setf height) :around (value (object game-object))
+  (let* ((old-val (height object))
+         (result (call-next-method value object))
+         (delta (- (height object) old-val)))
+    (loop :for pinned-object :in (slot-value object 'pinned-size-objects) :do
+         (setf (height pinned-object)
+               (max #.(expt 10.0 -3)
+                    (+ (height pinned-object) delta))))
     (object-moved object)
     result))
 
