@@ -28,53 +28,50 @@
 (defmethod initialize-instance :after ((jumper jumper) &rest args)
   (declare (ignore args))
   (with-slots (num-jumps-available max-jumps) jumper
-    (setf num-jumps-available max-jumps))
-  ;; manages jump acceleration for jumper
+    (setf num-jumps-available max-jumps)))
+
+(defstate ((jumper jumper) :jump-command delta-t-ms (scene platformer-game-scene) :initial-state :not-sending-jump-command)
+  (:sending-jump-command)
+  (:not-sending-jump-command
+   (:on-activate
+    (setf (acceleration-y jumper) (max 0 (acceleration-y jumper)))
+    (change-state jumper delta-t-ms scene :jump-state :falling))))
+
+(defstate ((jumper jumper) :jump-state delta-t-ms (scene platformer-game-scene) :initial-state :on-ground)
   ;; TODO: Assuming normal gravity
-  (add-state-machine
-   jumper
-   (make-state-machine (:name :jump-state :initial-state :on-ground)
-     (:on-ground
-      (:on-activate (:game-object jumper)
-                    (with-slots (num-jumps-available max-jumps) jumper
-                        (setf num-jumps-available max-jumps))))
-     (:coyote
-      (:on-activate (:game-object jumper :world-context scene)
-                    (schedule scene
-                              (+ (scene-ticks scene) (slot-value jumper 'coyote-time-ms))
-                              (lambda ()
-                                (when (eq :coyote (current-state-for jumper :jump-state))
-                                  ;; only update state if no jumping has occurred
-                                  (if (%is-touching-ground jumper)
-                                      (change-state jumper scene :jump-state :on-ground)
-                                      (change-state jumper scene :jump-state :falling)))))))
-     (:long-jumping
-      (:on-activate (:game-object jumper)
-                    (with-slots (num-jumps-available target-y tmp-jump-boost long-jump-height) jumper
-                      (setf target-y (- (y jumper) (or tmp-jump-boost long-jump-height)))))
-      (:while-active (:game-object jumper :world-context scene)
-                     (let ((distance-to-target (- (y jumper) (slot-value jumper 'target-y))))
-                       (if (<= distance-to-target 0)
-                           (when (>= (velocity-y jumper) 0)
-                             (change-state jumper scene :jump-state :falling))
-                           (%apply-jump-forces jumper))))
-      (:on-deactivate (:game-object jumper :world-context scene)
-                      (setf (tmp-jump-boost jumper) nil)))
-     (:falling
-      (:on-activate (:game-object jumper)
-                    (with-slots (num-jumps-available target-y) jumper
-                      (setf num-jumps-available 0)))
-      (:while-active (:game-object jumper :world-context scene)
-                     (when (%is-touching-ground jumper)
-                       (change-state jumper scene :jump-state :on-ground))))))
-  (add-state-machine
-   jumper
-   (make-state-machine (:name :jump-command :initial-state :not-sending-jump-command)
-     (:sending-jump-command)
-     (:not-sending-jump-command
-      (:on-activate (:game-object jumper :world-context scene)
-                    (setf (acceleration-y jumper) (max 0 (acceleration-y jumper)))
-                    (change-state jumper scene :jump-state :falling))))))
+  (:on-ground
+   (:on-activate
+    (with-slots (num-jumps-available max-jumps) jumper
+      (setf num-jumps-available max-jumps))))
+  (:coyote
+   (:on-activate
+    (schedule scene
+              (+ (scene-ticks scene) (slot-value jumper 'coyote-time-ms))
+              (lambda ()
+                (when (eq :coyote (current-state-for jumper :jump-state))
+                  ;; only update state if no jumping has occurred
+                  (if (%is-touching-ground jumper)
+                      (change-state jumper delta-t-ms scene :jump-state :on-ground)
+                      (change-state jumper delta-t-ms scene :jump-state :falling)))))))
+  (:long-jumping
+   (:on-activate
+    (with-slots (num-jumps-available target-y tmp-jump-boost long-jump-height) jumper
+      (setf target-y (- (y jumper) (or tmp-jump-boost long-jump-height)))))
+   (:while-active
+    (let ((distance-to-target (- (y jumper) (slot-value jumper 'target-y))))
+      (if (<= distance-to-target 0)
+          (when (>= (velocity-y jumper) 0)
+            (change-state jumper delta-t-ms scene :jump-state :falling))
+          (%apply-jump-forces jumper))))
+   (:on-deactivate
+    (setf (tmp-jump-boost jumper) nil)))
+  (:falling
+   (:on-activate
+    (with-slots (num-jumps-available target-y) jumper
+      (setf num-jumps-available 0)))
+   (:while-active
+    (when (%is-touching-ground jumper)
+      (change-state jumper delta-t-ms scene :jump-state :on-ground)))))
 
 @inline
 (defun %apply-jump-forces (jumper)
@@ -94,9 +91,9 @@
                    (not (eq :falling (current-state-for jumper :jump-state))))))
     (cond ((and (not (eq :coyote (current-state-for jumper :jump-state)))
                 (has-walked-off-ledge? jumper))
-           (change-state jumper scene :jump-state :coyote))
+           (change-state jumper delta-t-ms scene :jump-state :coyote))
           ((and (%is-touching-ceiling jumper) (not (%is-touching-ground jumper)))
-           (change-state jumper scene :jump-state :falling)))))
+           (change-state jumper delta-t-ms scene :jump-state :falling)))))
 
 @inline
 (defun %is-touching-ground (jumper)
