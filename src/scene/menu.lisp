@@ -178,10 +178,10 @@
   (with-slots (node background) menu
     (let ((camera (camera menu)))
       (when background
-        (render background update-percent camera renderer))
-      (render node update-percent camera renderer)
+        (render background 0.0 camera renderer))
+      (render node 0.0 camera renderer)
       (loop for child in (slot-value node 'children) do
-           (render child update-percent camera renderer)))))
+           (render child 0.0 camera renderer)))))
 
 (defmethod load-resources :before ((node parent-node) renderer)
   (loop for child in (slot-value node 'children) do
