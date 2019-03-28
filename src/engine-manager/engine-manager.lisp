@@ -214,6 +214,7 @@ It is invoked after the engine is fully started.")
 
   (defmethod cleanup-engine :after (engine-manager)
     (clear-cache number-cache)
+    (setf last-dynamic-use-measure 0)
     (when rendered-text
       (release-resources rendered-text)))
 
