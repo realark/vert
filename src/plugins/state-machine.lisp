@@ -1,26 +1,36 @@
 (in-package :recurse.vert)
 
+ (eval-when (:compile-toplevel :load-toplevel :execute)
+   (defparameter %state-machine-names% (make-hash-table)
+     "Hash class-name -> (state-machine-names-list). Used to initialize state machines after every object initialization."))
+
 @export
 (defclass stateful (game-object)
   ((state-machines :initform (make-hash-table)
                    :documentation ":state-machine-name -> :current-state"))
   (:documentation "A game object with various states. Appropriate state actions will be invoked after UPDATE-USER on the game object."))
 
+(defmethod initialize-instance :after ((stateful stateful) &rest args)
+  (declare (ignore args))
+  (%initialize-all-state-machines stateful))
+
 @export
 (defun current-state-for (stateful-game-object state-machine-name)
   "Return the current state (keyword) for STATEFUL-GAME-OBJECT's state-machine with the name of STATE-MACHINE-NAME."
   (declare (stateful stateful-game-object)
            (keyword state-machine-name))
-  (%check-initialize-state-machine stateful-game-object state-machine-name)
   (gethash state-machine-name (slot-value stateful-game-object 'state-machines)))
 
 @export
 (defgeneric change-state (stateful-game-object delta-t-ms world-context state-machine-name new-state-name)
   (:documentation "Change state for STATEFUL-GAME-OBJECT and run :on-deactivate and :on-active for the old and new states."))
 
-(defgeneric %check-initialize-state-machine (object state-machine-name)
-  (:documentation "Set the initial state for STATE-MACHINE-NAME on OBJECT. No active/activation code will be run.
-Returns the current state for STATE-MACHINE-NAME on OBJECT regardless of any initialization occurring."))
+(defgeneric %initialize-all-state-machines (object)
+  (:documentation "TODO")
+  (:method ((stateful stateful))))
+
+(defgeneric %initialize-state-machine (object state-machine-name)
+  (:documentation "TODO"))
 
 (defgeneric %state-machine-update (object state-name delta-t-ms scene)
   (:documentation "Run the :while-active body for the current state of OBJECT"))
@@ -45,6 +55,10 @@ Returns the current state for STATE-MACHINE-NAME on OBJECT regardless of any ini
              (if (symbolp binding)
                  binding
                  (elt binding 0)))
+           (binding-class (binding)
+             (if (symbolp binding)
+                 binding
+                 (elt binding 1)))
            (validate-states-and-actions (states-and-actions)
              (unless (>= (length states-and-actions) 1)
                      (error "At least one state must be defined for ~A" state-machine-name-keyword))
@@ -80,40 +94,49 @@ Returns the current state for STATE-MACHINE-NAME on OBJECT regardless of any ini
       (validate-states-and-actions states-and-actions)
       (setf initial-state (or initial-state (get-first-state-name states-and-actions)))
 
-      (alexandria:with-gensyms (state-machines machine-name)
+      (alexandria:with-gensyms (current-state new-state-name state-machines machine-name)
         `(progn
-           (defmethod %check-initialize-state-machine (,object-binding (,machine-name (eql ,state-machine-name-keyword)))
-             (with-slots ((,state-machines state-machines)) ,(binding-name object-binding)
-               (let ((current-state (gethash ,machine-name ,state-machines)))
-                 (unless current-state
-                   (setf current-state ,initial-state)
-                   (setf (gethash ,machine-name ,state-machines) current-state))
-                 current-state)))
+           (eval-when (:execute :load-toplevel :compile-toplevel)
+             (let* ((class-name (quote ,(binding-class object-binding)))
+                    (states (gethash class-name %state-machine-names%)))
+               (when (not (find ,state-machine-name-keyword states))
+                 (setf (gethash class-name %state-machine-names%)
+                       (if states
+                           (push ,state-machine-name-keyword states)
+                           (list ,state-machine-name-keyword))))))
 
-           (defmethod change-state (,object-binding ,delta-t-binding ,scene-binding (,machine-name (eql ,state-machine-name-keyword)) new-state-name)
+           (defmethod %initialize-all-state-machines :after (,object-binding)
+             (loop :for ,machine-name :in (gethash (quote ,(binding-class object-binding)) %state-machine-names%) :do
+                  (%initialize-state-machine ,(binding-name object-binding) ,machine-name)))
+
+           (defmethod %initialize-state-machine (,object-binding (,machine-name (eql ,state-machine-name-keyword)))
+             (setf (gethash ,machine-name (slot-value ,(binding-name object-binding) 'state-machines))
+                   ,initial-state))
+
+           (defmethod change-state (,object-binding ,delta-t-binding ,scene-binding (,machine-name (eql ,state-machine-name-keyword)) ,new-state-name)
              (with-slots ((,state-machines state-machines)) ,(binding-name object-binding)
-               (let ((current-state (%check-initialize-state-machine ,(binding-name object-binding) ,machine-name)))
-                 (unless (find new-state-name '(,@(state-names states-and-actions)))
+               (let ((,current-state (gethash ,machine-name ,state-machines)))
+                 (unless (find ,new-state-name '(,@(state-names states-and-actions)))
                    (error "~A is not a valid state. Expected one of ~A"
-                          new-state-name
+                          ,new-state-name
                           '(,@(state-names states-and-actions))))
-                 (unless (eq current-state new-state-name)
+                 (unless (eq ,current-state ,new-state-name)
                    ;; run deactivate on current
-                   (ecase current-state
+                   (ecase ,current-state
                      ,@(loop :for state-action :in states-and-actions :collect
                             `( ,(first state-action)
                                 ,@(get-action-body :on-deactivate state-action))))
                    ;; switch state and run activate on new
-                   (setf (gethash ,machine-name ,state-machines) new-state-name
-                         current-state new-state-name)
-                   (ecase current-state
+                   (setf (gethash ,machine-name ,state-machines) ,new-state-name
+                         ,current-state ,new-state-name)
+                   (ecase ,current-state
                      ,@(loop :for state-action :in states-and-actions :collect
                             `(,(first state-action)
                                ,@(get-action-body :on-activate state-action))))))))
 
            (defmethod %state-machine-update (,object-binding (,machine-name (eql ,state-machine-name-keyword)) ,delta-t-binding ,scene-binding)
-             (let ((current-state (%check-initialize-state-machine ,(binding-name object-binding) ,machine-name)))
-               (ecase current-state
+             (let ((,current-state (gethash ,machine-name (slot-value ,(binding-name object-binding) 'state-machines))))
+               (ecase ,current-state
                  ,@(loop :for state-action :in states-and-actions :collect
                         `(,(first state-action)
                            ,@(get-action-body :while-active state-action)))))))))))
