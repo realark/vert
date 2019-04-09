@@ -3,6 +3,7 @@
 (in-package :recurse.vert)
 
 ;;;; Camera class and methods
+@export-class
 (defclass simple-camera (aabb)
   ((width :initform 1.0
           :reader width

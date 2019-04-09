@@ -31,6 +31,7 @@
                       :documentation "Rendering context of the application window.")
    (active-scene :initarg :active-scene
                  :initform nil
+                 ;; TODO: Use setf on active-scene instead of `change-scene` method
                  :accessor active-scene
                  :documentation "Scene to update and render in the game loop.")
    (audio-player :initarg :audio-player
