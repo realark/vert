@@ -21,6 +21,7 @@
            (keyword state-machine-name))
   (gethash state-machine-name (slot-value stateful-game-object 'state-machines)))
 
+;; TODO: Use a setf-able getter/setter for current state
 @export
 (defgeneric change-state (stateful-game-object delta-t-ms world-context state-machine-name new-state-name)
   (:documentation "Change state for STATEFUL-GAME-OBJECT and run :on-deactivate and :on-active for the old and new states."))
@@ -40,6 +41,7 @@
     (loop :for state-machine-name :being :the hash-keys :of (slot-value stateful 'state-machines) :do
          (%state-machine-update stateful state-machine-name delta-t-ms world-context))))
 
+;; TODO: (defstate state-machine-name initial-state* (arg-lambda-list) body))
 @export
 (defmacro defstate ((object-binding state-machine-name-keyword delta-t-binding scene-binding &key initial-state old-state-binding new-state-binding) &body states-and-actions)
   "TODO write doc"

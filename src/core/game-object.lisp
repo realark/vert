@@ -118,8 +118,8 @@ Subscribers to this event need not sub OBJECT-MOVED, as OBJECT-MOVED-ALL is a su
   (let* ((old-val (rotation object))
          (result (call-next-method value object))
          (delta (- (rotation object) old-val)))
-    (loop for pinned-object in (slot-value object 'pinned-objects)
-       do (incf (rotation pinned-object) delta))
+    ;; (loop for pinned-object in (slot-value object 'pinned-objects) do
+    ;;      (incf (rotation pinned-object) delta))
     (object-moved object)
     result))
 
