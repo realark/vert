@@ -124,6 +124,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
 
 (defmethod play-sound-effect ((audio-player sdl-audio-player) path-to-sfx-file &key (rate 1.0) (volume 1.0))
   (declare (ignore rate))
+  ;; FIXME don't raise an error if no channel is available
   (sdl2-mixer:play-channel
    +first-free-channel+
    (%get-sound-effect audio-player path-to-sfx-file)
@@ -144,11 +145,15 @@ Computed as (* (/ bit-rate 8) num-channels)")
       (ecase (music-state audio-player)
         (:playing
          (if (= 1 (sdl2-ffi.functions:mix-playing-music))
-             (sdl2-ffi.functions:mix-resume-music)
+             (progn
+               (sdl2-ffi.functions:mix-resume-music)
+               (sdl2-ffi.functions:mix-resume +all-channels+))
              (unless (= 0 (sdl2-mixer:play-music
                            (%get-music audio-player (current-music audio-player)) 1))
                (error "sdl-mixer unable to play music: ~A"
                       (sdl2-ffi.functions:sdl-get-error)))))
-        (:paused (sdl2-ffi.functions:mix-pause-music))
+        (:paused
+         (sdl2-ffi.functions:mix-pause +all-channels+)
+         (sdl2-ffi.functions:mix-pause-music))
         (:stopped
          (sdl2-mixer:halt-music))))))
