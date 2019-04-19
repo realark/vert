@@ -23,7 +23,7 @@ Must be called before any sounds will play."))
 
 ;;;; audio player api
 
-(defgeneric play-sound-effect (audio-player path-to-sfx-file &key rate)
+(defgeneric play-sound-effect (audio-player path-to-sfx-file &key rate volume)
   (:documentation "Play the audio in PATH-TO-SFX-FILE as a sound effect on the audio player."))
 
 (defgeneric play-music (audio-player path-to-music-file &key num-plays)

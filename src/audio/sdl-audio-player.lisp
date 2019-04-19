@@ -1,7 +1,10 @@
 ;; Implement audio-player with sdl2-mixer
 (in-package :recurse.vert)
 
-(defparameter *sfx-channel* 0 "SDL-Mixer Sound effect channel.")
+(defparameter *first-sfx-channel* 0)
+(defparameter *num-sfx-channels* 5)
+(defconstant +first-free-channel+ -1)
+(defconstant +all-channels+ -1)
 
 (defparameter *sdl-mix-sample-size* 0 "Number of 8 bit ints in a sample.
 Computed as (* (/ bit-rate 8) num-channels)")
@@ -62,8 +65,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
         (setf (getcache path-to-music-file cache) value))
       value)))
 
-
-(eval-when (:compile-toplevel)
+(eval-when (:compile-toplevel :load-toplevel)
   (cffi:defcallback
       music-finished-callback :void ()
     "When music finishes playing queue up"
@@ -92,9 +94,10 @@ Computed as (* (/ bit-rate 8) num-channels)")
 (defmethod start-audio-player ((audio-player sdl-audio-player))
   (sdl2-mixer:init)
   (sdl2-mixer:open-audio +output-frequency-hz+ :s16sys 2 2048)
-  (sdl2-mixer:allocate-channels 1)
+  (sdl2-mixer:allocate-channels *num-sfx-channels*)
   (sdl2-mixer:volume-music 128)
-  (sdl2-mixer:volume *sfx-channel* 64)
+  (loop :for n :from *first-sfx-channel* :below *num-sfx-channels* :do
+       (sdl2-mixer:volume n 64))
 
   (multiple-value-bind (frequency format channels)
       (%query-sdl-spec)
@@ -111,17 +114,18 @@ Computed as (* (/ bit-rate 8) num-channels)")
 
 (defmethod stop-audio-player ((audio-player sdl-audio-player))
   (sdl2-mixer:halt-music)
-  (sdl2-mixer:halt-channel -1)
+  (sdl2-mixer:halt-channel +all-channels+)
+  (sdl2-mixer:close-audio)
+  (loop :while (/= 0 (sdl2-mixer:init 0)) :do
+       (sdl2-mixer:quit))
   (clear-cache (chunk-cache audio-player))
   (clear-cache (music-cache audio-player))
-  (sdl2-mixer:close-audio)
-  (sdl2-mixer:quit)
   (values))
 
-(defmethod play-sound-effect ((audio-player sdl-audio-player) path-to-sfx-file &key rate)
+(defmethod play-sound-effect ((audio-player sdl-audio-player) path-to-sfx-file &key (rate 1.0) (volume 1.0))
   (declare (ignore rate))
   (sdl2-mixer:play-channel
-   *sfx-channel*
+   +first-free-channel+
    (%get-sound-effect audio-player path-to-sfx-file)
    ;; hardcoding a one-time play
    0))
@@ -134,19 +138,17 @@ Computed as (* (/ bit-rate 8) num-channels)")
     (setf (music-state audio-player) :stopped
           num-music-plays num-plays
           current-music path-to-music-file
-          (music-state audio-player) :playing)))
-
-(defmethod (setf music-state) :after (value (audio-player sdl-audio-player))
-  (with-slots (music-count music-queue)
-      audio-player
-    (ecase (music-state audio-player)
-      (:playing
-       (if (= 1 (sdl2-ffi.functions:mix-playing-music))
-           (sdl2-ffi.functions:mix-resume-music)
-           (unless (= 0 (sdl2-mixer:play-music
-                         (%get-music audio-player (current-music audio-player)) 1))
-             (error "sdl-mixer unable to play music: ~A"
-                    (sdl2-ffi.functions:sdl-get-error)))))
-      (:paused (sdl2-ffi.functions:mix-pause-music))
-      (:stopped
-       (sdl2-mixer:halt-music)))))
+          (music-state audio-player) :playing)
+    (with-slots (music-count music-queue)
+        audio-player
+      (ecase (music-state audio-player)
+        (:playing
+         (if (= 1 (sdl2-ffi.functions:mix-playing-music))
+             (sdl2-ffi.functions:mix-resume-music)
+             (unless (= 0 (sdl2-mixer:play-music
+                           (%get-music audio-player (current-music audio-player)) 1))
+               (error "sdl-mixer unable to play music: ~A"
+                      (sdl2-ffi.functions:sdl-get-error)))))
+        (:paused (sdl2-ffi.functions:mix-pause-music))
+        (:stopped
+         (sdl2-mixer:halt-music))))))
