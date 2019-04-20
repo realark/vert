@@ -2,7 +2,7 @@
 (in-package :recurse.vert)
 
 (defparameter *first-sfx-channel* 0)
-(defparameter *num-sfx-channels* 5)
+(defparameter *num-sfx-channels* 20)
 (defconstant +first-free-channel+ -1)
 (defconstant +all-channels+ -1)
 
@@ -123,13 +123,12 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (values))
 
 (defmethod play-sound-effect ((audio-player sdl-audio-player) path-to-sfx-file &key (rate 1.0) (volume 1.0))
-  (declare (ignore rate))
-  ;; FIXME don't raise an error if no channel is available
-  (sdl2-mixer:play-channel
+  (declare (ignore rate volume))
+  (sdl2-ffi.functions:mix-play-channel-timed
    +first-free-channel+
    (%get-sound-effect audio-player path-to-sfx-file)
    ;; hardcoding a one-time play
-   0))
+   0 -1))
 
 
 (defmethod play-music ((audio-player sdl-audio-player) path-to-music-file &key (num-plays 1))
