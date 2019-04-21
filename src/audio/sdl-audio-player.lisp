@@ -50,20 +50,22 @@ Computed as (* (/ bit-rate 8) num-channels)")
     (values freq fmt chans)))
 
 (defun %get-music (audio-player path-to-music-file)
-  (with-accessors ((cache music-cache)) audio-player
-    (let ((value (getcache path-to-music-file cache)))
-      (unless value
-        (setf value (sdl2-mixer:load-music path-to-music-file))
-        (setf (getcache path-to-music-file cache) value))
-      value)))
+  (getcache-default path-to-music-file
+                    (music-cache audio-player)
+                    (let ((music (sdl2-mixer:load-music path-to-music-file)))
+                      ;; sdl2-mixer manually frees the underlying pointer in a finalizer by default.
+                      ;; Cancel it because we're handling that ourselves.
+                      (tg:cancel-finalization music)
+                      music)))
 
-(defun %get-sound-effect (audio-player path-to-music-file)
-  (with-accessors ((cache chunk-cache)) audio-player
-    (let ((value (getcache path-to-music-file cache)))
-      (unless value
-        (setf value (sdl2-mixer:load-wav path-to-music-file))
-        (setf (getcache path-to-music-file cache) value))
-      value)))
+(defun %get-sound-effect (audio-player path-to-sound)
+  (getcache-default path-to-sound
+                    (chunk-cache audio-player)
+                    (let ((chunk (sdl2-mixer:load-wav path-to-sound)))
+                      ;; sdl2-mixer manually frees the underlying pointer in a finalizer by default.
+                      ;; Cancel it because we're handling that ourselves.
+                      (tg:cancel-finalization chunk)
+                      chunk)))
 
 (eval-when (:compile-toplevel :load-toplevel)
   (cffi:defcallback
