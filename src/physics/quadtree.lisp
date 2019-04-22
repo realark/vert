@@ -256,7 +256,7 @@
       (find game-object (objects node)))))
 
 (defmethod %map-partition ((function function) (quadtree quadtree))
-  (declare (optimize (space 3)))
+  (declare (optimize (speed 3)))
   (with-slots (children objects level) quadtree
     (declare (fixnum level)
              ((vector T) objects))
@@ -280,7 +280,7 @@
 
 (defmethod %map-neighbors ((function function) (game-object game-object)
                            (quadtree quadtree) &optional (radius 0.0))
-  (declare (optimize (space 3))
+  (declare (optimize (speed 3))
            (world-position radius))
   (unless (= 0.0 radius) (error "FIXME: quadtree radius lookup not implemented"))
   (let ((node (%node-for-object game-object quadtree))

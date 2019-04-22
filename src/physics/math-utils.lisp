@@ -21,8 +21,7 @@
 
 (defun nrotate-2d (point theta &optional (rotation-origin *origin*))
   "Destructively rotate POINT THETA radians about ROTATION-ORIGIN in the xy plane."
-  (declare (optimize (speed 3)
-                     (space 3))
+  (declare (optimize (speed 3))
            (rotation-radians theta)
            (point point rotation-origin))
   ;; translate point to rotation-origin

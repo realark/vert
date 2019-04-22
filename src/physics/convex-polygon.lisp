@@ -127,8 +127,7 @@
     (height polygon)))
 
 (defun %update-polygon-bounding-box (polygon)
-  (declare (optimize (speed 3)
-                     (space 3))
+  (declare (optimize (speed 3))
            (type convex-polygon polygon))
   (loop with world-points = (the (simple-array point) (world-points polygon))
      with left = (elt world-points 0)

@@ -126,8 +126,7 @@
   (:documentation "Return a vector containing the four corners of the Bounding Box.
                    The order of the returned points is Upper-Left, Upper-Right, Lower-Right, Lower-Left.")
   (:method ((aabb aabb))
-    (declare (optimize (speed 3)
-                       (space 3)))
+    (declare (optimize (speed 3)))
     (with-accessors ((local-points local-points)) aabb
       (with-slots (world-points) aabb
         (with-slots ((world-x x) (world-y y) (world-z z)) (slot-value aabb 'world-position)
@@ -181,8 +180,7 @@
 @inline
 (defun compute-center-of (aabb point)
   "Compute the center of AABB and update POINT to the result."
-  (declare (optimize (speed 3)
-                     (space 3))
+  (declare (optimize (speed 3))
            (point point)
            (aabb aabb))
   (setf

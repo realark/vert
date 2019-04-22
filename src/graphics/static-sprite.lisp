@@ -60,7 +60,7 @@
   (setf (path-to-image game-object) (path-to-image game-object)))
 
 (defmethod (setf path-to-image) :before (value (static-sprite static-sprite))
-  (declare (optimize (speed 3) (space 3)))
+  (declare (optimize (speed 3)))
   (setf (texture-cache-key static-sprite) value))
 
 (defmethod create-sdl-texture ((static-sprite static-sprite) (renderer sdl2-ffi:sdl-renderer))

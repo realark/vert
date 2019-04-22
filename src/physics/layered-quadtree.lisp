@@ -17,7 +17,7 @@
   (:documentation "A collection of quadtrees with 1 quadtree per unique z-layer."))
 
 (defun %get-quadtree-at-layer (layered-quadtree z-layer)
-  (declare (optimize (space 3))
+  (declare (optimize (speed 3))
            (world-position z-layer))
   (with-slots (quadtrees width height max-objects max-depth)
       layered-quadtree

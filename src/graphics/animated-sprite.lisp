@@ -56,7 +56,7 @@
             (sprite-source-h source-rect) (sprite-source-h frame)))))
 
 (defmethod update :after ((animated-sprite animated-sprite) delta-t-ms scene)
-  (declare (optimize (speed 3) (space 3)))
+  (declare (optimize (speed 3)))
   (flet ((has-next-frame (animation current-frame-index)
            (declare (animation animation) ((integer 0 1000) current-frame-index))
            (< current-frame-index (- (length (animation-frames animation)) 1))))

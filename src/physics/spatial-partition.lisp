@@ -40,8 +40,7 @@ within the RADIUS."))
   (assert (symbolp neighbor-binding))
   (alexandria:once-only (game-object spatial-partition radius)
     `(%map-neighbors (lambda (,neighbor-binding)
-                       (declare (optimize (speed 3)
-                                          (space 3)))
+                       (declare (optimize (speed 3)))
                        ,@body
                        (values))
                      ,game-object

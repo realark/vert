@@ -67,14 +67,14 @@ If no EVENT-NAMES are passed, SUBSCRIBER is removed from all of PUBLISHER's even
        (defmethod ,event-name (,publisher ,@event-args)
          ,@body)
        (defmethod ,event-name :after ((publisher event-publisher) ,@event-args)
-                  (declare (optimize (space 3)))
+                  (declare (optimize (speed 3)))
                   (loop for sub across (the (array T)
                                             (gethash ',event-name
                                                      (slot-value publisher 'event-subscribers)
                                                      #()))
                      do (,callback-name publisher sub ,@event-args-names)))
        (defmethod ,callback-name (publisher listener ,@event-args)
-         (declare (optimize (speed 3) (space 3) (safety 0)))
+         (declare (optimize (speed 3) (safety 0)))
          (values)))))
 
 (defmacro fire-event (publisher event-name &rest event-args)

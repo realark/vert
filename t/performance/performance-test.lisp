@@ -91,8 +91,7 @@
                                :introspection-enabled nil
                                :on-update
                                (lambda (object)
-                                 (declare (optimize (speed 3)
-                                                    (space 3)))
+                                 (declare (optimize (speed 3)))
                                  (loop with sample = (sb-concurrency:dequeue (slot-value object 'recurse.vert/test::amplitude-queue))
                                     while sample do
                                       (setf samples-processed T)

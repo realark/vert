@@ -65,8 +65,7 @@ May be extended or overridden by subclasses.")
   (:documentation "Get all objects touching the REGION-NAME touch-region.
 Or pass :all to get all objects touching TOUCH-TRACKER")
   (:method ((touch-tracker touch-tracker) &optional (region-name :all))
-    (declare (optimize (speed 3)
-                       (space 3))
+    (declare (optimize (speed 3))
              (keyword region-name))
     (if (eq :all region-name)
         (with-slots (all-objects-touching) touch-tracker

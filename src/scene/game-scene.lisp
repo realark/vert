@@ -111,10 +111,33 @@ On the next render frame, the objects will be given a chance to load and this li
       game-scene
     (when bg
       (render bg update-percent camera renderer))
-    (loop while unloaded-game-objects do
+    (loop :while unloaded-game-objects :do
          (load-resources (pop unloaded-game-objects) renderer))
-    (do-spatial-partition (game-object (spatial-partition game-scene))
-      (render game-object update-percent camera renderer)))
+    (flet ((in-camera (camera game-object)
+             (declare (aabb camera game-object))
+             (with-slots ((p1 world-position)
+                          (w1 width) (h1 height))
+                 camera
+               (with-accessors ((x1 point-x) (y1 point-y) (z1 point-z))
+                   p1
+                 (with-slots ((p2 world-position)
+                              (w2 width) (h2 height))
+                     game-object
+                   (with-accessors ((x2 point-x) (y2 point-y) (z2 point-z))
+                       p2
+                     (declare (world-dimension w1 h1 w2 h2)
+                              (world-position x1 y1 z1 x2 y2 z2))
+                     (and (< x1 (+ x2 w2))
+                          (> (+ x1 w1) x2)
+                          (< y1 (+ y2 h2))
+                          (> (+ h1 y1) y2))))))))
+      (declare (inline in-camera))
+      (let ((camera (camera game-scene)))
+        (do-spatial-partition (game-object (spatial-partition game-scene))
+          ;; (render game-object update-percent camera renderer)
+          (when (in-camera camera game-object)
+            (render game-object update-percent camera renderer))
+          ))))
   (values))
 
 (defevent-callback killed ((object aabb) (game-scene game-scene))
