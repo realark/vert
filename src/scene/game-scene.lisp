@@ -1,5 +1,11 @@
 (in-package :recurse.vert)
 
+@export-class
+(defclass static-object ()
+  ()
+  (:documentation "A marker class which tells a game-scene that the object does not require updates.
+This is an optimization to allow scenes to skip updates for objects."))
+
 (defclass game-scene (scene)
   ((scene-background :initform nil
                      :initarg :background
@@ -94,12 +100,14 @@ On the next render frame, the objects will be given a chance to load and this li
   (with-slots ((bg scene-background)) game-scene
     (when bg (pre-update bg))
     (do-spatial-partition (game-object (spatial-partition game-scene))
-      (pre-update game-object))
+      (unless (typep game-object 'static-object)
+        (pre-update game-object)))
     (pre-update (camera game-scene))
     (%run-scheduled-callbacks game-scene)
     (when bg (update bg delta-t-ms game-scene))
     (do-spatial-partition (game-object (spatial-partition game-scene))
-      (update game-object delta-t-ms game-scene))
+      (unless (typep game-object 'static-object)
+        (update game-object delta-t-ms game-scene)))
     (update (camera game-scene) delta-t-ms game-scene)
     (incf (slot-value game-scene 'scene-ticks) delta-t-ms)
     (values)))
