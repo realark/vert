@@ -46,10 +46,15 @@
            :accessor lag-ns)
    (last-loop-start-ns :initform (ticks-nanos) :accessor last-loop-start-ns)
    ;; debugging
+   (update-time-nanos :initform 0)
+   (num-updates :initform 0)
+   (render-time-nanos :initform 0)
    (fps-timer-start-ns :initform (ticks-nanos))
    (current-fps :initform 60.0)
    (fps-timer-duration-seconds :initform 4)
-   (num-render-frames :initform 0))
+   (num-render-frames :initform 0)
+   (avg-update-time :initform 0)
+   (avg-render-time :initform 0))
   (:documentation "Starts and stops the game. Manages global engine state and services."))
 
 (defevent engine-started ((engine-manager engine-manager))
@@ -97,8 +102,11 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
       (declare (fixnum last-loop-start lag))
       (let* ((now-ns (ticks-nanos))
              (delta-ns (- (the fixnum now-ns) last-loop-start))
-             (timestep-ns (* +update-timestep+ #.(expt 10 6))))
-        (declare (fixnum now-ns delta-ns timestep-ns))
+             (timestep-ns (* +update-timestep+ #.(expt 10 6)))
+             (num-updates 0)
+             (update-time-nanos 0)
+             (render-time-nanos 0))
+        (declare (fixnum now-ns delta-ns timestep-ns num-updates update-time-nanos render-time-nanos))
         (setf last-loop-start now-ns)
         (incf lag delta-ns)
 
@@ -106,17 +114,24 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           ;; update thread was likely just blocked on debugging. Don't try to catch up.
           (format T "Update thread very far behind. Resetting to a good state.~%")
           (setf lag timestep-ns))
-        (loop :while (>= lag timestep-ns) :do
+        (loop :for i :from 0 :while (>= lag timestep-ns) :do
              (decf lag timestep-ns)
-             (update active-scene +update-timestep+ nil))
+             (let ((t0 (ticks-nanos)))
+               (declare (fixnum t0))
+               (update active-scene +update-timestep+ nil)
+               (incf update-time-nanos (the fixnum (- (the fixnum (ticks-nanos)) t0)))
+               (incf num-updates)))
 
-        (render active-scene
-                (coerce (/ lag timestep-ns) 'single-float)
-                nil
-                renderer)
+        (let ((t0 (ticks-nanos)))
+          (declare (fixnum t0))
+          (render active-scene
+                  (coerce (/ lag timestep-ns) 'single-float)
+                  nil
+                  renderer)
+          (incf render-time-nanos (the fixnum (- (the fixnum (ticks-nanos)) t0))))
         (when *dev-mode* (dev-mode-pre-render engine-manager))
         (render-game-window engine-manager)
-        (when *dev-mode* (dev-mode-post-game-loop-iteration engine-manager))))))
+        (when *dev-mode* (dev-mode-post-game-loop-iteration engine-manager  update-time-nanos num-updates render-time-nanos))))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
   (:documentation "Initialize ENGINE-MANAGER and start the game.
@@ -153,11 +168,25 @@ It is invoked after the engine is fully started.")
 (defun dev-mode-pre-render (engine-manager)
   (render-dev-mode-info engine-manager))
 
-(defun dev-mode-post-game-loop-iteration (engine-manager)
+(defun dev-mode-post-game-loop-iteration (engine-manager update-time-nanos num-updates render-time-nanos)
   ;; (reload-textures-if-changed)
-  (with-slots (num-render-frames) engine-manager
-    (incf num-render-frames))
-  (compute-framerate engine-manager))
+  (with-slots ((total-update-time update-time-nanos)
+               (total-num-updates num-updates)
+               (total-render-time render-time-nanos)
+               (total-render-frames num-render-frames))
+      engine-manager
+    (declare (fixnum update-time-nanos
+                     num-updates
+                     render-time-nanos
+                     total-update-time
+                     total-num-updates
+                     total-render-time
+                     total-render-frames))
+    (incf total-update-time update-time-nanos)
+    (incf total-num-updates num-updates)
+    (incf total-render-time render-time-nanos)
+    (incf total-render-frames))
+  (compute-stats engine-manager))
 
 (defun reload-textures-if-changed ()
   "If any textures have changed, flush the texture cache and reload."
@@ -172,13 +201,27 @@ It is invoked after the engine is fully started.")
         (when (/= current-mtime original-mtime)
           (reload-texture objects-using-texture))))))
 
-(defun compute-framerate (engine-manager)
+(defun compute-stats (engine-manager)
   (declare (optimize (speed 3)))
-  (with-slots (fps-timer-start-ns current-fps fps-timer-duration num-render-frames) engine-manager
+  (with-slots (fps-timer-start-ns
+               current-fps
+               fps-timer-duration
+               render-time-nanos
+               num-render-frames
+               update-time-nanos
+               num-updates
+               avg-update-time
+               avg-render-time)
+      engine-manager
     (let ((duration-seconds (/ (- (ticks-nanos) fps-timer-start-ns) (expt 10 9))))
       (when (> duration-seconds 2)
         (setf current-fps (/ (floor (* (/ num-render-frames (if (= 0 duration-seconds) 1 duration-seconds)) 100)) 100.0)
+              avg-render-time (round (/ render-time-nanos #.(expt 10 6)) num-render-frames)
+              avg-update-time (round (/ update-time-nanos #.(expt 10 6) num-updates))
               fps-timer-start-ns (ticks-nanos)
+              update-time-nanos 0
+              num-updates 0
+              render-time-nanos 0
               num-render-frames 0)))))
 
 (let ((gc-count 0)
@@ -229,7 +272,10 @@ It is invoked after the engine is fully started.")
                            :height line-height-px
                            :color *red*
                            :text "0.0fps")))
-    (with-slots (current-fps) engine-manager
+    (with-slots (current-fps
+                 avg-render-time
+                 avg-update-time)
+        engine-manager
       (let ((camera (camera (active-scene engine-manager)))
             (line-num 0))
         (with-accessors ((camera-zoom scale)
@@ -269,6 +315,12 @@ It is invoked after the engine is fully started.")
                 (render-debug-line (getcache-default current-fps
                                                      (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
                                                      (format nil "~Afps" current-fps)))
+                (render-debug-line (getcache-default avg-render-time
+                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
+                                                     (format nil "r: ~Ams" avg-render-time)))
+                (render-debug-line (getcache-default avg-update-time
+                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
+                                                     (format nil "u: ~Ams" avg-update-time)))
                 (render-debug-line (getcache-default gc-count
                                                      (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
                                                      (format nil "GC# ~A" gc-count)))
