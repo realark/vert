@@ -142,10 +142,8 @@ On the next render frame, the objects will be given a chance to load and this li
       (declare (inline in-camera))
       (let ((camera (camera game-scene)))
         (do-spatial-partition (game-object (spatial-partition game-scene))
-          ;; (render game-object update-percent camera renderer)
           (when (in-camera camera game-object)
-            (render game-object update-percent camera renderer))
-          ))))
+            (render game-object update-percent camera renderer))))))
   (values))
 
 (defevent-callback killed ((object aabb) (game-scene game-scene))
