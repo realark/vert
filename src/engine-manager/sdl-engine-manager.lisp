@@ -36,7 +36,7 @@
             (sdl2:gl-get-attr :context-profile-mask))
 
     (sdl2:with-window (win :w 1280 :h 720
-                           :flags '(:shown :opengl :resizable)
+                           :flags '(:shown :opengl)
                            :title (game-name engine-manager))
       (sdl2:with-renderer (renderer win :index -1 :flags '(:accelerated :presentvsync))
         (setf (slot-value engine-manager 'application-window)
