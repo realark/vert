@@ -15,6 +15,7 @@
                         :serial T
                         :components
                         ((:file "utils")
+                         (:file "config")
                          (:file "resource")
                          (:file "clos-events")
                          (:file "game-object")))

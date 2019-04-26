@@ -70,3 +70,18 @@ COMPARATOR-FN == one arg function that returns T if ITEM is greater than the arg
     `(if (null ,object)
          ,fallback-form
          ,object)))
+
+(defmacro runtime-type-assert (form expected-type &optional error-message)
+  "Wrap FORM in a type assertion. The result of FORM will be returned if the result is of type EXPECTED-TYPE."
+  (alexandria:once-only (form expected-type error-message)
+    `(if (typep ,form ,expected-type)
+         ,form
+         (error
+          (format nil
+                  "~A~A must be of type ~A. Got ~A"
+                  (if ,error-message
+                      (format nil "~A: " ,error-message)
+                      "")
+                  ,form
+                  ,expected-type
+                  (type-of ,form))))))
