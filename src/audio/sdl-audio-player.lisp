@@ -140,7 +140,10 @@ Computed as (* (/ bit-rate 8) num-channels)")
     (setf (music-state audio-player) :stopped
           num-music-plays num-plays
           current-music path-to-music-file
-          (music-state audio-player) :playing)
+          (music-state audio-player) :playing)))
+
+(defmethod (setf music-state) (new-value (audio-player sdl-audio-player))
+  (let ((result (call-next-method new-value audio-player)))
     (with-slots (music-count music-queue)
         audio-player
       (ecase (music-state audio-player)
@@ -157,4 +160,5 @@ Computed as (* (/ bit-rate 8) num-channels)")
          (sdl2-ffi.functions:mix-pause +all-channels+)
          (sdl2-ffi.functions:mix-pause-music))
         (:stopped
-         (sdl2-mixer:halt-music))))))
+         (sdl2-mixer:halt-music))))
+    result))

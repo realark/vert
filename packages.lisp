@@ -30,6 +30,7 @@
    :pin-to
    :unpin-from
    :update
+   :update-input
    :update-user
    :update-motion
    :render
