@@ -21,9 +21,6 @@
    :remcache
    :evict-oldest-cache
    :counting-cache
-   :register-cache
-   :deregister-cache
-   :get-registered-cache
 
    ;; core game-object
    :game-object

@@ -11,32 +11,27 @@ Computed as (* (/ bit-rate 8) num-channels)")
 (defparameter *sdl-mix-rate* 0 "Frequency sdl is mixing.")
 
 (defclass sdl-audio-player (audio-player)
-  ((chunk-cache :initform
-                (let ((cache (make-instance 'evict-oldest-cache :test #'equalp
-                                            :max-size 10
-                                            :on-evict (lambda (path-to-file chunk)
-                                                        (declare (ignore path-to-file))
-                                                        ;; TODO this will be really bad
-                                                        ;; if a channel is playing this wav
-                                                        (sdl2-mixer:free-chunk chunk)))))
-                  (when *memory-manager*
-                    (register-cache *memory-manager* "sdl-chunk-cache" cache))
-                  cache)
+  ((chunk-cache :initarg :chunk-cache
+                :initform
+                (getcache-default "sdl-chunk-cache"
+                                  *memory-manager*
+                                  (make-instance 'evict-oldest-cache :test #'equalp
+                                                 :max-size 10
+                                                 :on-evict (lambda (path-to-file chunk)
+                                                             (declare (ignore path-to-file))
+                                                             (sdl2-mixer:free-chunk chunk))))
                 :reader chunk-cache
                 :allocation :class
                 :documentation "Cache file-path->sdl-chunk")
-   (music-cache :initform
-                (let ((cache (make-instance 'evict-oldest-cache :test #'equalp
-                                            :max-size 5
-                                            :on-evict (lambda (path-to-file music)
-                                                        (declare (ignore path-to-file))
-                                                        ;; TODO this will be really bad
-                                                        ;; if music is playing
-                                                        (sdl2-mixer:free-music music)))))
-                  (when *memory-manager*
-                    (register-cache *memory-manager* "sdl-music-cache" cache))
-                  cache)
-
+   (music-cache :initarg :music-cache
+                :initform
+                (getcache-default "sdl-music-cache"
+                                  *memory-manager*
+                                  (make-instance 'evict-oldest-cache :test #'equalp
+                                                 :max-size 5
+                                                 :on-evict (lambda (path-to-file music)
+                                                             (declare (ignore path-to-file))
+                                                             (sdl2-mixer:free-music music))))
                 :reader music-cache
                 :allocation :class
                 :documentation "Cache file-path->sdl-music"))

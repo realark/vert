@@ -17,8 +17,6 @@
   ((game-name :initform "Vert-Game"
               :reader game-name
               :initarg :game-name)
-   (memory-manager :initform *memory-manager*
-                   :reader memory-manager)
    (input-manager :initform (make-instance 'input-manager)
                   :reader input-manager)
    (application-window :initarg :application-window
@@ -160,7 +158,7 @@ It is invoked after the engine is fully started.")
     ;; stop services
     (stop-audio-system)
     (fire-event engine-manager engine-stopped)
-    (clear-all-caches *memory-manager*)
+    (clear-cache *memory-manager*)
     (format t "~%~%")))
 
 ;; debugging and dev mode tools

@@ -42,14 +42,6 @@
       (tg:cancel-finalization surf)
       texture)))
 
-;; TODO: directly cache the textures themselves instead of historical uncached-font-drawable cruft
-(unless (get-registered-cache *memory-manager* "text-cache")
-  (register-cache *memory-manager* "text-cache"
-                  (make-instance 'cache :on-evict (lambda (font-size font-cache)
-                                                    (declare (ignore font-size))
-                                                    (clear-cache font-cache))
-                                        :test #'equalp)))
-
 @export
 (defclass font-drawable (sdl-texture-drawable)
   ((characters :initform (make-array 0 :adjustable T :fill-pointer 0))
@@ -64,7 +56,15 @@
               :documentation "Pixel depth of the font based on 72DPI.")
    (text :initarg :text
          :initform (error ":text must be specified")
-         :accessor text))
+         :accessor text)
+   (text-cache :initarg :text-cache
+               :initform
+               (getcache-default "text-cache"
+                                 *memory-manager*
+                                 (make-instance 'cache :on-evict (lambda (font-size font-cache)
+                                                                   (declare (ignore font-size))
+                                                                   (clear-cache font-cache))
+                                                :test #'equalp))))
   (:documentation "A drawable which loads pixels from a font and user-defined text"))
 
 (defmethod initialize-instance :after ((drawable font-drawable) &key color)
@@ -91,7 +91,8 @@
                characters
                color-mod
                path-to-font
-               font-size)
+               font-size
+               text-cache)
       font-drawable
     (unless (equal old-text new-text)
       (setf (fill-pointer characters) 0)
@@ -99,7 +100,7 @@
         (loop :for char :across new-text :do
           (vector-push-extend (getcache-default char
                                                 (getcache-default font-size
-                                                                  (get-registered-cache *memory-manager* "text-cache")
+                                                                  text-cache
                                                                   (make-instance 'cache :on-evict (lambda (char char-drawable)
                                                                                                     (declare (ignore char))
                                                                                                     (release-resources char-drawable))

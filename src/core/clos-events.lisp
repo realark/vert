@@ -2,7 +2,7 @@
 (in-package :recurse.vert)
 
 (defclass event-publisher ()
-  ((event-subscribers :documentation "even-name-symbol -> array of subs"))
+  ((event-subscribers :documentation "event-name-symbol -> array of subs"))
   (:documentation "Event publisher class."))
 
 ;; lazy initialize event map

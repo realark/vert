@@ -109,7 +109,15 @@ METADATA-BINDINGS should be keyword symbol pars. E.g. :foo foo-binding"
                       ,@body))
                   ,htable)))))
 
+@export
 (defmacro do-cache ((cache key-binding value-binding) &body body)
   "Iterate over CACHE with KEY-BINDING and VALUE-BINDING."
   `(%do-cache (,cache ,key-binding ,value-binding)
      ,@body))
+
+@export
+(defvar *memory-manager* (make-instance 'cache
+                                        :on-evict (lambda (cache-name cache)
+                                                    (declare (ignore cache-name))
+                                                    (clear-cache cache)))
+  "Global Cache of all caches used by the engine.")

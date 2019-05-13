@@ -27,8 +27,7 @@
                         ((:file "cache")
                          (:file "evict-oldest-cache")
                          (:file "counting-cache")
-                         (:file "resource-cache")
-                         (:file "memory-manager")))
+                         (:file "resource-cache")))
                (:module physics
                         :depends-on (:core)
                         :pathname "src/physics"
