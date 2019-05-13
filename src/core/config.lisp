@@ -38,4 +38,4 @@ Examples:
          ,config))))
 
 @export
-(defvar *active-config* (make-config))
+(defvar *engine-config* (make-config))

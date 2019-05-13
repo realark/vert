@@ -116,7 +116,7 @@ METADATA-BINDINGS should be keyword symbol pars. E.g. :foo foo-binding"
      ,@body))
 
 @export
-(defvar *memory-manager* (make-instance 'cache
+(defvar *engine-caches* (make-instance 'cache
                                         :on-evict (lambda (cache-name cache)
                                                     (declare (ignore cache-name))
                                                     (clear-cache cache)))

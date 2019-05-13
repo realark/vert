@@ -23,7 +23,7 @@
              (resource-exists-p (resource-dir resource-relative-path)
                (probe-file (absolute-resource-path resource-dir resource-relative-path))))
       (or
-       (loop :for resource-dir :in (getconfig *config-resource-dirs-key* *active-config*) :do
+       (loop :for resource-dir :in (getconfig *config-resource-dirs-key* *engine-config*) :do
             (when (resource-exists-p resource-dir resource-relative-path)
               (return (absolute-resource-path resource-dir resource-relative-path))))
        (when (resource-exists-p *default-resource-dir* resource-relative-path)
@@ -31,7 +31,7 @@
        (when error-if-absent
          (error "~A not found. Checked ~A and ~A"
                 resource-relative-path
-                (getconfig *config-resource-dirs-key* *active-config*)
+                (getconfig *config-resource-dirs-key* *engine-config*)
                 *default-resource-dir*))))))
 
 @export

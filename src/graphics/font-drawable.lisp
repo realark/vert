@@ -60,7 +60,7 @@
    (text-cache :initarg :text-cache
                :initform
                (getcache-default "text-cache"
-                                 *memory-manager*
+                                 *engine-caches*
                                  (make-instance 'cache :on-evict (lambda (font-size font-cache)
                                                                    (declare (ignore font-size))
                                                                    (clear-cache font-cache))

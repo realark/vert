@@ -14,7 +14,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
   ((chunk-cache :initarg :chunk-cache
                 :initform
                 (getcache-default "sdl-chunk-cache"
-                                  *memory-manager*
+                                  *engine-caches*
                                   (make-instance 'evict-oldest-cache :test #'equalp
                                                  :max-size 10
                                                  :on-evict (lambda (path-to-file chunk)
@@ -26,7 +26,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
    (music-cache :initarg :music-cache
                 :initform
                 (getcache-default "sdl-music-cache"
-                                  *memory-manager*
+                                  *engine-caches*
                                   (make-instance 'evict-oldest-cache :test #'equalp
                                                  :max-size 5
                                                  :on-evict (lambda (path-to-file music)
