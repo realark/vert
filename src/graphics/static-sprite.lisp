@@ -82,6 +82,6 @@ A DIRECTION of :NONE will clear all flips")
       (ecase direction
         (:none (setf flip-list (list)))
         ((:horizontal :vertical)
-         (if (list-contains-p flip-list direction)
+         (if (find direction flip-list)
              (setf flip-list (delete direction flip-list))
              (push :horizontal flip-list)))))))

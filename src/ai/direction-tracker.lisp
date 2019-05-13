@@ -20,7 +20,7 @@ Mutually exclusive dirs will be updated (e.g. pushing :east removes :west).")
                (:WEST :EAST)
                (otherwise nil))))
       (with-slots ((facing facing)) direction-tracker
-        (unless (list-contains-p facing direction)
+        (unless (find direction facing)
           (let ((opposite (opposite-direction direction)))
             (when opposite
               ;; having an opposite means we were given a valid direction
@@ -37,7 +37,7 @@ Mutually exclusive dirs will be updated (e.g. pushing :east removes :west).")
     (with-accessors ((facing facing)) agent
       (let ((delta-x (- (x agent) (point-x object)))
             (delta-y (- (y agent) (point-y object))))
-        (or (and (list-contains-p facing :NORTH) (<= 0 delta-y))
-            (and (list-contains-p facing :SOUTH) (>= 0 delta-y))
-            (and (list-contains-p facing :WEST) (<= 0 delta-x))
-            (and (list-contains-p facing :EAST) (>= 0 delta-x)))))))
+        (or (and (find :NORTH facing) (<= 0 delta-y))
+            (and (find :SOUTH facing) (>= 0 delta-y))
+            (and (find :WEST facing) (<= 0 delta-x))
+            (and (find :EAST facing) (>= 0 delta-x)))))))

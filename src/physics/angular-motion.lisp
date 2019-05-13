@@ -13,7 +13,8 @@
                           :type vector-dimension))
   (:documentation "Game-Object which rotates about its center."))
 
-(notes ; rotate about an arbitrary point
+#+nil
+(progn ; rotate about an arbitrary point
   (defmotion angular-motion ((object angular-object) delta-t-ms (physics-context physics-context-2d))
     (with-slots (rotation-velocity
                  rotation-acceleration
