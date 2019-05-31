@@ -7,6 +7,7 @@
    (sdl-to-vert-controllers
     :documentation "Map sdl-id -> vert-id"
     :initform (make-hash-table :test #'equalp))
+   (window-icon :initform nil)
    (sdl-controllers :initform (make-hash-table :test #'equalp)))
   (:documentation "Engine manager implemented with sdl2"))
 
@@ -61,9 +62,26 @@
             (gl:enable :blend)
             (gl:blend-func :src-alpha :one-minus-src-alpha))
 
-          ;; TODO
-          ;; (sdl2-ffi.functions:sdl-create-rgb-surface-from )
-          ;; (sdl2-ffi.functions:sdl-set-window-icon some-surface)
+          ;; TODO: configurable icon
+          (let* ((img-path (resource-path "recursive_logo_light.png"))
+                 (surf
+                  (multiple-value-bind
+                        (img-pointer width height component-count-file component-count-data)
+                      (cl-soil:load-image img-path :rgba)
+                    (unwind-protect
+                         (progn
+                           (assert (= 4 component-count-file component-count-data))
+                           (sdl2:create-rgb-surface-with-format-from
+                            img-pointer
+                            width
+                            height
+                            (* component-count-data 8)
+                            (* component-count-data width)
+                            :format sdl2:+pixelformat-rgba32+))
+                      (cl-soil:free-image-data img-pointer)))))
+
+            (setf (slot-value engine-manager 'window-icon) surf)
+            (sdl2-ffi.functions:sdl-set-window-icon win surf))
 
           ;; Stop using rendered
           ;; Initialize gl context and pass to engine manager
@@ -80,8 +98,12 @@
           (call-next-method)))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
-  (loop :for sdl-joystick-id :being :the hash-keys :in (slot-value engine-manager 'sdl-controllers) :do
-       (remove-sdl-controller engine-manager sdl-joystick-id)))
+  (with-slots (window-icon sdl-controllers) engine-manager
+    (when window-icon
+      (sdl2:free-surface window-icon)
+      (setf window-icon nil))
+    (loop :for sdl-joystick-id :being :the hash-keys :in sdl-controllers :do
+         (remove-sdl-controller engine-manager sdl-joystick-id))))
 
 (defmethod quit-engine ((engine-manager sdl-engine-manager))
   (sdl2:push-event :quit))
