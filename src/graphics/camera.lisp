@@ -5,14 +5,14 @@
 ;;;; Camera class and methods
 @export-class
 (defclass simple-camera (aabb)
-  ((width :initform 1.0
+  ((width :initform (error ":width required")
           :reader width
           :type world-dimension
-          :documentation "Width of the camera in world units. Autocomputed from screen-width and zoom/PPU.")
-   (height :initform 1.0
+          :documentation "Width of the camera in world units.")
+   (height :initform (error ":height required")
            :reader height
            :type world-dimension
-           :documentation "Height of the camera in world units. Autocomputed from screen-height and zoom/PPU.")
+           :documentation "Height of the camera in world units.")
    (screen-width :initarg :screen-width
                  :initform 100
                  :accessor screen-width
@@ -23,115 +23,79 @@
                   :accessor screen-height
                   :type screen-unit
                   :documentation "Height of the display screen in pixels")
-   (pixels-per-unit :initarg :pixels-per-unit
-                    :initform 1
-                    :accessor pixels-per-unit
-                    :documentation "The number of pixels in one world unit.")
    (zoom :initarg :zoom
          :initform 1.0
          :accessor zoom
          :documentation "A slot to zoom the camera in or out.")
-   (scale
-    :reader scale
-    :documentation "The scaling factor to transform world units into pixels. Implemented as PIXELS-PER-UNIT times ZOOM."))
+   (projection-matrix :initform nil
+                      :documentation "World projection matrix. Autocomputed."))
   (:documentation "2d camera which can be moved and zoom in and out."))
 
 (defevent camera-screen-resized ((camera simple-camera))
     "screen-width or screen-height of a camera has changed.")
 
-(flet ((calculate-and-store-camera-width-height (camera)
-         ;; Calculate and stores the world width and height of CAMERA in the WIDTH and HEIGHT slots.
-         (with-accessors ((screen-w screen-width)
-                          (screen-h screen-height)
-                          (scale scale)
-                          (ppu pixels-per-unit))
-             camera
-           (setf (slot-value camera 'width) (coerce (/ screen-w scale) 'world-dimension))
-           (setf (slot-value camera 'height) (coerce (/ screen-h scale) 'world-dimension))
-           (fire-event camera camera-screen-resized)
-           (values))))
+(defun set-camera-projection-matrix (camera update-percent)
+  (declare (simple-camera camera)
+           ((single-float 0.0 1.0) update-percent))
+  (with-slots ((screen-width screen-width)
+               (screen-height screen-height)
+               (world-width width)
+               (world-height height)
+               zoom
+               projection-matrix)
+      camera
+    (multiple-value-bind (ix iy)
+        (interpolate-position camera update-percent)
+      (setf projection-matrix
+            (n-ortho-matrix (or projection-matrix (sb-cga:identity-matrix))
+                            ix
+                            (float (+ ix (/ world-width zoom)))
+                            (float (+ iy (/ world-height zoom)))
+                            iy
+                            100.0
+                            -100.0)))))
+
+(defmethod projection-matrix ((camera simple-camera))
+  (with-slots (projection-matrix) camera
+    (unless projection-matrix
+      (set-camera-projection-matrix camera 1.0))
+    projection-matrix))
+
+(labels ((update-projection-matrix (camera)
+           (fire-event camera camera-screen-resized)))
 
   (defmethod initialize-instance :after ((camera simple-camera) &rest args)
              (declare (ignore args))
              (with-accessors ((zoom zoom)) camera
                ;; running through setf specializers bypassed by :initform
-               (setf zoom zoom) ;; recalculate scale
-               (calculate-and-store-camera-width-height camera)))
+               (setf zoom zoom) ;; coerce to float
+               (with-slots (screen-width screen-height) camera
+                 (multiple-value-bind (w h)
+                     (window-size-pixels (application-window *engine-manager*))
+                   (setf screen-width w
+                         screen-height h)))
+               (update-projection-matrix camera)))
 
   (defmethod (setf screen-width) :around (value (camera simple-camera))
-             (call-next-method (coerce value 'screen-unit) camera))
-
-  (defmethod (setf screen-width) :after (value (camera simple-camera))
-             (calculate-and-store-camera-width-height camera))
+             (prog1
+                 (call-next-method (coerce value 'screen-unit) camera)
+               (update-projection-matrix camera)))
 
   (defmethod (setf screen-height) :around (value (camera simple-camera))
-             (call-next-method (coerce value 'screen-unit) camera))
+             (prog1
+                 (call-next-method (coerce value 'screen-unit) camera)
+               (update-projection-matrix camera)))
 
-  (defmethod (setf screen-height) :after (value (camera simple-camera))
-             (calculate-and-store-camera-width-height camera))
+  (defmethod (setf x) :after (new-val (camera simple-camera))
+             (update-projection-matrix camera))
+
+  (defmethod (setf y) :after (new-val (camera simple-camera))
+             (update-projection-matrix camera))
 
   (defmethod (setf zoom) :around (new-zoom (camera simple-camera))
-             (with-slots (scale pixels-per-unit) camera
-               (unless (typep new-zoom 'single-float)
-                 (setf new-zoom (coerce new-zoom 'single-float)))
-               (call-next-method new-zoom camera)))
-
-  (defmethod (setf zoom) :after (value (camera simple-camera))
-             (setf (slot-value camera 'scale)
-                   (coerce (* (zoom camera) (pixels-per-unit camera)) 'camera-scale))
-             (calculate-and-store-camera-width-height camera))
-
-  (defmethod (setf pixels-per-unit) :after (value (camera simple-camera))
-             (setf (slot-value camera 'scale)
-                   (coerce (* (zoom camera) (pixels-per-unit camera)) 'camera-scale))
-             (calculate-and-store-camera-width-height camera)))
-
-
-@export
-(defun screen-cords-to-world-cords (camera screen-x screen-y)
-  "Return x-y world coordinates of camera's screen X and Y."
-  (declare (optimize (speed 3))
-           (camera camera)
-           (screen-unit screen-x screen-y))
-  (with-accessors ((camera-x x) (camera-y y)) camera
-    (declare (world-position camera-x camera-y))
-    (values (+ camera-x screen-x)
-            (+ camera-y screen-y))))
-
-(defgeneric world-to-screen-cords (game-object camera update-percent)
-  (:documentation "Return x-y screen coordinates of the world object.")
-  (:method ((object game-object) (camera simple-camera) update-percent)
-    (declare (optimize (speed 3)))
-    (multiple-value-bind (drawable-x drawable-y) (interpolate-position object update-percent)
-      (%world-to-screen-cords drawable-x drawable-y camera update-percent))))
-
-@inline
-(defun %world-to-screen-cords (world-x world-y camera update-percent)
-  (declare (optimize (speed 3))
-           (world-position world-x world-y)
-           (simple-camera camera))
-  (with-accessors ((scale scale)
-                   (camera-x x)
-                   (camera-y y))
-      camera
-    (multiple-value-bind (camera-x camera-y) (interpolate-position camera update-percent)
-      (declare (camera-scale scale)
-               (world-position camera-x camera-y))
-      (the (values screen-unit screen-unit)
-           (values (round (* scale (- world-x camera-x)))
-                   (round (* scale (- world-y camera-y))))))))
-
-(defgeneric world-to-screen-dimensions (game-object camera)
-  (:documentation "Return width/height screen dimensions for GAME-OBJECT")
-  (:method ((game-object game-object) (camera simple-camera))
-    (declare (optimize (speed 3)))
-    (with-slots (scale) camera
-      (with-slots ((world-width width) (world-height height)) game-object
-        (declare (world-dimension world-width world-height)
-                 (camera-scale scale))
-        (the (values screen-unit screen-unit)
-             (values (ceiling (* scale world-width))
-                     (ceiling (* scale world-height))))))))
+             (prog1
+                 (call-next-method (coerce new-zoom 'single-float) camera)
+               (update-projection-matrix camera))))
 
 ;;;; bounded-camera
 
@@ -169,60 +133,54 @@
   (:documentation "A camera which will not move outside of a user-defined x-y-z boundary."))
 
 (defmethod (setf x) (value (camera bounded-camera))
-  (with-accessors ((min min-x) (max max-x) (w width)) camera
-    (when (and min (< value min)) (setf value min))
-    (when (and max (> value (- max w))) (setf value (- max w))))
+  (with-accessors ((min min-x) (max max-x) (w width) (z zoom)) camera
+    (when (and min (< value min))
+      (setf value min))
+    (when (and max (> value (- max (/ w z))))
+      (setf value (- max (/ w z)))))
   (call-next-method (coerce value 'world-position) camera))
 
 (defmethod (setf y) (value (camera bounded-camera))
-  (with-accessors ((min min-y) (max max-y) (h height)) camera
-    (when (and min (< value min)) (setf value min))
-    (when (and max (> value (- max h))) (setf value (- max h))))
+  (with-accessors ((min min-y) (max max-y) (h height) (z zoom)) camera
+    (when (and min (< value min))
+      (setf value min))
+    (when (and max (> value (- max (/ h z))))
+      (setf value (- max (/ h z)))))
   (call-next-method (coerce value 'world-position) camera))
 
 (defmethod (setf z) (value (camera bounded-camera))
   (with-accessors ((min min-z) (max max-z)) camera
-    (when (and min (< value min)) (setf value min))
-    (when (and max (> value max) (setf value max))))
+    (when (or min max)
+      (error "z bounded camera not implemented")))
   (call-next-method (coerce value 'world-position) camera))
 
-(defmethod (setf zoom) (value (camera simple-camera))
+(defmethod (setf zoom) :after (value (camera bounded-camera))
   (flet ((calculate-min-zoom (camera)
            ;; Calculate the minimum value the camera can zoom out to
            ;; while staying within the min/max boundary.
            ;; If there is no min or max boundary, -1 is returned.
            (with-accessors ((min-x min-x) (max-x max-x)
                             (min-y min-y) (max-y max-y)
-                            (ppu pixels-per-unit)
-                            (w screen-width) (h screen-height))
+                            (w width) (h height)
+                            (screen-w screen-width) (screen-h screen-height))
                camera
-             (max (if (and max-x min-x) (/ w ppu (- max-x min-x)) -1)
-                  (if (and max-y min-y) (/ h ppu (- max-y min-y)) -1)))))
+             (max (if (and max-x min-x)
+                      ;; cam-w / zoom == max-min-delta
+                      (/ w (- max-x min-x))
+                      -1)
+                  (if (and max-y min-y)
+                      (/ h (- max-y min-y))
+                      -1)))))
 
     (let ((camera-max-zoom 4)
           (camera-min-zoom (calculate-min-zoom camera)))
-      (when (< value camera-min-zoom)
-        (setf value camera-min-zoom))
-      (when (> value camera-max-zoom)
-        (setf value camera-max-zoom))
-      (setf (slot-value camera 'zoom) (coerce value 'single-float)))))
-
-
-;; when the screen width/height changes, rerun zoom check
-;; to prevent camera from leaving boundary
-(defmethod (setf screen-width) :around (value (camera bounded-camera))
-  (let ((old (screen-width camera))
-        (new (call-next-method value camera)))
-    (unless (= old new)
-      (setf (zoom camera) (zoom camera)))
-    new))
-
-(defmethod (setf screen-height) :around (value (camera bounded-camera))
-  (let ((old (screen-height camera))
-        (new (call-next-method value camera)))
-    (unless (= old new)
-      (setf (zoom camera) (zoom camera)))
-    new))
+      (when (< (zoom camera) camera-min-zoom)
+        (setf (zoom camera) camera-min-zoom))
+      (when (> (zoom camera) camera-max-zoom)
+        (setf (zoom camera) camera-max-zoom))
+      ;; run through min-max checkers for the new zoom
+      (setf (x camera) (x camera)
+            (y camera) (y camera)))))
 
 ;;;; target-tracking camera
 (defclass target-tracking-camera (simple-camera)
@@ -253,32 +211,38 @@
 (defmethod (setf target) :before (new-target (camera target-tracking-camera))
   (unless (eq new-target (target camera))
     (when new-target
-      (setf (target-center-x camera) (+  (x new-target) (/ (width new-target) 2)))
-      (setf (target-center-y camera) (+  (y new-target) (/ (height new-target) 2)))
+      (setf (target-center-x camera) (+ (x new-target) (/ (width new-target) 2)))
+      (setf (target-center-y camera) (+ (y new-target) (/ (height new-target) 2)))
       (add-subscriber new-target camera object-moved))
     (when (target camera)
       (remove-subscriber (target camera) camera object-moved))))
 
 (flet ((camera-track-target (camera)
          ;; Center the camera around its target.
-         (with-accessors ((width screen-width) (height screen-height)
+         (with-accessors ((camera-width width) (camera-height height)
                           (center-x target-center-x) (center-y target-center-y)
                           (max-offset target-max-offset)
-                          (scale scale) (target target))
+                          ;; TODO: check this with zoom
+                          (zoom zoom) (target target))
              camera
            (when target
-             (let ((max-offset (/ max-offset scale)))
-               (with-accessors ((target-x x) (target-y y)) target
-                 (when (<= center-y (- target-y max-offset))
-                   (setf center-y (- target-y max-offset)))
-                 (when (>= center-y (+ target-y max-offset))
-                   (setf center-y (+ target-y max-offset)))
-                 (when (<= center-x (- target-x max-offset))
-                   (setf center-x (- target-x max-offset)))
-                 (when (>= center-x (+ target-x max-offset))
-                   (setf center-x (+ target-x max-offset)))))
-             (setf (x camera) (- center-x (/ width scale 2)))
-             (setf (y camera) (- center-y (/ height scale 2)))))))
+             (with-accessors ((target-x x) (target-y y)) target
+               (when (<= center-y (- target-y max-offset))
+                 (setf center-y (- target-y max-offset)))
+               (when (>= center-y (+ target-y max-offset))
+                 (setf center-y (+ target-y max-offset)))
+               (when (<= center-x (- target-x max-offset))
+                 (setf center-x (- target-x max-offset)))
+               (when (>= center-x (+ target-x max-offset))
+                 (setf center-x (+ target-x max-offset))))
+             ;; (setf (x camera) (- (+ (x target) (/ (width target) 2))
+             ;;                     (/ camera-width zoom 2)))
+             ;; (setf (y camera) (- (+ (y target) (/ (height target) 2))
+             ;;                     (/ camera-height zoom 2)))
+             (setf (x camera) (- center-x
+                                 (/ camera-width zoom 2)))
+             (setf (y camera) (- center-y
+                                 (/ camera-height zoom 2)))))))
 
   (defmethod (setf target) :after (new-target (camera target-tracking-camera))
              (camera-track-target camera))
@@ -289,6 +253,12 @@
   (defmethod (setf screen-height) :after (value (camera target-tracking-camera))
              (camera-track-target camera))
 
+  (defmethod (setf width) :after (value (camera target-tracking-camera))
+             (camera-track-target camera))
+
+  (defmethod (setf height) :after (value (camera target-tracking-camera))
+             (camera-track-target camera))
+
   (defmethod (setf zoom) :after (value (camera target-tracking-camera))
              (camera-track-target camera))
 
@@ -296,41 +266,8 @@
     (when (eq object (target camera))
       (camera-track-target camera))))
 
-;;;; auto-scaling camera
-
-(defclass auto-scaling-camera (simple-camera)
-  ((world-camera-width :initarg :world-camera-width
-                       :initform (error ":world-camera-width required")
-                       :accessor world-camera-width)
-   (world-camera-height :initarg :world-camera-height
-                       :initform (error ":world-camera-height required")
-                       :accessor world-camera-height))
-  (:documentation "A camera which automatically scales pixels-per-unit so the same world rectangle is always shown no matter the size of the display. "))
-
-(labels ((update-pixels-per-unit (camera)
-           (with-accessors ((screen-width screen-width)
-                            (screen-height screen-height)
-                            (world-width world-camera-width)
-                            (world-height world-camera-height)
-                            (ppu pixels-per-unit))
-               camera
-             (let* ((width-scale (/ screen-width world-width))
-                    (height-scale (/ screen-height world-height)))
-               ;; TODO: draw black bars when scaling is not 1:1 or enforce a specific resolution at startup.
-               (setf ppu (min width-scale height-scale))))))
-
-  (defmethod initialize-instance :after ((camera auto-scaling-camera) &rest args)
-             (declare (ignore args))
-             (update-pixels-per-unit camera))
-
-  (defmethod (setf screen-width) :after (value (camera auto-scaling-camera))
-             (update-pixels-per-unit camera))
-
-  (defmethod (setf screen-height) :after (value (camera auto-scaling-camera))
-             (update-pixels-per-unit camera)))
-
 ;;;; default camera
 
-(defclass camera (auto-scaling-camera bounded-camera target-tracking-camera)
+(defclass camera (bounded-camera target-tracking-camera)
   ()
   (:documentation "The default camera class."))

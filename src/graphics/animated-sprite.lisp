@@ -14,10 +14,10 @@
 
 @export-class
 (defclass animated-sprite (static-sprite)
-  ((path-to-image :initform nil)
+  ((path-to-sprite :initform nil)
    (animations :initarg :animations
                :reader animations
-               :initform (list)
+               :initform (error ":animations required")
                :documentation "plist. key = :animation-name, val = animation-struct")
    (active-animation :initform nil)
    (active-animation-keyword :initform nil)
@@ -37,7 +37,7 @@
     (setf next-frame-change-timestamp 0
           active-animation (getf animations (get-new-animation animated-sprite))
           (active-animation-frame-index animated-sprite) 0
-          (path-to-image animated-sprite) (animation-spritesheet active-animation))))
+          (path-to-sprite animated-sprite) (animation-spritesheet active-animation))))
 
 (defmethod (setf active-animation-frame-index) :after (new-index (animated-sprite animated-sprite))
   (with-slots (active-animation
@@ -45,15 +45,8 @@
                active-animation-frame-index)
       animated-sprite
     (incf next-frame-change-timestamp (animation-time-between-frames-ms active-animation))
-    (let ((source-rect (sprite-source animated-sprite))
-          (frame (elt (animation-frames active-animation) active-animation-frame-index)))
-      (unless source-rect
-        (setf (sprite-source animated-sprite) (make-sprite-source 0 0 1 1)
-              source-rect (sprite-source animated-sprite)))
-      (setf (sprite-source-x source-rect) (sprite-source-x frame)
-            (sprite-source-y source-rect) (sprite-source-y frame)
-            (sprite-source-w source-rect) (sprite-source-w frame)
-            (sprite-source-h source-rect) (sprite-source-h frame)))))
+    (let ((frame (elt (animation-frames active-animation) active-animation-frame-index)))
+      (setf (sprite-source animated-sprite) frame))))
 
 (defmethod update :after ((animated-sprite animated-sprite) delta-t-ms scene)
   (declare (optimize (speed 3)))
@@ -76,7 +69,7 @@
                          (active-animation-frame-index animated-sprite)))
               (setf active-animation-keyword new-animation-keyword
                     active-animation (getf animations active-animation-keyword)
-                    (path-to-image animated-sprite) (animation-spritesheet active-animation)
+                    (path-to-sprite animated-sprite) (animation-spritesheet active-animation)
                     next-frame-change-timestamp now ; frame index setter below will update the next update time correctly relative to now
                     (active-animation-frame-index animated-sprite) 0)))))))
 

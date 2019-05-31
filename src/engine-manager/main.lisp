@@ -31,18 +31,15 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
                (unwind-protect
                     (sdl2:make-this-thread-main
                      (lambda ()
-                       (setf *package* *game-default-package*)
-                       (run-game *engine-manager* scene-creator-function)))
+                       (let ((*package* *game-default-package*))
+                         (run-game *engine-manager* scene-creator-function))))
                  (setf *engine-manager* nil)
                  (sb-ext:gc :full T))))
       (if block
-          (unwind-protect
-               (fn)
-            (setf *engine-manager* nil)
-            (sb-ext:gc :full T))
+          (fn)
           (make-thread
            #'fn
-           :name "vert-thread")))))
+           :name "vert-game-loop")))))
 
 (defun quit ()
   "Stop the running game engine."

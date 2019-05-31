@@ -126,3 +126,137 @@
              (when (or (null poly2-min) (< distance poly2-min))
                (setf poly2-min distance))))
       (and (< poly2-min poly1-max) (>= poly2-max poly1-min)))))
+
+;;;; Non-consing matrix utils
+
+(defmacro %set-vector-data (result &rest data)
+  (alexandria:once-only (result)
+    `(progn
+       ,@(loop :for i :from 0 :below (length data) :collect
+              `(setf (elt ,result ,i) ,(elt data i)))
+       ,result)))
+
+(defmacro %set-matrix-data (result
+                            m11 m12 m13 m14
+                            m21 m22 m23 m24
+                            m31 m32 m33 m34
+                            m41 m42 m43 m44)
+  `(%set-vector-data ,result
+                     ,m11 ,m21 ,m31 ,m41
+                     ,m12 ,m22 ,m32 ,m42
+                     ,m13 ,m23 ,m33 ,m43
+                     ,m14 ,m24 ,m34 ,m44))
+
+(let ((product-matrix (sb-cga:identity-matrix)))
+  (defun n-matrix* (result &rest matrices)
+    (declare (optimize (speed 3))
+             (dynamic-extent matrices)
+             ((simple-array single-float (16)) result product-matrix))
+    (%set-matrix-data product-matrix
+                      1f0 0f0 0f0 0f0
+                      0f0 1f0 0f0 0f0
+                      0f0 0f0 1f0 0f0
+                      0f0 0f0 0f0 1f0)
+    (labels ((mref (matrix row column)
+               (declare ((simple-array single-float (16)) matrix))
+               (aref matrix (+ row (* column 4))))
+             ((setf mref) (value matrix row column)
+               (declare ((simple-array single-float (16)) matrix))
+               (setf (aref matrix (+ row (* column 4))) value)))
+      (macrolet ((inline-mul (left right dest)
+                   `(progn
+                      ,@(loop :for i :below 4
+                           :append (loop :for j :below 4
+                                      :collect
+                                        `(setf
+                                          (mref ,dest ,i ,j)
+                                          (+ ,@(loop :for k :below 4
+                                                  :collect `(* (mref ,left ,i ,k) (mref ,right ,k ,j))))))))))
+        (loop :for matrix :in matrices :do
+             (locally (declare ((simple-array single-float (16)) matrix))
+               (loop :for i :from 0 :below (length result) :do
+                    (setf (elt result i) 0.0))
+               (inline-mul product-matrix matrix result)
+               (loop :for i :from 0 :below (length result) :do
+                    (setf (elt product-matrix i) (elt result i)))))))
+    result))
+
+(defun n-translate* (result x y z)
+  "Construct a translation matrix from translation factors X, Y and Z."
+  (declare (optimize (speed 3))
+           (single-float x y z)
+           ((simple-array single-float (16)) result))
+  (%set-matrix-data result
+                    1f0 0f0 0f0 x
+                    0f0 1f0 0f0 y
+                    0f0 0f0 1f0 z
+                    0f0 0f0 0f0 1f0))
+
+(let ((tmp-matrix (sb-cga:identity-matrix)))
+  (declare (optimize (speed 3))
+           ((simple-array single-float (16)) tmp-matrix))
+  (defun n-rotate* (result x y z)
+    (declare (optimize (speed 3))
+             ((simple-array single-float (16)) result)
+             (single-float x y z))
+    (%set-matrix-data result
+                      1f0 0f0 0f0 0f0
+                      0f0 1f0 0f0 0f0
+                      0f0 0f0 1f0 0f0
+                      0f0 0f0 0f0 1f0)
+    (unless (= 0f0 z)
+      (let ((c (cos z))
+            (s (sin z)))
+        (setf result (n-matrix* result
+                              (%set-matrix-data
+                               tmp-matrix
+                               c     (- s) 0f0    0f0
+                               s     c     0f0    0f0
+                               0f0   0f0   1f0    0f0
+                               0f0   0f0   0f0    1f0)))))
+    (unless (= 0f0 y)
+      (let ((c (cos y))
+            (s (sin y)))
+        (setf result (n-matrix* result
+                              (%set-matrix-data
+                               tmp-matrix
+                               c     0f0   s      0f0
+                               0f0   1f0   0f0    0f0
+                               (- s) 0f0   c      0f0
+                               0f0   0f0   0f0    1f0)))))
+    (unless (= 0f0 x)
+      (let ((c (cos x))
+            (s (sin x)))
+        (setf result (n-matrix* result
+                              (%set-matrix-data
+                               tmp-matrix
+                               1f0   0f0   0f0    0f0
+                               0f0   c     (- s)  0f0
+                               0f0   s     c      0f0
+                               0f0   0f0   0f0    1f0)))))
+    result))
+
+(defun n-scale* (result x y z)
+  (declare (optimize (speed 3))
+           (single-float x y z)
+           ((simple-array single-float (16)) result))
+  (%set-matrix-data
+   result
+   x    0f0  0f0  0f0
+   0f0  y    0f0  0f0
+   0f0  0f0  z    0f0
+   0f0  0f0  0f0  1f0))
+
+(defun n-ortho-matrix (result-matrix left right bottom top near far)
+  (declare (optimize (speed 3))
+           (world-position left right bottom top near far)
+           ((simple-array single-float (16)) result-matrix))
+  (let ((r-l (- right left))
+        (t-b (- top bottom))
+        (f-n (- far near)))
+    (%set-matrix-data
+     result-matrix
+     (/ 2.0 r-l) 0.0 0.0 (- (/ (+ right left) r-l))
+     0.0 (/ 2.0 t-b) 0.0 (- (/ (+ top bottom) t-b))
+     0.0 0.0 (/ -2.0 f-n) (- (/ (+ far near) f-n))
+     0.0 0.0 0.0 1.0)))

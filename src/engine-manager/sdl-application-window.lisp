@@ -19,10 +19,8 @@
 (defmethod resize-window (application-window width-pixels height-pixels)
   (with-slots ((win sdl-window))
       application-window
-    (sdl2:set-window-size win width-pixels height-pixels)))
-
-;; (defmethod %after-resize-window :after ((application-window sdl-application-window) width height)
-;;  (gl:viewport 0 0 width height))
+    (sdl2:set-window-size win width-pixels height-pixels)
+    (gl:viewport 0 0 width-pixels height-pixels)))
 
 (defmethod toggle-fullscreen ((application-window sdl-application-window))
   (with-slots ((win sdl-window) pre-fs-width pre-fs-height pre-fs-x pre-fs-y) application-window
@@ -43,7 +41,6 @@
                         pre-fs-height height-px
                         pre-fs-x x
                         pre-fs-y y)))
-              (sdl2:set-window-size win max-screen-width max-screen-height)
               (resize-window application-window max-screen-width max-screen-height)
               (sdl2:set-window-fullscreen win T)
               (sdl2:hide-cursor)))))))

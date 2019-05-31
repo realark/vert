@@ -92,6 +92,9 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
   (:documentation "Run a single iteration of the game loop.")
   (:method ((engine-manager engine-manager))
     (declare (optimize (speed 3)))
+    ;; I've considered wrapping this methig in (sb-sys:without-gcing)
+    ;; to prevent short GCs from dropping the FPS.
+    ;; It seems like that could deadlock if the game is multithreaded.
     (with-accessors ((active-scene active-scene)
                      (renderer rendering-context)
                      (lag lag-ns)
@@ -138,7 +141,8 @@ It is invoked after the engine is fully started.")
   (:method ((engine-manager engine-manager) initial-scene-creator)
     (unwind-protect
          (progn
-           (clear-cache *resource-cache*)
+           (do-cache (*engine-caches* cache-name cache)
+             (clear-cache cache))
            ;; start services
            (setf (slot-value engine-manager 'audio-player)
                  (start-audio-system))
@@ -158,7 +162,8 @@ It is invoked after the engine is fully started.")
     ;; stop services
     (stop-audio-system)
     (fire-event engine-manager engine-stopped)
-    (clear-cache *engine-caches*)
+    (do-cache (*engine-caches* cache-name cache)
+      (clear-cache cache))
     (format t "~%~%")))
 
 ;; debugging and dev mode tools
@@ -192,7 +197,9 @@ It is invoked after the engine is fully started.")
   (flet ((reload-texture (objects-using-texture)
            (loop :for object :across (copy-seq objects-using-texture) :do
                 (release-resources object))))
-    (%do-cache (*resource-cache* path tex :mtime original-mtime :objects-using objects-using-texture)
+    ;; TODO: clear texture and audio caches
+    #+nil
+    (do-cache-with-metadata (*resource-cache* path tex :mtime original-mtime :objects-using objects-using-texture)
       (declare (ignore tex))
       (let ((current-mtime (file-write-date path)))
         (declare (fixnum current-mtime original-mtime))
@@ -258,7 +265,8 @@ It is invoked after the engine is fully started.")
     (clear-cache number-cache)
     (setf last-dynamic-use-measure 0)
     (when rendered-text
-      (release-resources rendered-text)))
+      (release-resources rendered-text)
+      (setf rendered-text nil)))
 
   (defun render-dev-mode-info (engine-manager)
     "Render dev-mode info to the upper-right corner of the game window"
@@ -269,27 +277,29 @@ It is invoked after the engine is fully started.")
                            :width line-width-px
                            :height line-height-px
                            :color *red*
-                           :text "0.0fps")))
+                           :text "0.0fps"))
+      (load-resources rendered-text (rendering-context engine-manager)))
     (with-slots (current-fps
                  avg-render-time
                  avg-update-time)
         engine-manager
       (let ((camera (camera (active-scene engine-manager)))
             (line-num 0))
-        (with-accessors ((camera-zoom scale)
+        (with-accessors ((camera-zoom zoom)
                          (camera-x x)
                          (camera-y y)
                          (camera-width width)
                          (camera-height height))
             camera
+          (set-camera-projection-matrix camera 1.0)
           (with-accessors ((text-width width))
               rendered-text
             (declare (camera-scale camera-zoom)
                      (world-position camera-x camera-y)
                      (world-dimension camera-width camera-height text-width)
                      ((integer 0 50) line-num))
-            (setf line-width-px (/ (screen-width (camera (active-scene *engine-manager*))) 10.0)
-                  line-height-px (/ (screen-height (camera (active-scene *engine-manager*))) 10.0)
+            (setf line-width-px (/ (width (camera (active-scene *engine-manager*))) 10.0)
+                  line-height-px (/ (height (camera (active-scene *engine-manager*))) 10.0)
                   (width rendered-text) (/ line-width-px camera-zoom)
                   (height rendered-text) (/ line-height-px camera-zoom)
                   (x rendered-text) (- (+ camera-x camera-width) text-width))
@@ -308,7 +318,7 @@ It is invoked after the engine is fully started.")
                   ;; render a mostly green frame when gc occurs
                   (let ((clear-color (clear-color engine-manager)))
                     (setf (clear-color engine-manager) *green*)
-                    (sdl2:render-clear (slot-value engine-manager 'rendering-context))
+                    (gl:clear :depth-buffer-bit :color-buffer-bit)
                     (setf (clear-color engine-manager) clear-color)))
                 (render-debug-line (getcache-default current-fps
                                                      (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))

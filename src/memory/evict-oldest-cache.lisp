@@ -27,7 +27,7 @@
         (oldest-ts 0))
     (with-slots ((table htable) (on-evict-fn on-evict-fn))
         cache
-      (%do-cache (cache key value :creation-time ctime)
+      (do-cache-with-metadata (cache key value :creation-time ctime)
         (declare (ignore value))
         (when (or (null oldest-key)
                   (< ctime oldest-ts))

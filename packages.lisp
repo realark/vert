@@ -119,10 +119,10 @@
    ;; graphics
    :make-color :r :g :b :a
    :lerp
-   :color-mod
+   :color
    :drawable
    :static-sprite
-   :path-to-image
+   :path-to-sprite
    :camera
    :zoom
    :target

@@ -63,11 +63,11 @@
 
 (defmethod interpolate-position ((game-object aabb) update-percent)
   (declare (optimize (speed 3)))
-  (with-slots ((last last-positions) ) game-object
+  (with-slots ((last last-positions)) game-object
     (with-accessors ((x1 x) (y1 y) (z1 z)) game-object
       (declare (world-position x1 y1 z1)
                ((single-float 0.0 1.0) update-percent)
-               ((simple-array world-position) last))
+               ((simple-array single-float (3)) last))
       (when (= %uninitialized-interpolated-value%
                (elt last 0))
         (setf (elt last 0) x1
@@ -81,8 +81,21 @@
              (ix (+ x0 (* update-percent (- x1 x0))))
              (iy (+ y0 (* update-percent (- y1 y0))))
              (iz (+ z0 (* update-percent (- z1 z0)))))
-        (the (values world-position world-position)
-             (values ix iy iz))))))
+        (let* ((rounding-factor #.(expt 10.0 1)))
+          ;; round interpolation positions to one decimal place to gaps
+          ;; temporarily appearing in side-by-side tiles
+          (declare (world-position ix iy iz))
+          (setf ix (float (/ (round (* ix rounding-factor)) rounding-factor))
+                iy (float (/ (round (* iy rounding-factor)) rounding-factor)))
+
+          (values ix
+                  iy
+                  iz))))))
+
+(declaim (ftype (function (game-object) world-position) x y z)
+         (ftype (function (game-object) world-dimension) width height)
+         (ftype (function (game-object) rotation-radians) rotation)
+         (ftype (function (game-object (single-float 0.0 1.0)) (values world-position world-position world-position)) interpolate-position))
 
 (defmethod pre-update ((aabb aabb))
   (with-slots ((last last-positions)) aabb

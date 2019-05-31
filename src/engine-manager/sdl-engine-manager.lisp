@@ -11,18 +11,28 @@
   (:documentation "Engine manager implemented with sdl2"))
 
 (defmethod (setf clear-color) :after (value (engine-manager sdl-engine-manager))
-  (declare (optimize (speed 3)))
   (with-accessors ((r r) (g g) (b b) (a a)) (clear-color engine-manager)
-    (sdl2:set-render-draw-color (rendering-context engine-manager)
-                                r g b a)))
+    (gl:clear-color r g b a)))
 
 (defmethod render-game-window ((engine-manager sdl-engine-manager))
-  (sdl2:render-present (slot-value engine-manager 'rendering-context))
-  (sdl2:render-clear (slot-value engine-manager 'rendering-context)))
+  (sdl2:gl-swap-window (sdl-window (application-window engine-manager)))
+  (gl:clear :depth-buffer-bit :color-buffer-bit)
+  (values))
 
 (defmethod run-game ((engine-manager sdl-engine-manager) initial-scene-creator)
   (sdl2:with-init (:everything)
-    ;; FIXME: Assert version
+    (progn
+      ;; https://wiki.libsdl.org/SDL_GLattr
+      ;; https://wiki.libsdl.org/SDL_GLprofile
+      (sdl2:gl-set-attr :context-major-version 3)
+      (sdl2:gl-set-attr :context-minor-version 3)
+      (sdl2:gl-set-attr :context-profile-mask
+                        sdl2-ffi:+sdl-gl-context-profile-core+)
+      (sdl2:gl-set-attr :doublebuffer 1)
+      #+darwin
+      (sdl2:gl-set-attr :context-forward-compatible-flag
+                        sdl2-ffi:+sdl-gl-context-forward-compatible-flag+))
+
     (format T "Running on lisp ~A version ~A~%"
             (lisp-implementation-type)
             (lisp-implementation-version))
@@ -38,24 +48,40 @@
     (sdl2:with-window (win :w 1280 :h 720
                            :flags '(:shown :opengl)
                            :title (game-name engine-manager))
-      (sdl2:with-renderer (renderer win :index -1 :flags '(:accelerated :presentvsync))
-        (setf (slot-value engine-manager 'application-window)
-              (make-instance 'sdl-application-window :sdl-window win)
-              (slot-value engine-manager 'rendering-context)
-              renderer)
-        (sdl2-image:init '(:png))
-        (sdl2-ttf:init)
-        (register-input-device (input-manager engine-manager)
-                               (slot-value engine-manager 'keyboard-input))
-        (loop for i from 0 below (sdl2:joystick-count) do
-             (initialize-sdl-controller engine-manager i))
-        (call-next-method)))))
+
+        (sdl2:with-gl-context (sdl-glcontext win)
+          (sdl2:gl-make-current win sdl-glcontext)
+          (gl:viewport 0 0 1280 720)
+
+          (progn ; set global gl options
+            (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
+              (sdl2::sdl-gl-set-swap-interval 1))
+            (format T "set swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval))
+            (gl:enable :cull-face)
+            (gl:enable :blend)
+            (gl:blend-func :src-alpha :one-minus-src-alpha))
+
+          ;; TODO
+          ;; (sdl2-ffi.functions:sdl-create-rgb-surface-from )
+          ;; (sdl2-ffi.functions:sdl-set-window-icon some-surface)
+
+          ;; Stop using rendered
+          ;; Initialize gl context and pass to engine manager
+          ;; set opengl vars: version, vsync
+          ;; sleep the engine if vsync is disabled
+          (setf (slot-value engine-manager 'application-window)
+                (make-instance 'sdl-application-window :sdl-window win)
+                (slot-value engine-manager 'rendering-context)
+                (make-gl-context :wrapper sdl-glcontext))
+          (register-input-device (input-manager engine-manager)
+                                 (slot-value engine-manager 'keyboard-input))
+          (loop for i from 0 below (sdl2:joystick-count) do
+               (initialize-sdl-controller engine-manager i))
+          (call-next-method)))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
   (loop :for sdl-joystick-id :being :the hash-keys :in (slot-value engine-manager 'sdl-controllers) :do
-       (remove-sdl-controller engine-manager sdl-joystick-id))
-  (sdl2-image:quit)
-  (sdl2-ttf:quit))
+       (remove-sdl-controller engine-manager sdl-joystick-id)))
 
 (defmethod quit-engine ((engine-manager sdl-engine-manager))
   (sdl2:push-event :quit))

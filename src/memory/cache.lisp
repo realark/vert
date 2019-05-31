@@ -1,10 +1,11 @@
 (in-package :recurse.vert)
 
+(defun %do-nothing (key value)
+  (declare (ignore key value)))
+
 (defclass cache ()
   ((on-evict-fn :initarg :on-evict
-                :initform (lambda (key value)
-                            (declare (ignore key) (ignore value))
-                            (values))
+                :initform #'%do-nothing
                 :documentation "A function which will run on a value after it is removed from the cache.")
    (test-fn :initarg :test
             :initform #'equalp
@@ -89,7 +90,7 @@ for KEY (as long as there is no existing value)"
 (defmethod cache-count ((cache cache))
   (hash-table-count (slot-value cache 'htable)))
 
-(defmacro %do-cache ((cache key-binding value-binding &rest metadata-bindings) &body body)
+(defmacro do-cache-with-metadata ((cache key-binding value-binding &rest metadata-bindings) &body body)
   "Iterate CACHE with key, value, and metadata bindings.
 METADATA-BINDINGS should be keyword symbol pars. E.g. :foo foo-binding"
   (assert (symbolp key-binding))
@@ -99,6 +100,7 @@ METADATA-BINDINGS should be keyword symbol pars. E.g. :foo foo-binding"
     (alexandria:with-gensyms (htable hval metalist)
       `(with-slots ((,htable htable)) ,cache
          (maphash (lambda (,key-binding ,hval)
+                    (declare (ignorable ,key-binding ,hval))
                     (let* ((,metalist (car ,hval))
                            (,value-binding (cdr ,hval))
                            ,@(loop for (meta-key meta-binding) on metadata-bindings by #'cddr
@@ -106,13 +108,14 @@ METADATA-BINDINGS should be keyword symbol pars. E.g. :foo foo-binding"
                                   (assert (keywordp meta-key))
                                   (assert (symbolp meta-binding))
                                 collect `(,meta-binding (getf ,metalist ,meta-key))))
+                      (declare (ignorable ,metalist ,value-binding))
                       ,@body))
                   ,htable)))))
 
 @export
 (defmacro do-cache ((cache key-binding value-binding) &body body)
   "Iterate over CACHE with KEY-BINDING and VALUE-BINDING."
-  `(%do-cache (,cache ,key-binding ,value-binding)
+  `(do-cache-with-metadata (,cache ,key-binding ,value-binding)
      ,@body))
 
 @export

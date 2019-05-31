@@ -8,11 +8,11 @@
          :accessor node
          :documentation "The menu node currently being displayed.")
    (item-color :initarg :item-color
-               :initform (make-color :b 255))
+               :initform (make-color-rgba :b 255))
    (selected-item-color :initarg :selected-item-color
-                        :initform (make-color :r 255 :g 215))
+                        :initform (make-color-rgba :r 255 :g 215))
    (title-color :initarg :title-color
-                :initform (make-color :r 255 :g 255 :b 255))
+                :initform (make-color-rgba :r 255 :g 255 :b 255))
    (title-font-size
     :initarg :title-font-size
     :initform 48)
@@ -22,8 +22,8 @@
    (camera :initarg :camera
            :accessor camera
            :initform (make-instance 'camera
-                                    :world-camera-width 320
-                                    :world-camera-height 180))
+                                    :width 320
+                                    :height 180))
    ;; TODO play music
    (music :initarg :music
           :initform nil
@@ -41,15 +41,15 @@
   (with-slots (node
                camera
                item-color selected-item-color
-               title-color
-               title-font-size item-font-size)
+               title-color)
       menu
     (let ((current-y 5)
           (y-space-between-items (+ (height node) 5)))
-      (setf (font-size node) title-font-size)
-      (let ((title-width 100)
-             (title-height 20))
-        (setf (color-mod node) title-color
+      (multiple-value-bind (title-width title-height)
+          (font-dimensions node)
+        (setf title-width 100
+              title-height 10)
+        (setf (color node) title-color
               (width node) title-width
               (height node) title-height
               (x node) (+ (x camera)
@@ -63,10 +63,11 @@
                  (child-color (if (= i (slot-value node 'selected-child-index))
                                   selected-item-color
                                   item-color)))
-             (setf (font-size child) item-font-size)
-             (let ((item-width 75)
-                   (item-height 15))
-               (setf (color-mod child) child-color
+             (multiple-value-bind (item-width item-height)
+                 (font-dimensions node)
+               (setf item-width 100
+                     item-height 10)
+               (setf (color child) child-color
                      (width child) item-width
                      (height child) item-height
                      (x child) (+ (x camera)
@@ -85,7 +86,8 @@
                  y-space-between-items
                  (height active-node)))
            ;; node above active not fully visible
-           (setf (y camera) (max 0 (- (y camera) (* 2 (height active-node))))))
+           (unless (= (y camera) (max 0 (- (y camera) (* 2 (height active-node)))))
+             (setf (y camera) (max 0 (- (y camera) (* 2 (height active-node)))))))
           ((<= (+ (y camera) (height camera))
                (+ (y active-node)
                   (height active-node)
@@ -192,10 +194,14 @@
        (release-resources child)))
 
 (defmethod load-resources ((menu menu) renderer)
+  (when (slot-value menu 'background)
+    (load-resources (slot-value menu 'background) renderer))
   (load-resources (slot-value menu 'node) renderer)
   (%set-menu-position-and-color menu))
 
 (defmethod release-resources ((menu menu))
+  (when (slot-value menu 'background)
+    (release-resources (slot-value menu 'background)))
   (release-resources (slot-value menu 'node)))
 
 ;; Menu Builder DSL

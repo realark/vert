@@ -54,3 +54,52 @@
                   ,form
                   ,expected-type
                   (type-of ,form))))))
+
+@export
+(defun array-insert-at-index (array i object)
+  "Insert OBJECT into ARRAY at index I.
+Element I and all subsequent elements will be right-shifted."
+  (declare (optimize (speed 3))
+           (array array)
+           (fixnum i))
+  (assert (and (>= i 0)
+               (array-has-fill-pointer-p array)
+               (>= (length array) i)))
+  (vector-push-extend object array)
+  (loop :for n :from (- (length array) 1) :downto (+ i 1) :do
+       (setf (elt array n) (elt array (- n 1)))
+     :finally (setf (elt array i) object))
+  array)
+
+@export
+(defun array-insert-sorted (array object predicate)
+  "Insert OBJECT into ARRAY in the sorted position defined by the two-arg PREDICATE function.
+Assumes ARRAY is initially sorted."
+  (declare (optimize (speed 3)))
+  (labels ((find-insertion-index (array object predicate &optional beg end)
+             (declare (array array))
+             (unless beg
+               (setf beg 0))
+             (unless end
+               (setf end (max 0 (- (length array) 1))))
+             (let ((half (+ beg (floor (/ (- end beg) 2)))))
+               (declare ((integer 0 *) beg end half))
+               (cond ((>= beg end) end)
+                     ((funcall predicate
+                               object
+                               (elt array beg))
+                      beg)
+                     ((funcall predicate
+                               (elt array end)
+                               object)
+                      (+ end 1))
+                     ((funcall predicate
+                               object
+                               (elt array half))
+                      (find-insertion-index array object predicate beg half))
+                     ((funcall predicate
+                               (elt array half)
+                               object)
+                      (find-insertion-index array object predicate (+ half 1) end))
+                     (t half)))))
+    (array-insert-at-index array (find-insertion-index array object predicate) object)))

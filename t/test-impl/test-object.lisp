@@ -1,9 +1,9 @@
 (in-package :recurse.vert/test)
 
 (defclass test-object (test-introspector obb kinematic-object static-sprite input-handler)
-  ((path-to-image
+  ((path-to-sprite
     :initform (test-resource-path "rectangle.png")
-    :reader path-to-image
+    :reader path-to-sprite
     :allocation :class)
    (color :initarg :color
           :accessor color
@@ -23,7 +23,7 @@
   (setf (color test-object) (color test-object)))
 
 (defmethod (setf color) :after (value (test-object test-object))
-  (setf (color-mod test-object) value))
+  (setf (color test-object) value))
 
 (defmethod collision :after ((test-object test-object) stationary-object)
   (incf (num-collisions test-object)))

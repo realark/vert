@@ -51,13 +51,13 @@
 (deftest parallax-scrolling
   "Parallax backgrounds should scroll at different rates"
   (let ((bg-layer (make-instance 'scene-background
-                                 :path-to-image (test-resource-path "rectangle.png")
+                                 :path-to-sprite (test-resource-path "rectangle.png")
                                  :width 100
                                  :height 100
                                  :horizontal-parallax .5
                                  :vertical-parallax .5))
         (fg-layer (make-instance 'scene-background
-                                 :path-to-image (test-resource-path "rectangle.png")
+                                 :path-to-sprite (test-resource-path "rectangle.png")
                                  :width 100
                                  :height 100
                                  :horizontal-parallax 2.0

@@ -9,13 +9,6 @@
 @export
 (defvar *config-resource-dirs-key* "resource-dirs")
 
-(let ((media-dir (if swank::*emacs-connection*
-                     (namestring ; running in emacs
-                      (asdf:system-relative-pathname 'vert #p"media/"))
-                     "media/"))
-      (test-media-dir (namestring
-                       (asdf:system-relative-pathname 'vert #p"t/media/")))))
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun %resource-path (resource-relative-path &optional error-if-absent)
     (labels ((absolute-resource-path (resource-dir resource-relative-path)

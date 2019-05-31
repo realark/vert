@@ -11,51 +11,27 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
                         :initform 1.0
                         :accessor horizontal-parallax
                         :documentation "x-axis scrolling factor.")
+   (unparallax-position :initform nil)
    (vertical-parallax :initarg :vertical-parallax
                       :initform 1.0
                       :accessor vertical-parallax
                       :documentation "y-axis scrolling factor")))
 
-(defmethod world-to-screen-cords ((image parallax-image) (camera simple-camera) update-percent)
-  (declare (optimize (speed 3)))
-  (with-accessors ((horizontal-parallax horizontal-parallax)
-                   (vertical-parallax vertical-parallax))
-      image
-    (multiple-value-bind (drawable-x drawable-y) (interpolate-position image update-percent)
-      (with-accessors ((ppu pixels-per-unit)) camera
-        (multiple-value-bind (camera-x camera-y) (interpolate-position camera update-percent)
-          (declare (world-position drawable-x drawable-y camera-x camera-y)
-                   (parallax-factor horizontal-parallax vertical-parallax)
-                   ((integer 0 1000) ppu))
-          (the (values screen-unit screen-unit)
-               (values (round (* ppu (- drawable-x (* horizontal-parallax camera-x))))
-                       (round (* ppu (- drawable-y (* vertical-parallax camera-y)))))))))))
+(defmethod initialize-instance :after ((sprite parallax-image) &rest args)
+  (declare (ignore args))
+  (setf (slot-value sprite 'unparallax-position)
+        (make-point :x (x sprite)
+                    :y (y sprite)
+                    :z (z sprite))))
 
-(defmethod world-to-screen-dimensions ((image parallax-image) (camera simple-camera))
-  (declare (optimize (speed 3)))
-  (with-accessors ((ppu pixels-per-unit)) camera
-    (with-slots ((world-width width)
-                 (world-height height))
-        image
-      (declare (world-dimension world-width world-height)
-               ((integer 0 1000) ppu))
-      (the (values screen-unit screen-unit)
-           (values (ceiling (* ppu world-width))
-                   (ceiling (* ppu world-height)))))))
-
-(defmethod world-to-wrapped-screen-dimensions ((image parallax-image) (camera simple-camera))
-  (declare (optimize (speed 3)))
-  (with-accessors ((ppu pixels-per-unit)) camera
-    (with-slots ((world-width width)
-                 (wrap-width wrap-width)
-                 (world-height height)
-                 (wrap-height wrap-height))
-        image
-      (declare (world-dimension world-width world-height)
-               ((integer 1 1000) ppu))
-      (the (values screen-unit screen-unit)
-           (values (ceiling (* ppu (the world-dimension (or wrap-width world-width))))
-                   (ceiling (* ppu (the world-dimension (or wrap-height world-height)))))))))
+(defmethod update :after ((sprite parallax-image) delta-t-ms (scene scene))
+  ;; move parallax's x-y to account for parallax factor
+  (let ((camera (camera scene)))
+    (with-slots (unparallax-position horizontal-parallax vertical-parallax) sprite
+      (with-accessors ((x x) (y y) (h height)) sprite
+        (with-accessors ((camera-x x) (camera-y y) (camera-h height)) camera
+          (setf x (- camera-x (* horizontal-parallax (- camera-x (x unparallax-position))))
+                y (- camera-y (* vertical-parallax (- camera-y (y unparallax-position))))))))))
 
 @export-class
 (defclass scene-background (aabb)
@@ -85,16 +61,29 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
                                                               :wrap-height wrap-height
                                                               :width (width background)
                                                               :height (height background)
-                                                              :path-to-image item))
+                                                              :path-to-sprite item))
                                (T item)))))
 
-        :finally (return (make-array (length parallax-images) :initial-contents parallax-images))))))
+        :finally (return (make-array (length parallax-images)
+                                     :element-type 'parallax-image
+                                     :initial-contents parallax-images))))))
 
 (defmethod render ((background scene-background) update-percent camera rendering-context)
   (declare (optimize (speed 3)))
   (with-slots (layers wrap-width orig-wrap-width wrap-height) background
     (loop :for layer :across (the (simple-array parallax-image) layers) :do
          (render layer update-percent camera rendering-context))))
+
+(defmethod load-resources ((background scene-background) rendering-context)
+  (declare (optimize (speed 3)))
+  (with-slots (layers wrap-width orig-wrap-width wrap-height) background
+    (loop :for layer :across (the (simple-array parallax-image) layers) :do
+         (load-resources layer rendering-context))))
+
+(defmethod release-resources ((background scene-background))
+    (with-slots (layers wrap-width orig-wrap-width wrap-height) background
+      (loop :for layer :across (the (simple-array parallax-image) layers) :do
+           (release-resources layer))))
 
 (defmethod update :after ((background scene-background) delta-t-ms world-context)
   (declare (optimize (speed 3)))

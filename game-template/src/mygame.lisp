@@ -11,10 +11,10 @@
 
 
 (defclass rectangle (static-sprite)
-  ((color :initarg :color :initform (make-color) :accessor color)
-   (recurse.vert:path-to-image :initform (resource-path "rectangle.png")
-                               :allocation :class
-                               :reader path-to-image))
+  ((color :initarg :color :initform (make-color-rgba) :accessor color)
+   (path-to-sprite :initform (resource-path "rectangle.png")
+                   :allocation :class
+                   :reader path-to-sprite))
   (:documentation "A basic rectangle with obb collision detection."))
 
 (defmethod initialize-instance :after ((rectangle rectangle) &rest args)
@@ -22,7 +22,7 @@
   (setf (color rectangle) (color rectangle)))
 
 (defmethod (setf color) :after (value (rectangle rectangle))
-  (setf (recurse.vert::color-mod rectangle) value))
+  (setf (recurse.vert::color rectangle) value))
 
 
 (defclass player (rectangle kinematic-object agent input-handler)
@@ -88,7 +88,7 @@
                                :drag-y 0.99
                                :width demo-width :height demo-height
                                ;; :background (make-instance 'static-sprite
-                               ;;                            :path-to-image (resource-path "background.png")
+                               ;;                            :path-to-sprite (resource-path "background.png")
                                ;;                            :width demo-width
                                ;;                            :height demo-height)
                                ;; :music (resource-path "mysong.wav")

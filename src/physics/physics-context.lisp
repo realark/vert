@@ -14,8 +14,7 @@
   (- *max-world-unit*)
   "Min x/y/z value of the world")
 
-(proclaim '(world-position %uninitialized-interpolated-value%))
-(defparameter %uninitialized-interpolated-value% *min-world-unit*
+(defparameter %uninitialized-interpolated-value% (- *min-world-unit* 1)
   "Performance hack to mark an object a uninitialized. Objects will rarely be on the far negative boundary so this will likely never be a problem.")
 
 (defparameter *max-world-dimension* *max-world-unit*

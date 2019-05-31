@@ -65,7 +65,10 @@
                         :components
                         ((:file "camera")
                          (:file "color")
-                         (:file "sdl2-impl")
+                         (:file "gl-utils")
+                         (:file "gl-drawable")
+                         (:file "gl-sprite")
+                         (:file "gl-font")
                          (:file "static-sprite")
                          (:file "animated-sprite")
                          (:file "font-drawable")))
@@ -138,11 +141,12 @@
                      (annot:enable-annot-syntax)
                      (funcall compile-fn))"
   :depends-on (#:sdl2
-               #:sdl2-image
-               #:sdl2-ttf
                #:sdl2-mixer
+               #:cl-opengl
+               #:cl-soil
+               #:cl-freetype2
+               #:glkit ;; TODO: is this needed?
                #:queues.simple-cqueue
-               #:swank
                #:cl-annot
                #:bordeaux-threads
                #:alexandria))

@@ -4,7 +4,7 @@
 (defparameter *all-input-id* -1
   "ID for binding every available input. This is useful for menus or shared controls.")
 
-(defparameter %input-id% 0)
+(defparameter %next-input-id% 0)
 
 (defclass input-device (event-publisher)
   ((input-name
@@ -13,7 +13,7 @@
     :reader input-name
     :documentation "Name of the input device. E.g. :keyboard")
    (device-id
-    :initform (incf %input-id%)
+    :initform (incf %next-input-id%)
     :reader device-id
     :documentation "Unique id of the input device.")
    (active-inputs

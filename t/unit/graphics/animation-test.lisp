@@ -15,7 +15,7 @@
 
  (prove:deftest test-animation
      (let ((empty-animation (make-instance 'animation :frames #()))
-           (empty-drawable (make-instance 'animated-drawable :width 10 :height 10 :path-to-image (test-resource-path "rgba.png"))))
+           (empty-drawable (make-instance 'animated-drawable :width 10 :height 10 :path-to-sprite (test-resource-path "rgba.png"))))
        (prove:is (active-frame-index empty-animation) -1)
        (prove:is (get-active-frame empty-animation) nil)
        (prove:is (get-next-frame empty-animation) nil)
@@ -23,7 +23,7 @@
        (prove:is (active-animation empty-drawable) empty-animation)
        (animation-tick empty-animation empty-drawable)
        (prove:is (active-animation empty-drawable) nil))
-   (let ((drawable (make-instance 'test-animated-drawable :width 1 :height 1 :path-to-image (test-resource-path "rgba.png"))))
+   (let ((drawable (make-instance 'test-animated-drawable :width 1 :height 1 :path-to-sprite (test-resource-path "rgba.png"))))
      (prove:is (active-animation drawable) nil)
      (animate drawable)
      (prove:is (get-active-frame (active-animation drawable)) 'frame1)
@@ -36,7 +36,7 @@
    (let* ((animation-timer (make-instance 'time-delay-animation
                                           :frames #(frame1 frame2 frame3)
                                           :time-between-frames-ms (* 1000 60 60 24 365)))
-          (drawable (make-instance 'test-animated-drawable :width 10 :height 10 :path-to-image (test-resource-path "rgba.png"))))
+          (drawable (make-instance 'test-animated-drawable :width 10 :height 10 :path-to-sprite (test-resource-path "rgba.png"))))
      (setf (active-animation drawable) animation-timer)
      (animate drawable)
      (prove:is (get-active-frame animation-timer) 'frame1)
@@ -68,7 +68,7 @@
        (prove:is (get-next-frame animation-timer) 'frame1))))
 
  (prove:deftest test-effects
-     (let ((drawable (make-instance 'test-animated-drawable :width 1 :height 1 :path-to-image (test-resource-path "rgba.png")))
+     (let ((drawable (make-instance 'test-animated-drawable :width 1 :height 1 :path-to-sprite (test-resource-path "rgba.png")))
            (animation (make-instance 'animation :frames #(frame1 frame2)))
            (effect1 (make-instance 'animation :frames #(eff1.1 eff1.2)))
            (effect2 (make-instance 'animation :frames #(eff2.1 eff2.2 eff2.3))))
