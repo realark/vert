@@ -35,12 +35,12 @@
 (defmethod update ((scene scene) (delta-t-ms real) (null null))
   (declare (ignore scene delta-t-ms null)))
 
-(defmethod render ((scene scene) (fraction-between-update real) (null null) rendering-context)
+(defmethod render ((scene scene) update-percent (null null) rendering-context)
   (declare (ignore null))
-  (render scene fraction-between-update (slot-value scene 'camera) rendering-context))
+  (render scene update-percent (slot-value scene 'camera) rendering-context))
 
-(defmethod render ((scene scene) (fraction-between-update real) (camera simple-camera) rendering-context)
-  (declare (ignore camera scene fraction-between-update camera rendering-context)))
+(defmethod render ((scene scene) update-percent (camera simple-camera) rendering-context)
+  (declare (ignore camera scene update-percent camera rendering-context)))
 
 (defmethod load-resources ((scene scene) rendering-context)
   ;; no-op
