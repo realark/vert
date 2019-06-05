@@ -219,8 +219,8 @@ void main()
   float spriteWidth = spriteSrc.z;
   float spriteHeight = spriteSrc.w;
 
-	TexCoord = vec2(spriteSrcX + (srcCoord.x * spriteWidth), spriteSrcY + (srcCoord.y * spriteHeight));
-	gl_Position = worldProjection * worldModel * vec4(screenPos, 1.0);
+  TexCoord = vec2(spriteSrcX + (srcCoord.x * spriteWidth), spriteSrcY + (srcCoord.y * spriteHeight));
+  gl_Position = worldProjection * worldModel * vec4(screenPos, 1.0);
 }")
          (fragment-shader-source
           "#version 330 core

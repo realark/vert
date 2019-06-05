@@ -92,11 +92,6 @@
                   iy
                   iz))))))
 
-(declaim (ftype (function (game-object) world-position) x y z)
-         (ftype (function (game-object) world-dimension) width height)
-         (ftype (function (game-object) rotation-radians) rotation)
-         (ftype (function (game-object (single-float 0.0 1.0)) (values world-position world-position world-position)) interpolate-position))
-
 (defmethod pre-update ((aabb aabb))
   (with-slots ((last last-positions)) aabb
     (declare ((simple-array world-position) last))

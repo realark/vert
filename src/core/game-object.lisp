@@ -62,7 +62,8 @@ Afterwards, OBJECT match all of OBJECT-TO-PIN-TO's movements.")
 (defgeneric interpolate-position (game-object update-percent)
   (:documentation "Return an interpolated (x y z) for GAME-OBJECT at UPDATE-PERCENT between its last two update states."))
 (defgeneric pre-update (game-object)
-  (:documentation "Called on each game object before anything in the update frame happens."))
+  (:documentation "Called on each game object before anything in the update frame happens.")
+  (:method ((game-object game-object))))
 
 ;; object movement event publishing
 (defevent object-moved (moved-game-object)
