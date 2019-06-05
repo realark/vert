@@ -23,6 +23,19 @@
   (make-sprite-source 0 0 nil nil))
 
 (progn
+  (defstruct color-map
+    "A COLOR-MAP can be applied to a sprite to convert all matching FROM-COLORs to TO-COLOR in the sprite within the TOLERANCE range."
+    (from-color *white* :type color)
+    (to-color *white* :type color)
+    (tolerance (/ 3.0 255.0) :type (single-float 0.0 1.0)))
+  (export '(color-map make-color-map)))
+
+(defvar %no-op-color-map%
+  (make-color-map :from-color *white*
+                  :to-color *white*
+                  :tolerance 0.0))
+
+(progn
   (defclass gl-sprite (game-object gl-drawable)
     ((path-to-sprite :initarg :path-to-sprite
                      :accessor path-to-sprite
@@ -37,6 +50,7 @@ Nil to render the entire sprite."
             :documentation "A color mod blended with the original sprite.
 Nil has the same effect as *white*."
             :accessor color)
+     (color-maps :initform nil)
      (flip-vector :initform
                   (make-array 2
                               :initial-contents '(1.0 1.0)
@@ -70,6 +84,19 @@ Nil has the same effect as *white*."
             sprite-source
             color)))
 
+@export
+(defun add-color-map (gl-sprite color-map)
+  "Apply COLOR-MAP to GL-SPRITE. See doc for color-map struct for details."
+  (declare (gl-sprite gl-sprite)
+           (color-map color-map))
+  (with-slots (color-maps) gl-sprite
+    (if color-maps
+        (error "multiple color maps not yet supported")
+        (setf color-maps (make-array 1
+                                     :element-type 'color-map
+                                     :initial-contents (list color-map)
+                                     :adjustable t)))))
+
 (let ((translation-matrix (sb-cga:identity-matrix))
       (rotation-matrix (sb-cga:identity-matrix))
       (scale-matrix (sb-cga:identity-matrix)))
@@ -100,7 +127,7 @@ Nil has the same effect as *white*."
       (declare (optimize (speed 3))
                (gl-sprite drawable)
                (simple-camera camera))
-      (with-slots (color sprite-source flip-vector shader texture vao)
+      (with-slots (color color-maps sprite-source flip-vector shader texture vao)
           drawable
         (declare ((simple-array single-float (2)) flip-vector)
                  ((or null color) color)
@@ -110,6 +137,24 @@ Nil has the same effect as *white*."
                  ((or null sprite-source) sprite-source))
         (gl-use-shader renderer shader)
 
+        (let ((map (if color-maps (elt color-maps 0) %no-op-color-map%)))
+          (when (and color-maps (> (length color-maps) 1))
+            (error "multiple color maps not supported yet."))
+          (set-uniformf shader
+                        "spriteColorMapFrom"
+                        (r (color-map-from-color map))
+                        (g (color-map-from-color map))
+                        (b (color-map-from-color map))
+                        (a (color-map-from-color map)))
+          (set-uniformf shader
+                        "spriteColorMapTo"
+                        (r (color-map-to-color map))
+                        (g (color-map-to-color map))
+                        (b (color-map-to-color map))
+                        (a (color-map-to-color map)))
+          (set-uniformf shader
+                        "spriteColorMapTolerance"
+                        (color-map-tolerance map)))
         (if color
             (set-uniformf shader
                           "spriteColorMod"
@@ -231,10 +276,22 @@ in vec2 TexCoord;
 // texture sampler
 uniform sampler2D ourTexture;
 uniform vec4 spriteColorMod;
+uniform vec4 spriteColorMapFrom;
+uniform vec4 spriteColorMapTo;
+uniform float spriteColorMapTolerance;
 
 void main()
 {
-  FragColor = spriteColorMod * texture(ourTexture, TexCoord);
+  vec4 colorMappedTexture = texture(ourTexture, TexCoord);
+  if (spriteColorMapFrom != spriteColorMapTo) {
+    if ((abs(spriteColorMapFrom.r - colorMappedTexture.r) <= spriteColorMapTolerance)
+         && (abs(spriteColorMapFrom.g - colorMappedTexture.g) <= spriteColorMapTolerance)
+         && (abs(spriteColorMapFrom.b - colorMappedTexture.b) <= spriteColorMapTolerance)
+         && (abs(spriteColorMapFrom.a - colorMappedTexture.a) <= spriteColorMapTolerance)) {
+      colorMappedTexture = spriteColorMapTo * colorMappedTexture;
+    }
+  }
+  FragColor = spriteColorMod * colorMappedTexture;
 }")
          (sprite-shader (make-instance 'shader
                                        :vertex-source vertex-shader-source
