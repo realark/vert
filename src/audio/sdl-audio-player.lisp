@@ -120,12 +120,15 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (values))
 
 (defmethod play-sound-effect ((audio-player sdl-audio-player) path-to-sfx-file &key (rate 1.0) (volume 1.0))
-  (declare (ignore rate volume))
-  (sdl2-ffi.functions:mix-play-channel-timed
-   +first-free-channel+
-   (%get-sound-effect audio-player path-to-sfx-file)
-   ;; hardcoding a one-time play
-   0 -1))
+  (declare (ignore rate)
+           ((single-float 0.0 1.0) volume))
+  (let ((chunk (%get-sound-effect audio-player path-to-sfx-file)))
+    (sdl2-ffi.functions:mix-volume-chunk chunk (floor (* volume 128)))
+    (sdl2-ffi.functions:mix-play-channel-timed
+     +first-free-channel+
+     chunk
+     ;; hardcoding a one-time play
+     0 -1)))
 
 
 (defmethod play-music ((audio-player sdl-audio-player) path-to-music-file &key (num-plays 1))
