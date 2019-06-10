@@ -7,7 +7,6 @@
    (sdl-to-vert-controllers
     :documentation "Map sdl-id -> vert-id"
     :initform (make-hash-table :test #'equalp))
-   (window-icon :initform nil)
    (sdl-controllers :initform (make-hash-table :test #'equalp)))
   (:documentation "Engine manager implemented with sdl2"))
 
@@ -80,8 +79,8 @@
                             :format sdl2:+pixelformat-rgba32+))
                       (cl-soil:free-image-data img-pointer)))))
 
-            (setf (slot-value engine-manager 'window-icon) surf)
-            (sdl2-ffi.functions:sdl-set-window-icon win surf))
+            (sdl2-ffi.functions:sdl-set-window-icon win surf)
+            (sdl2:free-surface surf))
 
           ;; Stop using rendered
           ;; Initialize gl context and pass to engine manager
@@ -98,10 +97,7 @@
           (call-next-method)))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
-  (with-slots (window-icon sdl-controllers) engine-manager
-    (when window-icon
-      (sdl2:free-surface window-icon)
-      (setf window-icon nil))
+  (with-slots (sdl-controllers) engine-manager
     (loop :for sdl-joystick-id :being :the hash-keys :in sdl-controllers :do
          (remove-sdl-controller engine-manager sdl-joystick-id))))
 

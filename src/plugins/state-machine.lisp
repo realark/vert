@@ -41,7 +41,8 @@
     (loop :for state-machine-name :being :the hash-keys :of (slot-value stateful 'state-machines) :do
          (%state-machine-update stateful state-machine-name delta-t-ms world-context))))
 
-;; TODO: (defstate state-machine-name initial-state* (arg-lambda-list) body))
+;; TODO: (defstate state-machine-name initial-state? (arg-lambda-list) body))
+;; TODO: parent state?
 @export
 (defmacro defstate ((object-binding state-machine-name-keyword delta-t-binding scene-binding &key initial-state old-state-binding new-state-binding) &body states-and-actions)
   "TODO write doc"
