@@ -7,6 +7,7 @@
     (g 0.0 :type single-float)
     (b 0.0 :type single-float)
     (a 1.0 :type single-float))
+  (export '(copy-color))
   (export '(make-color)))
 
 @export

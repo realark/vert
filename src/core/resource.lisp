@@ -7,7 +7,7 @@
   "The default relative path checked during resource lookup.")
 
 @export
-(defvar *config-resource-dirs-key* "resource-dirs")
+(defvar *config-resource-dirs-key* 'config-resource-dirs)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun %resource-path (resource-relative-path &optional error-if-absent)
@@ -16,7 +16,7 @@
              (resource-exists-p (resource-dir resource-relative-path)
                (probe-file (absolute-resource-path resource-dir resource-relative-path))))
       (or
-       (loop :for resource-dir :in (getconfig 'config-resource-dirs *config*) :do
+       (loop :for resource-dir :in (getconfig *config-resource-dirs-key* *config*) :do
             (when (resource-exists-p resource-dir resource-relative-path)
               (return (absolute-resource-path resource-dir resource-relative-path))))
        (when error-if-absent
