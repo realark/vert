@@ -27,8 +27,7 @@
   (loop :for sub :across (the (vector game-object)
                               (slot-value composed-object 'sub-objects))
      :do
-       (when (and (%aabb-collision-check (bounding-box sub) (bounding-box game-object))
-                  (collidep sub game-object))
+       (when (collidep sub game-object)
          (return T))))
 
 (defcollision ((polygon convex-polygon) (composed-object composed-object))
@@ -36,16 +35,14 @@
   (loop :for sub :across (the (vector game-object)
                               (slot-value composed-object 'sub-objects))
      :do
-       (when (and (%aabb-collision-check (bounding-box sub) (bounding-box polygon))
-                  (collidep sub polygon))
+       (when (collidep sub polygon)
          (return T))))
 
 (defmethod collision :after ((composed-object composed-object) (game-object game-object))
   (loop :for sub :across (the (vector game-object)
                               (slot-value composed-object 'sub-objects))
      :do
-       (when (and (%aabb-collision-check (bounding-box sub) (bounding-box game-object))
-                  (collidep sub game-object))
+       (when (collidep sub game-object)
          (collision game-object sub)
          (return T))))
 
@@ -53,8 +50,7 @@
   (loop :for sub :across (the (vector game-object)
                               (slot-value composed-object 'sub-objects))
      :do
-       (when (and (%aabb-collision-check (bounding-box sub) (bounding-box game-object))
-                  (collidep sub game-object))
+       (when (collidep sub game-object)
          (collision game-object sub)
          (return T))))
 

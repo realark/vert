@@ -36,15 +36,27 @@
      (point-y world-position) (coerce y 'world-position)
      (point-z world-position) (coerce z 'world-position))))
 
-@export
+
+;; TODO: remove bounding-box concept
 (defgeneric bounding-box (game-object)
   (:documentation "Returns an AABB which must surround the entire GAME-OBJECT")
   (:method ((aabb aabb)) aabb))
 
 @export
-(defgeneric hit-box (game-object)
-  (:documentation "Returns a game-object which ultimately will decide if a collision occurs.")
-  (:method ((object game-object)) object))
+(defgeneric hit-box (game-object other-object)
+  (:documentation "Returns a game-object which will be used to check for collisions between GAME-OBJECT and OTHER-OBJECT.
+The default method should be good enough for most game objects. Extend this method to provide specific hit-box logic between two objects (for example, to provide a smaller hit-box for player<>enemy collision checks).")
+  (:method ((object game-object) other-object) object))
+
+;; if hit-boxes are defined on either object, use them to determine if there was a collision.
+(defmethod collidep :around ((obj1 game-object) (obj2 game-object))
+  (declare (optimize (speed 3)))
+  (let ((hit-box1 (hit-box obj1 obj2))
+        (hit-box2 (hit-box obj2 obj1)))
+    (if (or (not (eq obj1 hit-box1))
+            (not (eq obj2 hit-box2)))
+        (collidep hit-box1 hit-box2)
+        (call-next-method obj1 obj2))))
 
 (defmethod x ((aabb aabb))
   (point-x (slot-value aabb 'world-position)))
@@ -197,6 +209,50 @@
    (z point) (the world-position (z aabb)))
   point)
 
+;; attempt to short-circuit a collision check between two AABBs
+(defmethod collidep :around ((obj1 aabb) (obj2 aabb))
+  (declare (optimize (speed 3)))
+  (and
+   ;; bounding-boxes must consume the entire object.
+   ;; so if two AABBs don't overlap their specific shapes won't either.
+   (%aabb-collision-check obj1 obj2)
+   (call-next-method obj1 obj2)))
+
 (defcollision ((rect1 aabb) (rect2 aabb))
   (declare (optimize (speed 3)))
-  (%aabb-collision-check (hit-box rect1) (hit-box rect2)))
+  (%aabb-collision-check rect1 rect2))
+
+@export-class
+(defclass cross (aabb)
+  ((vertical-aabb :initform nil)
+   (horizontal-aabb :initform nil))
+  (:documentation "A cross-shaped hitbox which favors different axes for the two sections. Horizontal favors X and vertical favors Y."))
+
+(defmethod initialize-instance :after ((cross cross) &key (vertical-width 1) (horizontal-height 1))
+  (with-slots (vertical-aabb horizontal-aabb) cross
+    (with-accessors ((width width) (height height) (x x) (y y) (z z)) cross
+      (setf vertical-aabb (make-instance 'aabb
+                                         :width vertical-width
+                                         :height height
+                                         :x (+ x (/ width 2))
+                                         :y y
+                                         :z z)
+            horizontal-aabb (make-instance 'aabb
+                           :width width
+                           :height horizontal-height
+                           :x x
+                           :y (+ y (/ height 2))
+                           :z z))
+      (pin-to vertical-aabb cross)
+      (pin-to horizontal-aabb cross))))
+
+(defcollision ((cross cross) (rect aabb))
+  (declare (optimize (speed 3)))
+  (with-slots (vertical-aabb horizontal-aabb) cross
+    (or (collidep vertical-aabb rect)
+        (collidep horizontal-aabb rect))))
+
+(defmethod favored-collision-resolution-axis ((cross cross) stationary-object)
+    (with-slots (vertical-aabb horizontal-aabb) cross
+      (cond ((collidep vertical-aabb stationary-object) 'x)
+            ((collidep horizontal-aabb stationary-object) 'y))))

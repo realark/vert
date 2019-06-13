@@ -283,8 +283,7 @@
   (declare (optimize (speed 3))
            (world-position radius))
   (unless (= 0.0 radius) (error "FIXME: quadtree radius lookup not implemented"))
-  (let ((node (%node-for-object game-object quadtree))
-        (game-object-box (bounding-box game-object)))
+  (let ((node (%node-for-object game-object quadtree)))
     (unless node
       (error "game-object (~A) not tracked by quadtree (~A)" game-object quadtree))
     (labels ((map-neighbors (node)
@@ -294,8 +293,7 @@
                     ;; (format T "check neighbor: ~A~%" neighbor)
                       (unless (or (eq neighbor %dead-object%)
                                   (eq neighbor game-object))
-                        (when (and (%aabb-collision-check game-object-box (bounding-box neighbor))
-                                   (collidep game-object neighbor))
+                        (when (collidep game-object neighbor)
                           (funcall function neighbor))))))
              (map-children (children-vector)
                (when children-vector

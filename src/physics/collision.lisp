@@ -80,3 +80,7 @@ inside of PHYSICS-CONTEXT and call COLLISION-RESOLUTION-NAME if any collisions o
      (do-neighbors (,moving-object (spatial-partition ,physics-context) ,stationary-object)
        (collision ,moving-object ,stationary-object)
        ,@collision-resolution-body)))
+
+(defgeneric favored-collision-resolution-axis (moving-object stationary-object)
+  (:documentation "If both x and y axis collide, use this method to favor one over the other. X to preserver the x-motion, Y to Preserve the y, or nil for no preference.")
+  (:method (moving-object stationary-object) nil))

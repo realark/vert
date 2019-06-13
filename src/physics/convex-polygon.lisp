@@ -183,8 +183,4 @@
 
 (defcollision ((polygon convex-polygon) (aabb aabb))
   (declare (optimize (speed 3)))
-  (flet ((custom-hit-box? (object)
-           (not (eq object (hit-box object)))))
-    (if (or (custom-hit-box? polygon) (custom-hit-box? aabb))
-        (collidep (hit-box polygon) (hit-box aabb))
-        (%convex-polygon-collide polygon aabb))))
+  (%convex-polygon-collide polygon aabb))

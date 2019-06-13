@@ -36,11 +36,6 @@ Afterwards, OBJECT match all of OBJECT-TO-PIN-TO's movements.")
 ;; object's world position, dimension, and rotation info.
 ;; will be implemented by physics component
 
-(declaim (ftype (function (t) world-position) x y z)
-         (ftype (function (game-object) world-dimension) width height)
-         (ftype (function (game-object) rotation-radians) rotation)
-         (ftype (function (game-object (single-float 0.0 1.0)) (values world-position world-position world-position)) interpolate-position))
-
 (defgeneric x (game-object)
   (:documentation "GAME-OBJECT's upper-left x location in the game world."))
 (defgeneric (setf x) (value game-object))
@@ -64,6 +59,11 @@ Afterwards, OBJECT match all of OBJECT-TO-PIN-TO's movements.")
 (defgeneric pre-update (game-object)
   (:documentation "Called on each game object before anything in the update frame happens.")
   (:method ((game-object game-object))))
+
+(declaim (ftype (function (t) world-position) x y z)
+         (ftype (function (game-object) world-dimension) width height)
+         (ftype (function (game-object) rotation-radians) rotation)
+         (ftype (function (game-object (single-float 0.0 1.0)) (values world-position world-position world-position)) interpolate-position))
 
 ;; object movement event publishing
 (defevent object-moved (moved-game-object)

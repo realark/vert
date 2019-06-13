@@ -15,7 +15,8 @@
           (point-z non-colliding-point) (point-z original-position))
     ;; zero out v and a on collision axis
     (let ((x-axis-collision nil)
-          (y-axis-collision nil))
+          (y-axis-collision nil)
+          (favored-axis (favored-collision-resolution-axis moving-object stationary-object)))
       (setf (y moving-object) (point-y non-colliding-point))
       (unless (collidep moving-object stationary-object)
         (setf y-axis-collision T))
@@ -24,6 +25,10 @@
       (unless (collidep moving-object stationary-object)
         (setf x-axis-collision T))
       (setf (x moving-object) (point-x colliding-point))
+      (when (and x-axis-collision y-axis-collision (not (null favored-axis)))
+        (if (eq favored-axis 'x)
+            (setf x-axis-collision nil)
+            (setf y-axis-collision nil)))
       (cond
         ((and x-axis-collision y-axis-collision)
          ;; when both x and y collide we can't zero out either axis of collision
