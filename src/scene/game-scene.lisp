@@ -45,11 +45,6 @@ On the next render frame, the objects will be given a chance to load and this li
                          :width (width game-scene)
                          :height (height game-scene)))))
 
-;; TODO: store an audio player in scene instead of using engine-manager
-(defun %get-audio-player ()
-  (when *engine-manager*
-    (audio-player *engine-manager*)))
-
 (defmethod load-resources ((game-scene game-scene) renderer)
   (with-accessors ((music scene-music)
                    (bg scene-background))
@@ -60,9 +55,9 @@ On the next render frame, the objects will be given a chance to load and this li
       (load-resources game-object renderer))
     (when music
       ;; Hack to resume music on unpause
-      (if (eq :paused (music-state (%get-audio-player)))
-          (setf (music-state (%get-audio-player)) :playing)
-          (play-music (%get-audio-player) music :num-plays -1)))))
+      (if (eq :paused (music-state *audio*))
+          (setf (music-state *audio*) :playing)
+          (play-music *audio* music :num-plays -1)))))
 
 (defmethod release-resources ((game-scene game-scene))
   (do-spatial-partition (game-object (spatial-partition game-scene))

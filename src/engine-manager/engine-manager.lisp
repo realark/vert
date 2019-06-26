@@ -1,23 +1,29 @@
 (in-package :recurse.vert)
 
-;; TODO: rename to timestep
-(defconstant +update-timestep+ 16
-  "Duration of the update timeslice in milliseconds. Just over 60 update frames per second.")
-
-(defparameter *num-framerate-samples* 6
-  "Number of render samples to keep when measuring FPS")
-(defparameter *internal-real-time-type* (type-of (get-internal-real-time)))
-
-(defparameter *dev-mode*
+@export
+(defvar *engine-manager*
   nil
-  "Set to non-nil to enable dev features (potentially at a cost to performance).")
+  "State used to run the game loop")
+
+@export
+(defvar *scene*
+  nil
+  "The active scene being updated")
+
+@export
+(defvar *timestep*
+  16
+  "Duration of the update timeslice in milliseconds. 60FPS By default.")
+(declaim (type (integer 1 100) *timestep*))
+
+@export
+(defvar *dev-mode*
+  nil
+  "Set to T to enable dev features (potentially at a cost to performance).")
 
 (defclass engine-manager (event-publisher)
   ;; global services
-  ((game-name :initform "Vert-Game"
-              :reader game-name
-              :initarg :game-name)
-   (input-manager :initform (make-instance 'input-manager)
+  ((input-manager :initform (make-instance 'input-manager)
                   :reader input-manager)
    (application-window :initarg :application-window
                        :initform nil
@@ -27,15 +33,12 @@
                       :initform nil
                       :reader rendering-context
                       :documentation "Rendering context of the application window.")
-   (active-scene :initarg :active-scene
-                 :initform nil
-                 ;; TODO: Use setf on active-scene instead of `change-scene` method
-                 :accessor active-scene
-                 :documentation "Scene to update and render in the game loop.")
    (audio-player :initarg :audio-player
                  :initform nil
                  :reader audio-player
                  :documentation "System audio player.")
+   (pending-scene-changes
+    :initform nil)
    ;; engine state
    (clear-color :initform *black*
                 :accessor clear-color
@@ -60,38 +63,51 @@
 (defevent engine-stopped ((engine-manager engine-manager))
     "Fired once when the engine stops running.")
 
-(defgeneric change-scene (engine-manager new-scene &optional release-existing-scene preserve-audio)
-  (:documentation "Replace the active-scene with NEW-SCENE.
-If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene will be released.")
-  (:method ((engine-manager engine-manager) new-scene &optional (release-existing-scene T) (preserve-audio nil))
-    (let ((old-scene (active-scene engine-manager)))
-      (unless (eq old-scene new-scene)
-        (when (and old-scene (current-music (audio-player engine-manager)))
-          ;; Hack to resume music on unpause
-          (unless preserve-audio
-            (if release-existing-scene
-                (setf (music-state (audio-player engine-manager)) :stopped)
-                (setf (music-state (audio-player engine-manager)) :paused))))
-        (when new-scene
-          (load-resources new-scene (rendering-context engine-manager))
-          (do-input-devices device (input-manager engine-manager)
-            (add-scene-input new-scene device)))
-        (when (and old-scene release-existing-scene)
-          (release-resources old-scene))
-        (setf (active-scene engine-manager) new-scene)
-        (multiple-value-bind (width-px height-px)
-            (window-size-pixels (application-window *engine-manager*))
-          (%after-resize-window (application-window engine-manager) width-px height-px))
-        (when (and (not preserve-audio)
-                   (typep old-scene 'pause-scene)
-                   (eq :paused (music-state (audio-player engine-manager))))
-          (setf (music-state (audio-player engine-manager)) :playing)))
-      new-scene)))
+(defun active-scene (engine-manager)
+  (declare (ignore engine-manager))
+  *scene*)
+
+@export
+(defun change-scene (engine-manager new-scene &optional (release-existing-scene T) (preserve-audio nil))
+  "At the beginning of the next game loop, Replace the active-scene with NEW-SCENE.
+If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene will be released."
+  (let ((old-scene *scene*))
+    (unless (eq old-scene new-scene)
+      (when (slot-value engine-manager 'pending-scene-changes)
+        (error "Scene change already pending"))
+      (setf (slot-value engine-manager 'pending-scene-changes)
+            (lambda ()
+              (when (and old-scene (current-music *audio*))
+                ;; Hack to resume music on unpause
+                (unless preserve-audio
+                  (if release-existing-scene
+                      (setf (music-state *audio*) :stopped)
+                      (setf (music-state *audio*) :paused))))
+              (when new-scene
+                (load-resources new-scene (rendering-context engine-manager))
+                (do-input-devices device (input-manager engine-manager)
+                  (add-scene-input new-scene device)))
+              (when (and old-scene release-existing-scene)
+                (release-resources old-scene))
+              (setf *scene* new-scene)
+              (multiple-value-bind (width-px height-px)
+                  (window-size-pixels (application-window *engine-manager*))
+                (%after-resize-window (application-window engine-manager) width-px height-px))
+              (when (and preserve-audio
+                         (typep old-scene 'pause-scene)
+                         (eq :paused (music-state *audio*)))
+                (setf (music-state *audio*) :playing)))))
+    (values)))
 
 (defgeneric game-loop-iteration (engine-manager)
   (:documentation "Run a single iteration of the game loop.")
   (:method ((engine-manager engine-manager))
     (declare (optimize (speed 3)))
+    ;; first run any pending scene changes
+    (with-slots (pending-scene-changes) engine-manager
+      (when pending-scene-changes
+        (funcall pending-scene-changes)
+        (setf pending-scene-changes nil)))
     ;; I've considered wrapping this methig in (sb-sys:without-gcing)
     ;; to prevent short GCs from dropping the FPS.
     ;; It seems like that could deadlock if the game is multithreaded.
@@ -103,7 +119,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
       (declare (fixnum last-loop-start lag))
       (let* ((now-ns (ticks-nanos))
              (delta-ns (- (the fixnum now-ns) last-loop-start))
-             (timestep-ns (* +update-timestep+ #.(expt 10 6)))
+             (timestep-ns (* *timestep* #.(expt 10 6)))
              (num-updates 0)
              (update-time-nanos 0)
              (render-time-nanos 0))
@@ -119,7 +135,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
              (decf lag timestep-ns)
              (let ((t0 (ticks-nanos)))
                (declare (fixnum t0))
-               (update active-scene +update-timestep+ nil)
+               (update active-scene *timestep* nil)
                (incf update-time-nanos (the fixnum (- (the fixnum (ticks-nanos)) t0)))
                (incf num-updates)))
 
@@ -152,6 +168,8 @@ It is invoked after the engine is fully started.")
            (change-scene engine-manager (funcall initial-scene-creator))
            (sb-ext:gc :full T) ;; run a full gc before the first window is shown
            ;; run the game loop
+
+
            (run-game-loop engine-manager))
       (cleanup-engine engine-manager))))
 
@@ -159,6 +177,10 @@ It is invoked after the engine is fully started.")
   (:documentation "Called once at engine shutdown. Clean up engine state.")
   (:method ((engine-manager engine-manager))
     (change-scene engine-manager nil)
+    (with-slots (pending-scene-changes) engine-manager
+      (when pending-scene-changes
+        (funcall pending-scene-changes)
+        (setf pending-scene-changes nil)))
     ;; stop services
     (stop-audio-system)
     (fire-event engine-manager engine-stopped)

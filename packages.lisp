@@ -45,7 +45,6 @@
    :main
    :quit
    :*engine-manager*
-   :game-name
    :audo-player
    :input-manager
    :register-input-device
@@ -207,4 +206,12 @@
    :facing
    :is-facing
    :push-direction
-   :agent-acceleration))
+   :agent-acceleration
+
+   ;; global state
+   :*engine-manager*
+   :*config*
+   :*scene*
+   :*timestep*
+   :*dev-mode*
+   :*audio*))

@@ -1,20 +1,26 @@
 (in-package :recurse.vert)
 
-(defclass pause-scene (scene)
-  ((scene :initarg :scene
-          :accessor scene
-          :documentation "The underlying scene.")
-   (remaining-steps
-    :initform 0
-    :documentation "Number of steps left in :stepping run-state before underlying scene will pause")
-   (next-frame-step-ts
-    :initform 0
-    :documentation "TS of next frame step")
-   (time-between-frame-steps-ms
-    :initform 1000
-    :documentation "Time delay between update frames in :stepping run-state."))
-  (:documentation "A scene which renders on top of a non-updated (nested) scene.
+(progn
+  (defclass pause-scene (scene)
+    ((scene :initarg :scene
+            :accessor scene
+            :documentation "The underlying scene.")
+     (release-underlying-scene :initform nil
+                               :accessor release-underlying-scene)
+     (remaining-steps
+      :initform 0
+      :documentation "Number of steps left in :stepping run-state before underlying scene will pause")
+     (next-frame-step-ts
+      :initform 0
+      :documentation "TS of next frame step")
+     (time-between-frame-steps-ms
+      :initform 1000
+      :documentation "Time delay between update frames in :stepping run-state."))
+    (:documentation "A scene which renders on top of a non-updated (nested) scene.
 Useful for debugging and pausing."))
+
+  (export 'release-underlying-scene))
+
 
 (defun step-scene (pause-scene &key (num-steps 1) (time-between-frames-ms 1000))
   "Update the underlying scene NUM-STEPS."
@@ -49,9 +55,10 @@ Useful for debugging and pausing."))
     (call-next-method pause-scene delta-t-ms world-context)))
 
 (defmethod render ((pause-scene pause-scene) update-percent camera rendering-context)
-  (render (slot-value pause-scene 'scene) 0.0 nil rendering-context)
+  (when (scene pause-scene )
+    (render (slot-value pause-scene 'scene) 0.0 nil rendering-context))
   (call-next-method pause-scene update-percent camera rendering-context))
 
 (defmethod release-resources :after ((pause-scene pause-scene ))
-  (when (scene pause-scene )
+  (when (and (scene pause-scene) (release-underlying-scene pause-scene))
     (release-resources (scene pause-scene ))))

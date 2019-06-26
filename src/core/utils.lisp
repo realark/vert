@@ -103,3 +103,11 @@ Assumes ARRAY is initially sorted."
                       (find-insertion-index array object predicate (+ half 1) end))
                      (t half)))))
     (array-insert-at-index array (find-insertion-index array object predicate) object)))
+
+@export
+(defun center-object-xy (object target)
+  "Update OBJECT's X and Y positions to be centered inside of TARGET"
+  (with-accessors ((x1 x) (y1 y) (w1 width) (h1 height)) object
+    (with-accessors ((x2 x) (y2 y) (w2 width) (h2 height)) target
+      (setf x1 (- (+ x2 (/ w2 2)) (/ w1 2))
+            y1 (- (+ y2 (/ h2 2)) (/ h1 2))))))

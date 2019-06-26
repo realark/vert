@@ -47,7 +47,7 @@
 
     (sdl2:with-window (win :w 1280 :h 720
                            :flags '(:shown :opengl)
-                           :title (game-name engine-manager))
+                           :title (getconfig 'game-name *config*))
 
         (sdl2:with-gl-context (sdl-glcontext win)
           (sdl2:gl-make-current win sdl-glcontext)
@@ -61,26 +61,29 @@
             (gl:enable :blend)
             (gl:blend-func :src-alpha :one-minus-src-alpha))
 
-          ;; TODO: configurable icon
-          (let* ((img-path (resource-path "recursive_logo_light.png"))
-                 (surf
-                  (multiple-value-bind
-                        (img-pointer width height component-count-file component-count-data)
-                      (cl-soil:load-image img-path :rgba)
-                    (unwind-protect
-                         (progn
-                           (assert (= 4 component-count-file component-count-data))
-                           (sdl2:create-rgb-surface-with-format-from
-                            img-pointer
-                            width
-                            height
-                            (* component-count-data 8)
-                            (* component-count-data width)
-                            :format sdl2:+pixelformat-rgba32+))
-                      (cl-soil:free-image-data img-pointer)))))
+          (when (getconfig 'window-icon *config*)
+            (let* ((img-path (resource-path (getconfig 'window-icon *config*)))
+                   (surf
+                    (multiple-value-bind
+                          (img-pointer width height component-count-file component-count-data)
+                        (cl-soil:load-image img-path :rgba)
+                      (unwind-protect
+                           (progn
+                             (assert (= 4 component-count-file component-count-data))
+                             (sdl2:create-rgb-surface-with-format-from
+                              img-pointer
+                              width
+                              height
+                              (* component-count-data 8)
+                              (* component-count-data width)
+                              :format sdl2:+pixelformat-rgba32+))
+                        (cl-soil:free-image-data img-pointer)))))
 
-            (sdl2-ffi.functions:sdl-set-window-icon win surf)
-            (sdl2:free-surface surf))
+              (sdl2-ffi.functions:sdl-set-window-icon
+               win
+               ;; (slot-value (slot-value *engine-manager* 'recurse.vert::application-window) 'recurse.vert::sdl-window)
+               surf)
+              (sdl2:free-surface surf)))
 
           ;; Stop using rendered
           ;; Initialize gl context and pass to engine manager
@@ -94,6 +97,7 @@
                                  (slot-value engine-manager 'keyboard-input))
           (loop for i from 0 below (sdl2:joystick-count) do
                (initialize-sdl-controller engine-manager i))
+
           (call-next-method)))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
@@ -248,7 +252,9 @@
                       (%after-resize-window (application-window engine-manager) width height)))
     (:idle ()
            (restart-case
-               (game-loop-iteration engine-manager)
+               (progn
+
+                 (game-loop-iteration engine-manager))
              (continue () :report "Continue Game Loop")))
     (:quit ()
            t)))

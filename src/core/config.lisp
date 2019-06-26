@@ -12,13 +12,14 @@
   (gethash key (slot-value config '%config-hash)))
 
 @export
-(defmacro make-config (&rest key-value-pairs)
-  "Create a config out of KEY-VALUE-PAIRS.
+(defmacro make-config ((&optional base-config) &rest key-value-pairs)
+  "Create a config out of KEY-VALUE-PAIRS. If supplied all values from BASE-CONFIG will be copied over.
 
-Each pair is a two value list with the first value being a symbol.
+Each pair is a two value list with the first value being a symbol. Any keys present in BASE-CONFIG will be overridden by these values.
 
 Example:
-  (make-config ('foo \"foo val\") ('bar \"bar val\"))"
+  (make-config (*default-config*) ('foo \"foo val\") ('bar \"bar val\"))"
+  (when base-config (error "base-config not implemented yet"))
   (alexandria:with-gensyms (config hash)
     `(let ((,config (make-instance 'config)))
        (with-slots ((,hash %config-hash)) ,config
@@ -44,9 +45,20 @@ Example:
     (setf (documentation symbol 'variable) documentation)))
 
 (export-config-key
- 'config-resource-dir "Dirs to check when looking for a resource. See RESOURCE-PATH.")
+ 'config-resource-dirs "Dirs to check when looking for a resource. See RESOURCE-PATH.")
+(export-config-key
+ 'game-name "Name of the game. Will affect the executable name and window title.")
+(export-config-key
+ 'window-icon "Path to a PNG to use for the window icon. Path must be a relative path to the active config's RESOURCE-PATH. May be nil.")
 
 @export
-(defvar *config* (make-config
-                  ('config-resource-dirs (list "./resources")))
-  "The active config used by vert.")
+(defvar *default-config* (make-config ()
+                                      ('config-resource-dirs (list "./resources"))
+                                      ('game-name "VertGame")
+                                      ('window-icon nil))
+  "The config used by vert if no config is specified.")
+
+@export
+(defvar *config*
+  nil
+  "The active config")

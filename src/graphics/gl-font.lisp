@@ -18,7 +18,7 @@
          :initform (error ":text required")
          :accessor text)
    (path-to-font :initarg :path-to-font
-                 :initform (resource-path "fonts/liberation_sans/LiberationSans-Regular.ttf")
+                 :initform "fonts/liberation_sans/LiberationSans-Regular.ttf"
                  :reader path-to-font
                  :documentation "Path to font file.")
    (font-size :initform 72
@@ -251,7 +251,7 @@ void main()
   (declare (gl-font gl-font))
   (with-slots (path-to-font)
       gl-font
-    (let ((font-face (freetype2:new-face path-to-font)))
+    (let ((font-face (freetype2:new-face (resource-path path-to-font))))
       (freetype2:set-pixel-sizes font-face 0 48)
       (gl:pixel-store :unpack-alignment 1)
       ;; TODO: configurable chars

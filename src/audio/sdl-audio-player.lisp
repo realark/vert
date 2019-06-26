@@ -66,16 +66,16 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (cffi:defcallback
       music-finished-callback :void ()
     "When music finishes playing queue up"
-    (when *audio-player*
+    (when *audio*
       ;; FIXME: should lock around setting audio player state
-      (with-slots (num-music-plays) *audio-player*
-        (case (music-state *audio-player*)
+      (with-slots (num-music-plays) *audio*
+        (case (music-state *audio*)
           (:playing
            (decf num-music-plays)
            (cond
-             ((> num-music-plays 0) (setf (music-state *audio-player*) :playing))
-             ((= num-music-plays 0) (setf (music-state *audio-player*) :stopped))
-             (T (setf num-music-plays -1 (music-state *audio-player*) :playing))))
+             ((> num-music-plays 0) (setf (music-state *audio*) :playing))
+             ((= num-music-plays 0) (setf (music-state *audio*) :stopped))
+             (T (setf num-music-plays -1 (music-state *audio*) :playing))))
           (:stopped (setf num-music-plays 0))))))
   (unwind-protect
        (progn
