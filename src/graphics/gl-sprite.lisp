@@ -97,116 +97,115 @@ Nil has the same effect as *white*."
                                      :initial-contents (list color-map)
                                      :adjustable t)))))
 
-(let ((translation-matrix (sb-cga:identity-matrix))
-      (rotation-matrix (sb-cga:identity-matrix))
-      (scale-matrix (sb-cga:identity-matrix)))
-  (labels ((update-world-model (gl-sprite update-percent)
-             "Update the sprites world-model matrix if its position has changed or if FORCE is non-nil."
-             (declare (optimize (speed 3))
-                      ((single-float 0.0 1.0) update-percent))
-             ;; TODO: most objects will not change their model matrix. Could optimize to only compute on change.
-             (multiple-value-bind (ix iy iz)
-                 (interpolate-position gl-sprite update-percent)
-               (declare (world-position ix iy iz))
+
+(labels ((update-world-model (gl-sprite update-percent)
+           "Update the sprites world-model matrix if its position has changed or if FORCE is non-nil."
+           (declare (optimize (speed 3))
+                    ((single-float 0.0 1.0) update-percent))
+           (multiple-value-bind (ix iy iz)
+               (interpolate-position gl-sprite update-percent)
+             (declare (world-position ix iy iz))
+             (let ((translation-matrix (translation-matrix
+                                        (+ ix (width gl-sprite))
+                                        (+ iy (height gl-sprite))
+                                        iz))
+                   (rotation-matrix (rotation-matrix 0f0 0f0 (rotation gl-sprite)))
+                   (scale-matrix (scale-matrix (width gl-sprite) (height gl-sprite) 1.0)))
+               (declare (dynamic-extent translation-matrix rotation-matrix scale-matrix))
+               ;; TODO: most objects will not change their model matrix. Could optimize to only compute on change.
+
                ;; Don't recompute if position, rotation, and size have not changed
-               (n-matrix*
-                (slot-value gl-sprite 'world-model)
-                ;; add width and height to render from upper-left corner
-                (n-translate* translation-matrix
-                              (+ ix (width gl-sprite))
-                              (+ iy (height gl-sprite))
-                              iz)
-                (n-rotate* rotation-matrix 0f0 0f0 (rotation gl-sprite))
-                (n-scale* scale-matrix
-                          (width gl-sprite)
-                          (height gl-sprite)
-                          1.0)))
-             (values)))
+               (let ((product (matrix* translation-matrix
+                                       rotation-matrix
+                                       scale-matrix)))
+                 (declare (dynamic-extent product))
+                 (copy-array-contents product (slot-value gl-sprite 'world-model)))))
+           (values)))
 
-    (defmethod render ((drawable gl-sprite) update-percent (camera simple-camera) (renderer gl-context))
-      (declare (optimize (speed 3))
-               (gl-sprite drawable)
-               (simple-camera camera))
-      (with-slots (color color-maps sprite-source flip-vector shader texture vao)
-          drawable
-        (declare ((simple-array single-float (2)) flip-vector)
-                 ((or null color) color)
-                 (shader shader)
-                 (texture texture)
-                 (integer vao)
-                 ((or null sprite-source) sprite-source))
-        (gl-use-shader renderer shader)
+  (defmethod render ((drawable gl-sprite) update-percent (camera simple-camera) (renderer gl-context))
+    (declare (optimize (speed 3))
+             (gl-sprite drawable)
+             (simple-camera camera))
+    (with-slots (color color-maps sprite-source flip-vector shader texture vao)
+        drawable
+      (declare ((simple-array single-float (2)) flip-vector)
+               ((or null color) color)
+               (shader shader)
+               (texture texture)
+               (integer vao)
+               ((or null sprite-source) sprite-source))
+      (gl-use-shader renderer shader)
 
-        (let ((map (if color-maps (elt color-maps 0) %no-op-color-map%)))
-          (when (and color-maps (> (length color-maps) 1))
-            (error "multiple color maps not supported yet."))
+      (let ((map (if color-maps (elt color-maps 0) %no-op-color-map%)))
+        (when (and color-maps (> (length color-maps) 1))
+          (error "multiple color maps not supported yet."))
+        (set-uniformf shader
+                      "spriteColorMapFrom"
+                      (r (color-map-from-color map))
+                      (g (color-map-from-color map))
+                      (b (color-map-from-color map))
+                      (a (color-map-from-color map)))
+        (set-uniformf shader
+                      "spriteColorMapTo"
+                      (r (color-map-to-color map))
+                      (g (color-map-to-color map))
+                      (b (color-map-to-color map))
+                      (a (color-map-to-color map)))
+        (set-uniformf shader
+                      "spriteColorMapTolerance"
+                      (color-map-tolerance map)))
+      (if color
           (set-uniformf shader
-                        "spriteColorMapFrom"
-                        (r (color-map-from-color map))
-                        (g (color-map-from-color map))
-                        (b (color-map-from-color map))
-                        (a (color-map-from-color map)))
+                        "spriteColorMod"
+                        (r color)
+                        (g color)
+                        (b color)
+                        (a color))
           (set-uniformf shader
-                        "spriteColorMapTo"
-                        (r (color-map-to-color map))
-                        (g (color-map-to-color map))
-                        (b (color-map-to-color map))
-                        (a (color-map-to-color map)))
-          (set-uniformf shader
-                        "spriteColorMapTolerance"
-                        (color-map-tolerance map)))
-        (if color
-            (set-uniformf shader
-                          "spriteColorMod"
-                          (r color)
-                          (g color)
-                          (b color)
-                          (a color))
-            (set-uniformf shader
-                          "spriteColorMod"
-                          1.0 1.0 1.0 1.0))
+                        "spriteColorMod"
+                        1.0 1.0 1.0 1.0))
 
-        ;; set position, rotation, and size
-        (update-world-model drawable update-percent)
-        (set-uniform-matrix-4fv shader
-                                "worldModel"
-                                (slot-value drawable 'world-model)
-                                nil)
+      ;; set position, rotation, and size
+      (update-world-model drawable update-percent)
+      (set-uniform-matrix-4fv shader
+                              "worldModel"
+                              (slot-value drawable 'world-model)
+                              nil)
 
-        ;; set world projection
-        (set-uniform-matrix-4fv shader
-                                "worldProjection"
-                                (projection-matrix camera)
-                                nil)
+      ;; set world projection
+      (set-uniform-matrix-4fv shader
+                              "worldProjection"
+                              (projection-matrix camera)
+                              nil)
 
-        ;; set sprite source rectangle
-        (let* ((source (or sprite-source %default-sprite-source%))
-               (flip-x (elt flip-vector 0))
-               (flip-y (elt flip-vector 1))
-               (x (sprite-source-x source))
-               (y (sprite-source-y source))
-               (total-w (texture-src-width texture))
-               (total-h (texture-src-height texture))
-               (w (or (sprite-source-w source) total-w))
-               (h (or (sprite-source-h source) total-h)))
-          (declare ((single-float -1.0 1.0) flip-x flip-y)
-                   ((integer 0 *) x y w h total-w total-h))
-          (set-uniformf shader
-                        "spriteSrc"
-                        ;; x y width height
-                        (if (< flip-x 0)
-                            (/ (float (+ x w)) total-w)
-                            (/ (float x) total-w))
-                        (if (< flip-y 0)
-                            (/ (float y) total-h)
-                            ;; add src-h to y coord to render coords from upper-left corner instead of lower-left
-                            (/ (float (+ h y)) total-h))
-                        (float (/ (* w flip-x) total-w))
-                        (float (/ (* h flip-y) total-h))))
-        (gl-bind-texture renderer texture)
-        (gl-use-vao renderer vao)
-        (n-draw-arrays :triangle-fan 0 4)
-        (values)))))
+      ;; set sprite source rectangle
+      (let* ((source (or sprite-source %default-sprite-source%))
+             (flip-x (elt flip-vector 0))
+             (flip-y (elt flip-vector 1))
+             (x (sprite-source-x source))
+             (y (sprite-source-y source))
+             (total-w (texture-src-width texture))
+             (total-h (texture-src-height texture))
+             (w (or (sprite-source-w source) total-w))
+             (h (or (sprite-source-h source) total-h)))
+        (declare ((single-float -1.0 1.0) flip-x flip-y)
+                 ((integer 0 *) x y w h total-w total-h))
+        (set-uniformf shader
+                      "spriteSrc"
+                      ;; x y width height
+                      (if (< flip-x 0)
+                          (/ (float (+ x w)) total-w)
+                          (/ (float x) total-w))
+                      (if (< flip-y 0)
+                          (/ (float y) total-h)
+                          ;; add src-h to y coord to render coords from upper-left corner instead of lower-left
+                          (/ (float (+ h y)) total-h))
+                      (float (/ (* w flip-x) total-w))
+                      (float (/ (* h flip-y) total-h))))
+      (gl-bind-texture renderer texture)
+      (gl-use-vao renderer vao)
+      (n-draw-arrays :triangle-fan 0 4)
+      (values))))
 
 (defmethod load-resources ((drawable gl-sprite) (renderer gl-context))
   ;; TODO

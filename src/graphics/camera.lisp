@@ -46,14 +46,14 @@
       camera
     (multiple-value-bind (ix iy)
         (interpolate-position camera update-percent)
-      (setf projection-matrix
-            (n-ortho-matrix (or projection-matrix (sb-cga:identity-matrix))
-                            ix
-                            (float (+ ix (/ world-width zoom)))
-                            (float (+ iy (/ world-height zoom)))
-                            iy
-                            100.0
-                            -100.0)))))
+      (let ((ortho (ortho-matrix ix
+                                 (float (+ ix (/ world-width zoom)))
+                                 (float (+ iy (/ world-height zoom)))
+                                 iy
+                                 100.0
+                                 -100.0)))
+        (declare (dynamic-extent ortho))
+        (copy-array-contents ortho projection-matrix)))))
 
 (defmethod projection-matrix ((camera simple-camera))
   (with-slots (projection-matrix) camera
