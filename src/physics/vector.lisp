@@ -18,6 +18,18 @@
 (defmethod (setf y) (value (vector vector2))
   (setf (vector-y vector) (coerce value 'vector-dimension)))
 
+(defmethod width ((vector vector2))
+  (vector-x vector))
+
+(defmethod (setf width) (value (vector vector2))
+  (setf (vector-x vector) (coerce value 'vector-dimension)))
+
+(defmethod height ((vector vector2))
+  (vector-y vector))
+
+(defmethod (setf height) (value (vector vector2))
+  (setf (vector-y vector) (coerce value 'vector-dimension)))
+
 (defun make-velocity-vector-seconds (&key (x 0.0) (y 0.0))
   (make-vector2 :x (/ x 1000.0) :y (/ y 1000.0)))
 

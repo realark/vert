@@ -14,6 +14,9 @@
                      arg
                      `(coerce ,arg 'world-position)))))
 
+(defstruct (vector3 (:include point))
+  "An alias for the POINT struct")
+
 (declaim (inline distance-between)
          (ftype (function (point point) world-dimension) distance-between))
 (defun distance-between (p1 p2)

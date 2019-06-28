@@ -37,7 +37,7 @@
                          (:file "spatial-partition")
                          (:file "physics-context")
                          (:file "point")
-                         (:file "vector2")
+                         (:file "vector")
                          (:file "math-utils")
                          ;; shapes and collision
                          (:file "collision")

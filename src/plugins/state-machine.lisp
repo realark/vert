@@ -1,8 +1,8 @@
 (in-package :recurse.vert)
 
- (eval-when (:compile-toplevel :load-toplevel :execute)
-   (defparameter %state-machine-names% (make-hash-table)
-     "Hash class-name -> (state-machine-names-list). Used to initialize state machines after every object initialization."))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter %state-machine-names% (make-hash-table)
+    "Hash class-name -> (state-machine-names-list). Used to initialize state machines after every object initialization."))
 
 @export
 (defclass stateful (game-object)
