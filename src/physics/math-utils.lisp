@@ -14,10 +14,12 @@
 
 (defun rotate-2d (point theta &optional (rotation-origin *origin*))
   "Rotate POINT THETA radians about ROTATION-ORIGIN in the xy plane."
-  (declare (type point point rotation-origin))
-  (nrotate-2d (copy-point point)
-              theta
-              rotation-origin))
+  (declare (type vector3 point rotation-origin))
+  (let ((copy (vector3 0.0 0.0 0.0)))
+    (copy-array-contents point copy)
+    (nrotate-2d copy
+                theta
+                rotation-origin)))
 
 (defun nrotate-2d (point theta &optional (rotation-origin *origin*))
   "Destructively rotate POINT THETA radians about ROTATION-ORIGIN in the xy plane."
@@ -72,7 +74,7 @@
 (defun distance-along-axis (axis point)
   "Project POINT onto AXIS and compute a scalar value."
   (declare (optimize (speed 3))
-           (point point)
+           (vector3 point)
            (vector2 axis))
   (with-accessors ((point-x x) (point-y y)) point
     (with-accessors ((axis-x x) (axis-y y)) axis
@@ -272,3 +274,65 @@
             0.0 (/ 2.0 t-b) 0.0 (- (/ (+ top bottom) t-b))
             0.0 0.0 (/ -2.0 f-n) (- (/ (+ far near) f-n))
             0.0 0.0 0.0 1.0)))
+
+#+sbcl
+(eval-when (:compile-toplevel)
+  (setf sb-ext:*inline-expansion-limit* 1000))
+
+@inline
+(defun inverse-matrix (matrix)
+  (declare (optimize (speed 3))
+           (matrix matrix))
+  (let ((det (sb-cga:matrix-determinant matrix)))
+    (if (< (abs det) sb-cga:+default-epsilon+)
+        (error "Cannot invert matrix with zero determinant:~%  ~S"
+               matrix)
+        (macrolet ((a (x y z)
+                     (multiple-value-bind (r1 c1) (truncate (- x 11) 10)
+                       (multiple-value-bind (r2 c2) (truncate (- y 11) 10)
+                         (multiple-value-bind (r3 c3) (truncate (- z 11) 10)
+                           `(* (sb-cga:mref matrix ,r1 ,c1)
+                               (sb-cga:mref matrix ,r2 ,c2)
+                               (sb-cga:mref matrix ,r3 ,c3)))))))
+          (let ((m
+                 (matrix
+                  ;; row 1
+                  (- (+ (a 22 33 44) (a 23 34 42) (a 24 32 43))
+                     (a 22 34 43) (a 23 32 44) (a 24 33 42))
+                  (- (+ (a 12 34 43) (a 13 32 44) (a 14 33 42))
+                     (a 12 33 44) (a 13 34 42) (a 14 32 43))
+                  (- (+ (a 12 23 44) (a 13 24 42) (a 14 22 43))
+                     (a 12 24 43) (a 13 22 44) (a 14 23 42))
+                  (- (+ (a 12 24 33) (a 13 22 34) (a 14 23 32))
+                     (a 12 23 34) (a 13 24 32) (a 14 22 33))
+                  ;; row 2
+                  (- (+ (a 21 34 43) (a 23 31 44) (a 24 33 41))
+                     (a 21 33 44) (a 23 34 41) (a 24 31 43))
+                  (- (+ (a 11 33 44) (a 13 34 41) (a 14 31 43))
+                     (a 11 34 43) (a 13 31 44) (a 14 33 41))
+                  (- (+ (a 11 24 43) (a 13 21 44) (a 14 23 41))
+                     (a 11 23 44) (a 13 24 41) (a 14 21 43))
+                  (- (+ (a 11 23 34) (a 13 24 31) (a 14 21 33))
+                     (a 11 24 33) (a 13 21 34) (a 14 23 31))
+                  ;; row 3
+                  (- (+ (a 21 32 44) (a 22 34 41) (a 24 31 42))
+                     (a 21 34 42) (a 22 31 44) (a 24 32 41))
+                  (- (+ (a 11 34 42) (a 12 31 44) (a 14 32 41))
+                     (a 11 32 44) (a 12 34 41) (a 14 31 42))
+                  (- (+ (a 11 22 44) (a 12 24 41) (a 14 21 42))
+                     (a 11 24 42) (a 12 21 44) (a 14 22 41))
+                  (- (+ (a 11 24 32) (a 12 21 34) (a 14 22 31))
+                     (a 11 22 34) (a 12 24 31) (a 14 21 32))
+                  ;; row 4
+                  (- (+ (a 21 33 42) (a 22 31 43) (a 23 32 41))
+                     (a 21 32 43) (a 22 33 41) (a 23 31 42))
+                  (- (+ (a 11 32 43) (a 12 33 41) (a 13 31 42))
+                     (a 11 33 42) (a 12 31 43) (a 13 32 41))
+                  (- (+ (a 11 23 42) (a 12 21 43) (a 13 22 41))
+                     (a 11 22 43) (a 12 23 41) (a 13 21 42))
+                  (- (+ (a 11 22 33) (a 12 23 31) (a 13 21 32))
+                     (a 11 23 32) (a 12 21 33) (a 13 22 31)))))
+            (dotimes (i 4)
+              (dotimes (j 4)
+                (setf (sb-cga:mref m i j) (/ (sb-cga:mref m i j) det))))
+            m)))))
