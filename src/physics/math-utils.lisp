@@ -161,9 +161,9 @@
 (defun identity-matrix ()
   "Construct an identity matrix."
   (matrix 1f0 0f0 0f0 0f0
-               0f0 1f0 0f0 0f0
-               0f0 0f0 1f0 0f0
-               0f0 0f0 0f0 1f0))
+          0f0 1f0 0f0 0f0
+          0f0 0f0 1f0 0f0
+          0f0 0f0 0f0 1f0))
 
 @inline
 (defun translation-matrix (x y z)
@@ -180,9 +180,9 @@
   (declare (optimize (speed 3))
            (dynamic-extent matrices))
   (let ((product-matrix (identity-matrix))
-        (result (identity-matrix)))
-    (declare (matrix product-matrix result)
-             (dynamic-extent product-matrix))
+        (tmp (identity-matrix)))
+    (declare (matrix product-matrix tmp)
+             (dynamic-extent tmp))
     (labels ((mref (matrix row column)
                (declare (matrix matrix))
                (aref matrix (+ row (* column 4))))
@@ -200,12 +200,12 @@
                                                   :collect `(* (mref ,left ,i ,k) (mref ,right ,k ,j))))))))))
         (loop :for matrix :in matrices :do
              (locally (declare ((simple-array single-float (16)) matrix))
-               (loop :for i :from 0 :below (length result) :do
-                    (setf (elt result i) 0.0))
-               (inline-mul product-matrix matrix result)
-               (loop :for i :from 0 :below (length result) :do
-                    (setf (elt product-matrix i) (elt result i)))))))
-    result))
+               (loop :for i :from 0 :below (length tmp) :do
+                    (setf (elt tmp i) 0.0))
+               (inline-mul product-matrix matrix tmp)
+               (loop :for i :from 0 :below (length tmp) :do
+                    (setf (elt product-matrix i) (elt tmp i)))))))
+    product-matrix))
 
 @inline
 (defun rotation-matrix (x y z)
