@@ -20,9 +20,7 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
 (defmethod initialize-instance :after ((sprite parallax-image) &rest args)
   (declare (ignore args))
   (setf (slot-value sprite 'unparallax-position)
-        (make-point :x (x sprite)
-                    :y (y sprite)
-                    :z (z sprite))))
+        (vector3 (x sprite) (y sprite) (z sprite))))
 
 (defmethod update :after ((sprite parallax-image) delta-t-ms (scene scene))
   ;; move parallax's x-y to account for parallax factor

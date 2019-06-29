@@ -169,11 +169,11 @@
   (with-slots ((w1 width) (h1 height)
                (p1 world-position))
       game-object
-    (with-accessors ((x1 point-x) (y1 point-y)) p1
+    (with-accessors ((x1 x) (y1 y)) p1
       (with-slots ((w2 width) (h2 height)
                    (p2 world-position))
           quadtree
-        (with-accessors ((x2 point-x) (y2 point-y)) p2
+        (with-accessors ((x2 x) (y2 y)) p2
           (declare (world-position x1 y1 x2 y2)
                    (world-dimension w1 h1 w2 h2))
           (and (> x1 x2)

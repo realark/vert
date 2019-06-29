@@ -70,12 +70,6 @@
    :stop-tracking
    ;; position
    :same-sinage
-   :point
-   :make-point
-   :copy-point
-   :point-x
-   :point-y
-   :point-z
    :x
    :y
    :z
@@ -99,14 +93,6 @@
    :apply-vector
    :object-moved
    :event-callback-object-moved
-   :vector2
-   :make-vector2
-   :copy-vector2
-   :compute-magnitude
-   :scale-vector2
-   :make-normalized-vector2
-   :vector-x
-   :vector-y
    :velocity-x
    :velocity-y
    :acceleration-x

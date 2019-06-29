@@ -23,7 +23,7 @@
   (with-slots (rotation local-points world-points) polygon
     (setf rotation (coerce rotation 'rotation-radians))
     (assert (and (>= (length local-points) 3)
-                 (typep local-points '(array point))))
+                 (typep local-points '(simple-array vector3))))
     (loop for i from 0 below (length local-points) do
          (let ((current (elt local-points i))
                (previous (if (= i 0)
@@ -34,9 +34,9 @@
           (make-array
            (length local-points)
            :initial-element *origin*
-           :element-type 'point))
+           :element-type 'vector3))
     (loop for i from 0 below (length local-points) do
-         (setf (elt world-points i) (make-point))))
+         (setf (elt world-points i) (vector3 0.0 0.0 0.0))))
   (%initialize-polygon-width-height polygon)
   (%update-polygon-world-points polygon)
   (%update-polygon-bounding-box polygon))
@@ -62,26 +62,25 @@
                (w width) (h height)
                local-points local-center world-points)
       polygon
-    (with-slots ((world-x x) (world-y y) (world-z z)) (slot-value polygon 'world-position)
+    (with-accessors ((world-x x) (world-y y) (world-z z)) (slot-value polygon 'world-position)
       (declare (world-position world-x world-y world-z)
-               ((simple-array point) local-points world-points)
+               ((simple-array vector3) local-points world-points)
                (rotation-radians rotation))
-      (loop for local-point across local-points
-         and world-point across world-points do
-           (with-slots ((local-x x) (local-y y)) local-point
+      (loop :for local-point :across local-points
+         :and world-point :across world-points :do
+           (with-accessors ((local-x x) (local-y y)) local-point
              (declare (world-position local-x local-y))
-             (setf
-              (slot-value world-point 'x) local-x
-              (slot-value world-point 'y) local-y)
+             (setf (x world-point) local-x
+                   (y world-point) local-y)
              (nrotate-2d world-point rotation local-center)
              (setf
-              (slot-value world-point 'x) (the world-position
-                                               (+ (the world-position (slot-value world-point 'x))
-                                                  world-x))
-              (slot-value world-point 'y) (the world-position
-                                               (+ (the world-position (slot-value world-point 'y))
-                                                  world-y))
-              (slot-value world-point 'z) world-z))))
+              (x world-point) (the world-position
+                                   (+ (the world-position (x world-point))
+                                      world-x))
+              (y world-point) (the world-position
+                                   (+ (the world-position (y world-point))
+                                      world-y))
+              (z world-point) world-z))))
     world-points))
 
 (defmethod world-points ((polygon convex-polygon))
@@ -93,26 +92,27 @@
      with right = (elt local-points 0)
      and down = (elt local-points 0)
      for point across local-points
-     do (when (or (< (point-x point) 0)
-                  (< (point-y point) 0))
+     do (when (or (< (x point) 0)
+                  (< (y point) 0))
           (error "polygon cannot have a negative local-point"))
-       (when (> (point-x point) (point-x right))
+       (when (> (x point) (x right))
          (setf right point))
-       (when (> (point-y point) (point-y down))
+       (when (> (y point) (y down))
          (setf down point))
      finally
-       (setf (slot-value polygon 'width) (coerce (point-x right) 'world-dimension)
-             (slot-value polygon 'height) (coerce (point-y down) 'world-dimension)
-             (slot-value polygon 'local-center) (make-point
-                                                 :x (/ (point-x right) 2)
-                                                 :y (/ (point-y down) 2))))
+       (setf (slot-value polygon 'width) (coerce (x right) 'world-dimension)
+             (slot-value polygon 'height) (coerce (y down) 'world-dimension)
+             (slot-value polygon 'local-center) (vector3
+                                                 (/ (x right) 2)
+                                                 (/ (y down) 2)
+                                                 0.0)))
   polygon)
 
 (defmethod (setf width) (new-width (polygon convex-polygon))
   (let* ((current-width (width polygon))
          (scaling-factor (/ new-width current-width)))
     (loop for local-point across (local-points polygon)do
-         (setf (point-x local-point) (* (point-x local-point) scaling-factor)))
+         (setf (x local-point) (* (x local-point) scaling-factor)))
     (%initialize-polygon-width-height polygon)
     (%update-polygon-world-points polygon)
     (width polygon)))
@@ -121,7 +121,7 @@
   (let* ((current-height (height polygon))
          (scaling-factor (/ new-height current-height)))
     (loop for local-point across (local-points polygon)do
-         (setf (point-y local-point) (* (point-y local-point) scaling-factor)))
+         (setf (y local-point) (* (y local-point) scaling-factor)))
     (%initialize-polygon-width-height polygon)
     (%update-polygon-world-points polygon)
     (height polygon)))
@@ -129,28 +129,28 @@
 (defun %update-polygon-bounding-box (polygon)
   (declare (optimize (speed 3))
            (type convex-polygon polygon))
-  (loop with world-points = (the (simple-array point) (world-points polygon))
+  (loop with world-points = (the (simple-array vector3) (world-points polygon))
      with left = (elt world-points 0)
      and right = (elt world-points 0)
      and up = (elt world-points 0)
      and down = (elt world-points 0)
      for point across world-points
      do
-       (when (< (point-x point) (point-x left))
+       (when (< (x point) (x left))
          (setf left point))
-       (when (> (point-x point) (point-x right))
+       (when (> (x point) (x right))
          (setf right point))
-       (when (< (point-y point) (point-y up))
+       (when (< (y point) (y up))
          (setf up point))
-       (when (> (point-y point) (point-y down))
+       (when (> (y point) (y down))
          (setf down point))
      finally
        (with-slots ((boundary bounding-box)) polygon
-         (setf (x boundary) (point-x left)
-               (y boundary) (point-y up)
+         (setf (x boundary) (x left)
+               (y boundary) (y up)
                (z boundary) (z polygon)
-               (width boundary) (ceiling (- (point-x right) (point-x left)))
-               (height boundary) (ceiling (- (point-y down) (point-y up))))))
+               (width boundary) (ceiling (- (x right) (x left)))
+               (height boundary) (ceiling (- (y down) (y up))))))
   polygon)
 
 @inline
@@ -159,7 +159,7 @@
   (declare (optimize (speed 3)))
   (let ((poly1-points (world-points poly1))
         (poly2-points (world-points poly2)))
-    (declare ((simple-array point) poly1-points poly2-points))
+    (declare ((simple-array vector3) poly1-points poly2-points))
     (and (loop for p from 0 below (length poly1-points) do
               (unless (axis-project-overlap
                        (elt poly1-points p)

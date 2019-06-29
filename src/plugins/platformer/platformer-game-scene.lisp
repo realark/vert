@@ -16,7 +16,8 @@
 @export
 (defgeneric apply-gravity (kinematic-object vector2)
   (:documentation "Apply a 2d gravity vector to an object")
-  (:method ((object kinematic-object) (vector vector2))
+  (:method ((object kinematic-object) vector)
+    (declare (vector2 vector))
     (apply-vector object vector)))
 
 (defmethod update :before ((scene platformer-game-scene) delta-t-ms (null null))

@@ -78,7 +78,7 @@ Nil has the same effect as *white*."
                                                         (gl:delete-buffers (list cached-vbo)))))))
      (vao :initform 0 :reader vao)
      (vbo :initform 0)
-     (world-model :initform (sb-cga:identity-matrix)))
+     (world-model :initform (identity-matrix)))
     (:documentation "A game-object rendered using opengl."))
   (export '(path-to-sprite
             sprite-source

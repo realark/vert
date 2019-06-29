@@ -27,7 +27,7 @@
          :initform 1.0
          :accessor zoom
          :documentation "A slot to zoom the camera in or out.")
-   (projection-matrix :initform nil
+   (projection-matrix :initform (identity-matrix)
                       :documentation "World projection matrix. Autocomputed."))
   (:documentation "2d camera which can be moved and zoom in and out."))
 

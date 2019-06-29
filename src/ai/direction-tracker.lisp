@@ -33,10 +33,10 @@ Mutually exclusive dirs will be updated (e.g. pushing :east removes :west).")
 
 (defgeneric is-facing (agent point)
   (:documentation "T if the agent is facing the given point")
-  (:method ((agent direction-tracker) (object point))
+  (:method ((agent direction-tracker) object)
     (with-accessors ((facing facing)) agent
-      (let ((delta-x (- (x agent) (point-x object)))
-            (delta-y (- (y agent) (point-y object))))
+      (let ((delta-x (- (x agent) (x object)))
+            (delta-y (- (y agent) (y object))))
         (or (and (find :NORTH facing) (<= 0 delta-y))
             (and (find :SOUTH facing) (>= 0 delta-y))
             (and (find :WEST facing) (<= 0 delta-x))

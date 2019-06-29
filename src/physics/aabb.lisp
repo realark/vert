@@ -1,7 +1,7 @@
 (in-package :recurse.vert)
 
 (defclass aabb (game-object)
-  ((world-position :initform (make-point))
+  ((world-position :initform (vector3 0.0 0.0 0.0))
    (width :initarg :width
           :initform 1.0
           :type world-dimension
@@ -20,11 +20,11 @@
    (world-points :initform
                  (make-array
                   4
-                  :initial-contents (list (make-point)
-                                          (make-point)
-                                          (make-point)
-                                          (make-point))
-                  :element-type 'point)))
+                  :initial-contents (list (vector3 0.0 0.0 0.0)
+                                          (vector3 0.0 0.0 0.0)
+                                          (vector3 0.0 0.0 0.0)
+                                          (vector3 0.0 0.0 0.0))
+                  :element-type 'vector3)))
   (:documentation "A(xis)A(ligned)B(ounding)B(ox)."))
 
 (defmethod initialize-instance :after ((aabb aabb) &key (x 0) (y 0) (z 0))
@@ -32,9 +32,9 @@
     (setf
      width (coerce width 'world-dimension)
      height (coerce height 'world-dimension)
-     (point-x world-position) (coerce x 'world-position)
-     (point-y world-position) (coerce y 'world-position)
-     (point-z world-position) (coerce z 'world-position))))
+     (x world-position) (coerce x 'world-position)
+     (y world-position) (coerce y 'world-position)
+     (z world-position) (coerce z 'world-position))))
 
 
 ;; TODO: remove bounding-box concept
@@ -59,17 +59,17 @@ The default method should be good enough for most game objects. Extend this meth
         (call-next-method obj1 obj2))))
 
 (defmethod x ((aabb aabb))
-  (point-x (slot-value aabb 'world-position)))
+  (x (slot-value aabb 'world-position)))
 (defmethod (setf x) (value (aabb aabb))
-  (setf (point-x (slot-value aabb 'world-position)) (coerce value 'world-position)))
+  (setf (x (slot-value aabb 'world-position)) (coerce value 'world-position)))
 (defmethod y ((aabb aabb))
-  (point-y (slot-value aabb 'world-position)))
+  (y (slot-value aabb 'world-position)))
 (defmethod (setf y) (value (aabb aabb))
-  (setf (point-y (slot-value aabb 'world-position)) (coerce value 'world-position)))
+  (setf (y (slot-value aabb 'world-position)) (coerce value 'world-position)))
 (defmethod z ((aabb aabb))
-  (point-z (slot-value aabb 'world-position)))
+  (z (slot-value aabb 'world-position)))
 (defmethod (setf z) (value (aabb aabb))
-  (setf (point-z (slot-value aabb 'world-position)) (coerce value 'world-position)))
+  (setf (z (slot-value aabb 'world-position)) (coerce value 'world-position)))
 
 (defmethod rotation ((aabb aabb)) 0f0)
 
@@ -135,11 +135,11 @@ The default method should be good enough for most game objects. Extend this meth
         (with-slots ((w width) (h height)) aabb
           (setf local-points (make-array
                               4
-                              :initial-contents (list (make-point :x 0 :y 0)
-                                                      (make-point :x w :y 0)
-                                                      (make-point :x w :y h)
-                                                      (make-point :x 0 :y h))
-                              :element-type 'point))))
+                              :initial-contents (list (vector3 0.0 0.0 0.0)
+                                                      (vector3 w 0.0 0.0)
+                                                      (vector3 w h 0.0)
+                                                      (vector3 0.0 h 0.0))
+                              :element-type 'vector3))))
       local-points)))
 
 (defgeneric world-points (aabb)
@@ -149,17 +149,17 @@ The default method should be good enough for most game objects. Extend this meth
     (declare (optimize (speed 3)))
     (with-accessors ((local-points local-points)) aabb
       (with-slots (world-points) aabb
-        (with-slots ((world-x x) (world-y y) (world-z z)) (slot-value aabb 'world-position)
+        (with-accessors ((world-x x) (world-y y) (world-z z)) (slot-value aabb 'world-position)
           (declare (world-position world-x world-y world-z)
-                   ((simple-array point) local-points world-points))
+                   ((simple-array vector3) local-points world-points))
           (map nil (lambda (local-point world-point)
-                     (with-slots ((local-x x) (local-y y) (local-z z))
+                     (with-accessors ((local-x x) (local-y y) (local-z z))
                          local-point
                        (declare (world-position local-x local-y local-z))
                        (setf
-                        (slot-value world-point 'x) (+ local-x world-x)
-                        (slot-value world-point 'y) (+ local-y world-y)
-                        (slot-value world-point 'z) world-z)))
+                        (x world-point) (+ local-x world-x)
+                        (y world-point) (+ local-y world-y)
+                        (z world-point) world-z)))
                local-points
                world-points))
         world-points))))
@@ -171,12 +171,12 @@ The default method should be good enough for most game objects. Extend this meth
   (with-slots ((p1 world-position)
                (w1 width) (h1 height))
       rect1
-    (with-accessors ((x1 point-x) (y1 point-y) (z1 point-z))
+    (with-accessors ((x1 x) (y1 y) (z1 z))
         p1
       (with-slots ((p2 world-position)
                    (w2 width) (h2 height))
           rect2
-        (with-accessors ((x2 point-x) (y2 point-y) (z2 point-z))
+        (with-accessors ((x2 x) (y2 y) (z2 z))
             p2
           (declare (world-dimension w1 h1 w2 h2)
                    (world-position x1 y1 z1 x2 y2 z2))
@@ -194,20 +194,9 @@ The default method should be good enough for most game objects. Extend this meth
 (defun center-of (aabb)
   (declare (optimize (speed 3))
            (aabb aabb))
-  (compute-center-of aabb (make-point)))
-
-@export
-@inline
-(defun compute-center-of (aabb point)
-  "Compute the center of AABB and update POINT to the result."
-  (declare (optimize (speed 3))
-           (point point)
-           (aabb aabb))
-  (setf
-   (x point) (+ (the world-position (x aabb)) (/ (the world-dimension (width aabb)) 2.0))
-   (y point) (+ (the world-position (y aabb)) (/ (the world-dimension (height aabb)) 2.0))
-   (z point) (the world-position (z aabb)))
-  point)
+  (vector3 (+ (the world-position (x aabb)) (/ (the world-dimension (width aabb)) 2.0))
+           (+ (the world-position (y aabb)) (/ (the world-dimension (height aabb)) 2.0))
+           (the world-position (z aabb))))
 
 ;; attempt to short-circuit a collision check between two AABBs
 (defmethod collidep :around ((obj1 aabb) (obj2 aabb))

@@ -36,7 +36,6 @@
                         (;; basic physics classes
                          (:file "spatial-partition")
                          (:file "physics-context")
-                         (:file "point")
                          (:file "vector")
                          (:file "math-utils")
                          ;; shapes and collision

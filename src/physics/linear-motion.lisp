@@ -1,30 +1,30 @@
 (in-package :recurse.vert)
 
-(let ((colliding-point (make-point))
-      (non-colliding-point (make-point)))
+(let ((colliding-point (vector3 0.0 0.0 0.0))
+      (non-colliding-point (vector3 0.0 0.0 0.0)))
   (defcollision-resolution linear-resolution ((moving-object kinematic-object)
                                               (stationary-object AABB)
                                               &key original-position)
     (declare (optimize (speed 3))
-             (ftype (function (point point) world-position) distance-between))
-    (setf (point-x colliding-point) (x moving-object)
-          (point-y colliding-point) (y moving-object)
-          (point-z colliding-point) (z moving-object))
-    (setf (point-x non-colliding-point) (point-x original-position)
-          (point-y non-colliding-point) (point-y original-position)
-          (point-z non-colliding-point) (point-z original-position))
+             (ftype (function (vector3 vector3) world-position) distance-between))
+    (setf (x colliding-point) (x moving-object)
+          (y colliding-point) (y moving-object)
+          (z colliding-point) (z moving-object))
+    (setf (x non-colliding-point) (x original-position)
+          (y non-colliding-point) (y original-position)
+          (z non-colliding-point) (z original-position))
     ;; zero out v and a on collision axis
     (let ((x-axis-collision nil)
           (y-axis-collision nil)
           (favored-axis (favored-collision-resolution-axis moving-object stationary-object)))
-      (setf (y moving-object) (point-y non-colliding-point))
+      (setf (y moving-object) (y non-colliding-point))
       (unless (collidep moving-object stationary-object)
         (setf y-axis-collision T))
-      (setf (y moving-object) (point-y colliding-point))
-      (setf (x moving-object) (point-x non-colliding-point))
+      (setf (y moving-object) (y colliding-point))
+      (setf (x moving-object) (x non-colliding-point))
       (unless (collidep moving-object stationary-object)
         (setf x-axis-collision T))
-      (setf (x moving-object) (point-x colliding-point))
+      (setf (x moving-object) (x colliding-point))
       (when (and x-axis-collision y-axis-collision (not (null favored-axis)))
         (if (eq favored-axis 'x)
             (setf x-axis-collision nil)
@@ -36,11 +36,11 @@
         (y-axis-collision
          (setf (velocity-y moving-object) 0
                (acceleration-y moving-object) 0
-               (point-x non-colliding-point) (point-x colliding-point)))
+               (x non-colliding-point) (x colliding-point)))
         (x-axis-collision
          (setf (velocity-x moving-object) 0
                (acceleration-x moving-object) 0
-               (point-y non-colliding-point) (point-y colliding-point)))
+               (y non-colliding-point) (y colliding-point)))
         (T
          ;; neither axis is "responsible" for the collision.
          ;; Kill all velocity/acceleration
@@ -54,21 +54,21 @@
                    (the world-position *collision-precision*))
        do (setf
            ;; move object halfway between the two points
-           (x moving-object) (/ (+ (point-x non-colliding-point) (point-x colliding-point)) 2.0)
-           (y moving-object) (/ (+ (point-y non-colliding-point) (point-y colliding-point)) 2.0)
-           (z moving-object) (/ (+ (point-z non-colliding-point) (point-z colliding-point)) 2.0))
+           (x moving-object) (/ (+ (x non-colliding-point) (x colliding-point)) 2.0)
+           (y moving-object) (/ (+ (y non-colliding-point) (y colliding-point)) 2.0)
+           (z moving-object) (/ (+ (z non-colliding-point) (z colliding-point)) 2.0))
          (if (collidep moving-object stationary-object)
-             (setf (point-x colliding-point) (x moving-object)
-                   (point-y colliding-point) (y moving-object)
-                   (point-z colliding-point) (z moving-object))
-             (setf (point-x non-colliding-point) (x moving-object)
-                   (point-y non-colliding-point) (y moving-object)
-                   (point-z non-colliding-point) (z moving-object)))
-       finally (setf (x moving-object) (point-x non-colliding-point)
-                     (y moving-object) (point-y non-colliding-point)
-                     (z moving-object) (point-z non-colliding-point)))))
+             (setf (x colliding-point) (x moving-object)
+                   (y colliding-point) (y moving-object)
+                   (z colliding-point) (z moving-object))
+             (setf (x non-colliding-point) (x moving-object)
+                   (y non-colliding-point) (y moving-object)
+                   (z non-colliding-point) (z moving-object)))
+       finally (setf (x moving-object) (x non-colliding-point)
+                     (y moving-object) (y non-colliding-point)
+                     (z moving-object) (z non-colliding-point)))))
 
-(let ((original-position (make-point)))
+(let ((original-position (vector3 0.0 0.0 0.0)))
   (defmotion linear-motion ((object kinematic-object) delta-t-ms (physics-context physics-context-2d))
     (declare (optimize (speed 3))
              ((integer 1 100) delta-t-ms))
@@ -83,9 +83,9 @@
           object
         (declare (world-position x y z)
                  (vector-dimension v-x v-y))
-        (setf (point-x original-position) x
-              (point-y original-position) y
-              (point-z original-position) z)
+        (setf (x original-position) x
+              (y original-position) y
+              (z original-position) z)
         (with-motion-lock object
           (with-collision-check (object physics-context)
             (:position-update

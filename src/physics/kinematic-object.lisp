@@ -39,8 +39,9 @@
 
 (defgeneric apply-vector (kinematic-object vector2)
   (:documentation "Apply a 2d vector to an object's acceleration.")
-  (:method ((object kinematic-object) (vector vector2))
-    (with-accessors ((v-x vector-x) (v-y vector-y)) vector
+  (:method ((object kinematic-object) vector)
+    (declare (vector2 vector))
+    (with-accessors ((v-x x) (v-y y)) vector
       (with-accessors ((acc-x acceleration-x) (acc-y acceleration-y)) object
         (incf acc-x v-x)
         (incf acc-y v-y)
@@ -53,9 +54,9 @@
                     (expt (- y1 y2) 2)))))
     (< (distance-between (+ (x kinematic-object) (velocity-x kinematic-object))
                          (+ (y kinematic-object) (velocity-y kinematic-object))
-                         (point-x point-or-object)
-                         (point-y point-or-object))
+                         (x point-or-object)
+                         (y point-or-object))
        (distance-between (x kinematic-object)
                          (y kinematic-object)
-                         (point-x point-or-object)
-                         (point-y point-or-object)))))
+                         (x point-or-object)
+                         (y point-or-object)))))

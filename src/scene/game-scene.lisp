@@ -123,12 +123,12 @@ On the next render frame, the objects will be given a chance to load and this li
              (with-slots ((p1 world-position)
                           (w1 width) (h1 height))
                  camera
-               (with-accessors ((x1 point-x) (y1 point-y) (z1 point-z))
+               (with-accessors ((x1 x) (y1 y) (z1 z))
                    p1
                  (with-slots ((p2 world-position)
                               (w2 width) (h2 height))
                      game-object
-                   (with-accessors ((x2 point-x) (y2 point-y) (z2 point-z))
+                   (with-accessors ((x2 x) (y2 y) (z2 z))
                        p2
                      (declare (world-dimension w1 h1 w2 h2)
                               (world-position x1 y1 z1 x2 y2 z2))
