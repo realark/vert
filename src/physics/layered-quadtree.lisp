@@ -23,7 +23,7 @@
       layered-quadtree
     (declare ((vector quadtree) quadtrees))
     (or (loop for quadtree across quadtrees do
-             (when (= (z (slot-value quadtree 'world-position))
+             (when (= (z quadtree)
                       z-layer)
                (return quadtree)))
         (let ((new-tree (make-instance 'quadtree
@@ -42,8 +42,8 @@
                for i downfrom (1- (length quadtrees)) to 1 do
                  (locally (declare ((integer 0 #.most-positive-fixnum) i j))
                    (setf j (1- i))
-                   (if (< (z (slot-value new-tree 'world-position))
-                          (z (slot-value (elt quadtrees j) 'world-position)))
+                   (if (< (z new-tree)
+                          (z (elt quadtrees j)))
                        (swap quadtrees i j)
                        (return)))))
           new-tree))))
@@ -51,13 +51,13 @@
 (defmethod start-tracking ((layers layered-quadtree) game-object)
   (start-tracking (%get-quadtree-at-layer
                    layers
-                   (z (slot-value game-object 'world-position)))
+                   (z game-object))
                   game-object))
 
 (defmethod stop-tracking ((layers layered-quadtree) game-object)
   (stop-tracking (%get-quadtree-at-layer
                   layers
-                  (z (slot-value game-object 'world-position)))
+                  (z game-object))
                  game-object))
 
 (defmethod find-spatial-partition (game-object (layers layered-quadtree))
@@ -75,5 +75,5 @@
    game-object
    (%get-quadtree-at-layer
     layers
-    (z (slot-value game-object 'world-position)))
+    (z game-object))
    radius))

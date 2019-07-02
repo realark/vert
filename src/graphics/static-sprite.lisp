@@ -1,7 +1,7 @@
 (in-package :recurse.vert)
 
 (progn
-  (defclass static-sprite (gl-sprite aabb)
+  (defclass static-sprite (gl-sprite obb)
     ((path-to-sprite :initarg :path-to-sprite
                      :initform (error ":path-to-sprite must be specified")
                      :accessor path-to-sprite

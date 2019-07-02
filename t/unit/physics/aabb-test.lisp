@@ -1,28 +1,5 @@
 (in-package :recurse.vert/unit-test)
 
-(defun %point-vectors-equal (result-vector expected-vector &optional message)
-  "Test to ensure the two vectors contain the same points in the same order.
-Runs prove:pass or prove:fail based on result."
-  (declare (type (array point) result-vector expected-vector))
-  (unless (= (length expected-vector) (length result-vector))
-    (fail (format nil "Expected vector of size ~A got ~A"
-                  (length expected-vector) result-vector)))
-  (loop for expected-point across expected-vector
-     for result-point across result-vector do
-       (unless (point= expected-point result-point)
-         (fail (if message
-                   (format nil
-                           "~A~%~A is expected to be ~A"
-                           message result-point expected-point)
-                   (format nil
-                           "~A is expected to be ~A"
-                           result-point expected-point)))
-         (return nil))
-     finally
-       (return (pass (or message (format nil
-                                         "~A is expected to be ~A"
-                                         result-vector expected-vector))))))
-
 (deftest aabb-local-world-points
   (let ((aabb (make-instance 'aabb
                              :width 10 :height 37

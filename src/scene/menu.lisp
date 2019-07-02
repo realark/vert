@@ -43,18 +43,18 @@
                item-color selected-item-color
                title-color)
       menu
-    (let ((current-y 5)
-          (y-space-between-items (+ (height node) 5)))
+    (let ((current-y 5.0)
+          (y-space-between-items (+ (height node) 5.0)))
       (multiple-value-bind (title-width title-height)
           (font-dimensions node)
-        (setf title-width 100
-              title-height 10)
+        (setf title-width 100.0
+              title-height 10.0)
         (setf (color node) title-color
               (width node) title-width
               (height node) title-height
               (x node) (+ (x camera)
-                          (/ (width camera) 2)
-                          (- (/ (width node) 2)))
+                          (/ (width camera) 2.0)
+                          (- (/ (width node) 2.0)))
               (y node) current-y))
       (incf current-y y-space-between-items)
 
@@ -65,8 +65,8 @@
                                   item-color)))
              (multiple-value-bind (item-width item-height)
                  (font-dimensions node)
-               (setf item-width 100
-                     item-height 10)
+               (setf item-width 100.0
+                     item-height 10.0)
                (setf (color child) child-color
                      (width child) item-width
                      (height child) item-height
@@ -125,7 +125,7 @@
 (defmethod (setf node) :after (value (menu menu))
   (%set-menu-position-and-color menu))
 
-(defclass menu-node (font-drawable aabb)
+(defclass menu-node (font-drawable obb)
   ((node-name :initarg :node-name
               :initform (error ":node-name must be specified")
               :documentation "Name of this menu node")
@@ -171,6 +171,7 @@
     (funcall (slot-value action-node 'action) device-id)))
 
 (defmethod update ((menu menu) (delta-t-ms real) (null null))
+  (update (camera menu) delta-t-ms menu)
   ;; update input
   (update menu delta-t-ms menu))
 

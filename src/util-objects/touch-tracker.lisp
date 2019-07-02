@@ -29,12 +29,12 @@
   (loop for touched-object in (touching touch-region) do
        (%remove-if-not-touching touch-region touched-object)))
 
-(defevent-callback object-moved ((touched-object aabb) (region touch-region))
+(defevent-callback object-moved ((touched-object obb) (region touch-region))
   (%remove-if-not-touching region touched-object))
 
 ;;;; Touch Tracker
 
-(defclass touch-tracker (convex-polygon)
+(defclass touch-tracker ()
   ((touch-regions
     ;; defaults to four sides of obb
     :initform (list)
@@ -57,7 +57,6 @@ May be extended or overridden by subclasses.")
       (if override-existing
           (setf touch-regions (delete (assoc region-name touch-regions) touch-regions))
           (error "~A region already exists" region-name)))
-    (pin-to touch-region touch-tracker)
     (push (cons region-name touch-region) touch-regions)
     touch-tracker))
 

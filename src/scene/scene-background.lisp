@@ -32,7 +32,7 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
                 y (- camera-y (* vertical-parallax (- camera-y (y unparallax-position))))))))))
 
 @export-class
-(defclass scene-background (aabb)
+(defclass scene-background (obb)
   ((layers :initform nil)
    (wrap-width :initarg :wrap-width
                :initform nil

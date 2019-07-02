@@ -13,7 +13,7 @@
 
 (defvar %font-key% (make-instance 'standard-object))
 
-(defclass gl-font (game-object gl-drawable)
+(defclass gl-font (gl-drawable)
   ((text :initarg :text
          :initform (error ":text required")
          :accessor text)
@@ -114,7 +114,7 @@
 
       (set-uniform-matrix-4fv shader
                               "projection"
-                              (projection-matrix camera)
+                              (interpolated-world-projection-matrix camera update-percent)
                               nil)
 
       (if color
@@ -131,13 +131,23 @@
       (gl-use-vao renderer vao)
       (n-bind-buffer :array-buffer vbo)
 
-      (multiple-value-bind (ix iy iz)
-          (interpolate-position gl-font update-percent)
+
+      (multiple-value-bind (ix iy iz iw ih)
+          (progn
+            (when (or (parent gl-font)
+                      (/= 0.0 (rotation gl-font)))
+              (error "TODO: transform matrix for gl-fonts"))
+            (values
+             (x gl-font)
+             (y gl-font)
+             (z gl-font)
+             (width gl-font)
+             (height gl-font)))
         (loop
            ;; width = text-width * scale
            :with scale = (min 1.0
-                              (/ (width gl-font) (%compute-text-width text glyph-map))
-                              (/ (height gl-font) (elt (glyph-size (gethash (char-code #\y) glyph-map)) 1)))
+                              (/ iw (%compute-text-width text glyph-map))
+                              (/ ih (elt (glyph-size (gethash (char-code #\y) glyph-map)) 1)))
            :and x = ix
            :and y = iy
            ;; Using for offset #\H because its bearing touches the top of the glyph space

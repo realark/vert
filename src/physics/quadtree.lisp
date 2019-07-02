@@ -76,7 +76,7 @@
   (if (%is-iterating quadtree)
       (error "can't clear quadtree during iteration"))
   (loop for object across (objects quadtree) do
-       (remove-subscriber object quadtree object-moved-all)
+       (remove-subscriber object quadtree object-moved)
      finally (setf (fill-pointer (objects quadtree)) 0))
   (when (children quadtree)
     (loop for child across (children quadtree) do
@@ -166,20 +166,20 @@
   "T if the object is entirely inside of the quadtree."
   ;; NOTE: quadtree ignores Z axis
   (declare (optimize (speed 3)))
-  (with-slots ((w1 width) (h1 height)
-               (p1 world-position))
+  ;; FIXME: quadtree to handle child transforms
+  (with-accessors ((x1 x) (y1 y)
+                   (w1 width) (h1 height))
       game-object
-    (with-accessors ((x1 x) (y1 y)) p1
-      (with-slots ((w2 width) (h2 height)
-                   (p2 world-position))
-          quadtree
-        (with-accessors ((x2 x) (y2 y)) p2
-          (declare (world-position x1 y1 x2 y2)
-                   (world-dimension w1 h1 w2 h2))
-          (and (> x1 x2)
-               (< (+ x1 w1) (+ x2 w2))
-               (> y1 y2)
-               (< (+ y1 h1) (+ y2 h2))))))))
+    (with-accessors ((x2 x) (y2 y)
+                     (w2 width) (h2 height)
+                     (p2 world-position))
+        quadtree
+      (declare (world-position x1 y1 x2 y2)
+               (world-dimension w1 h1 w2 h2))
+      (and (> x1 x2)
+           (< (+ x1 w1) (+ x2 w2))
+           (> y1 y2)
+           (< (+ y1 h1) (+ y2 h2))))))
 
 (defun %node-for-object (object quadtree)
   (with-slots (children level) quadtree
@@ -202,11 +202,11 @@
         (%quadtree-split quadtree)
         (setf objects (make-array 10 :fill-pointer 0 :adjustable T))
         (loop for obj-tmp across objects-tmp do
-             (remove-subscriber obj-tmp quadtree object-moved-all)
+             (remove-subscriber obj-tmp quadtree object-moved)
              (start-tracking quadtree obj-tmp))))))
 
 ;; expand/rebalance quadtree when tracked objects move
-(defevent-callback object-moved-all ((object game-object) (quadtree quadtree))
+(defevent-callback object-moved ((object game-object) (quadtree quadtree))
   (if (= (z object) (z quadtree))
       (unless (%inside-of object quadtree)
         (with-slots (objects) quadtree
@@ -232,7 +232,7 @@
             (return-from start-tracking (start-tracking quadtree object)))))
 
     (with-slots (objects) node
-      (add-subscriber object node object-moved-all)
+      (add-subscriber object node object-moved)
       (vector-push-extend object objects)
       (unless (%is-iterating node)
         (%rebalance node)))))
@@ -244,7 +244,7 @@
                   (when (stop-tracking child object)
                     (return object))))
         (when (find object objects)
-          (remove-subscriber object quadtree object-moved-all)
+          (remove-subscriber object quadtree object-moved)
           (if (%is-iterating quadtree)
               (%mark-dead object quadtree)
               (setf objects (delete object objects)))

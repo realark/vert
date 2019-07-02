@@ -4,16 +4,8 @@
 
 ;;;; Camera class and methods
 @export-class
-(defclass simple-camera (aabb)
-  ((width :initform (error ":width required")
-          :reader width
-          :type world-dimension
-          :documentation "Width of the camera in world units.")
-   (height :initform (error ":height required")
-           :reader height
-           :type world-dimension
-           :documentation "Height of the camera in world units.")
-   (screen-width :initarg :screen-width
+(defclass simple-camera (obb)
+  ((screen-width :initarg :screen-width
                  :initform 100
                  :accessor screen-width
                  :type screen-unit
@@ -27,75 +19,68 @@
          :initform 1.0
          :accessor zoom
          :documentation "A slot to zoom the camera in or out.")
-   (projection-matrix :initform (identity-matrix)
-                      :documentation "World projection matrix. Autocomputed."))
+   (ortho-matrix :initform (identity-matrix))
+   (ortho-interpolator :initform (make-matrix-interpolator
+                                  :rounding-factor (expt 10.0 4))
+                       :documentation "render interpolation for world projection matrix"))
   (:documentation "2d camera which can be moved and zoom in and out."))
+
+(defmethod update ((camera simple-camera) delta-t-ms world-context)
+  (with-slots (ortho-matrix ortho-interpolator) camera
+    (let ((tmp (ortho-matrix (x camera)
+                             (+ (x camera) (width camera))
+                             (+ (y camera) (height camera))
+                             (y camera)
+                             100.0
+                             -100.0)))
+      (declare (dynamic-extent tmp))
+      (interpolator-update ortho-interpolator
+                           ortho-matrix)
+      (copy-array-contents tmp ortho-matrix)))
+  (values))
+
+(defun interpolated-world-projection-matrix (camera update-percent)
+  "Get CAMERA's projection matrix in world space"
+  (declare (simple-camera camera)
+           ((single-float 0.0 1.0) update-percent))
+  (with-slots (ortho-matrix ortho-interpolator) camera
+    (interpolator-compute ortho-interpolator ortho-matrix update-percent)))
 
 (defevent camera-screen-resized ((camera simple-camera))
     "screen-width or screen-height of a camera has changed.")
 
-(defun set-camera-projection-matrix (camera update-percent)
-  (declare (simple-camera camera)
-           ((single-float 0.0 1.0) update-percent))
-  (with-slots ((screen-width screen-width)
-               (screen-height screen-height)
-               (world-width width)
-               (world-height height)
-               zoom
-               projection-matrix)
-      camera
-    (multiple-value-bind (ix iy)
-        (interpolate-position camera update-percent)
-      (let ((ortho (ortho-matrix ix
-                                 (float (+ ix (/ world-width zoom)))
-                                 (float (+ iy (/ world-height zoom)))
-                                 iy
-                                 100.0
-                                 -100.0)))
-        (declare (dynamic-extent ortho))
-        (copy-array-contents ortho projection-matrix)))))
+(defmethod initialize-instance :after ((camera simple-camera) &rest args)
+  (declare (ignore args))
+  (with-accessors ((zoom zoom)) camera
+    ;; running through setf specializers bypassed by :initform
+    (setf zoom zoom) ;; coerce to float
+    (with-slots (screen-width screen-height) camera
+      (multiple-value-bind (w h)
+          (window-size-pixels (application-window *engine-manager*))
+        (setf screen-width w
+              screen-height h)))
+    (fire-event camera camera-screen-resized)))
 
-(defmethod projection-matrix ((camera simple-camera))
-  (with-slots (projection-matrix) camera
-    (unless projection-matrix
-      (set-camera-projection-matrix camera 1.0))
-    projection-matrix))
+(defmethod (setf screen-width) :around (value (camera simple-camera))
+  (prog1
+      (call-next-method (coerce value 'screen-unit) camera)
+    (fire-event camera camera-screen-resized)))
 
-(labels ((update-projection-matrix (camera)
-           (fire-event camera camera-screen-resized)))
+(defmethod (setf screen-height) :around (value (camera simple-camera))
+  (prog1
+      (call-next-method (coerce value 'screen-unit) camera)
+    (fire-event camera camera-screen-resized)))
 
-  (defmethod initialize-instance :after ((camera simple-camera) &rest args)
-             (declare (ignore args))
-             (with-accessors ((zoom zoom)) camera
-               ;; running through setf specializers bypassed by :initform
-               (setf zoom zoom) ;; coerce to float
-               (with-slots (screen-width screen-height) camera
-                 (multiple-value-bind (w h)
-                     (window-size-pixels (application-window *engine-manager*))
-                   (setf screen-width w
-                         screen-height h)))
-               (update-projection-matrix camera)))
+(defmethod (setf x) :after (new-val (camera simple-camera))
+  (fire-event camera camera-screen-resized))
 
-  (defmethod (setf screen-width) :around (value (camera simple-camera))
-             (prog1
-                 (call-next-method (coerce value 'screen-unit) camera)
-               (update-projection-matrix camera)))
+(defmethod (setf y) :after (new-val (camera simple-camera))
+  (fire-event camera camera-screen-resized))
 
-  (defmethod (setf screen-height) :around (value (camera simple-camera))
-             (prog1
-                 (call-next-method (coerce value 'screen-unit) camera)
-               (update-projection-matrix camera)))
-
-  (defmethod (setf x) :after (new-val (camera simple-camera))
-             (update-projection-matrix camera))
-
-  (defmethod (setf y) :after (new-val (camera simple-camera))
-             (update-projection-matrix camera))
-
-  (defmethod (setf zoom) :around (new-zoom (camera simple-camera))
-             (prog1
-                 (call-next-method (coerce new-zoom 'single-float) camera)
-               (update-projection-matrix camera))))
+(defmethod (setf zoom) :around (new-zoom (camera simple-camera))
+  (prog1
+      (call-next-method (coerce new-zoom 'single-float) camera)
+    (fire-event camera camera-screen-resized)))
 
 ;;;; bounded-camera
 

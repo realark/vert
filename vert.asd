@@ -38,11 +38,11 @@
                          (:file "physics-context")
                          (:file "vector")
                          (:file "math-utils")
+                         (:file "transform")
                          ;; shapes and collision
                          (:file "collision")
-                         (:file "aabb")
-                         (:file "convex-polygon")
                          (:file "obb")
+                         (:file "convex-polygon")
                          ;; motion
                          (:file "motion")
                          (:file "kinematic-object")
@@ -55,8 +55,7 @@
                         :depends-on (:core :physics)
                         :pathname "src/util-objects"
                         :serial T
-                        :components ((:file "composed-object")
-                                     (:file "touch-tracker")))
+                        :components ((:file "touch-tracker")))
                (:module graphics
                         :depends-on (:core :physics)
                         :pathname "src/graphics"
@@ -64,6 +63,7 @@
                         :components
                         ((:file "camera")
                          (:file "color")
+                         (:file "interpolated-transform")
                          (:file "gl-utils")
                          (:file "gl-drawable")
                          (:file "gl-sprite")

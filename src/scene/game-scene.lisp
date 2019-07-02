@@ -113,38 +113,34 @@ On the next render frame, the objects will be given a chance to load and this li
                spatial-partition
                unloaded-game-objects)
       game-scene
-    (set-camera-projection-matrix camera update-percent)
     (when bg
       (render bg update-percent camera renderer))
     (loop :while unloaded-game-objects :do
          (load-resources (pop unloaded-game-objects) renderer))
+    ;; TODO: put this check inside the object being rendered
     (flet ((in-camera (camera game-object)
-             (declare (aabb camera game-object))
-             (with-slots ((p1 world-position)
-                          (w1 width) (h1 height))
+             (declare (obb camera game-object))
+             (with-accessors ((x1 x) (y1 y) (z1 z)
+                              (w1 width) (h1 height))
                  camera
-               (with-accessors ((x1 x) (y1 y) (z1 z))
-                   p1
-                 (with-slots ((p2 world-position)
-                              (w2 width) (h2 height))
-                     game-object
-                   (with-accessors ((x2 x) (y2 y) (z2 z))
-                       p2
-                     (declare (world-dimension w1 h1 w2 h2)
-                              (world-position x1 y1 z1 x2 y2 z2))
-                     (let ((delta 10))
-                       ;; fudge the check a bit to account for rendering interpolation
-                       (and (< (- x1 delta) (+ x2 w2))
-                            (> (+ x1 w1 delta) x2)
-                            (< (- y1 delta) (+ y2 h2))
-                            (> (+ h1 y1 delta) y2)))))))))
+               (with-accessors ((x2 x) (y2 y) (z2 z)
+                                (w2 width) (h2 height))
+                   game-object
+                 (declare (world-dimension w1 h1 w2 h2)
+                          (world-position x1 y1 z1 x2 y2 z2))
+                 (let ((delta 10))
+                   ;; fudge the check a bit to account for rendering interpolation
+                   (and (< (- x1 delta) (+ x2 w2))
+                        (> (+ x1 w1 delta) x2)
+                        (< (- y1 delta) (+ y2 h2))
+                        (> (+ h1 y1 delta) y2)))))))
       (declare (inline in-camera))
       (do-spatial-partition (game-object spatial-partition)
         (when (in-camera camera game-object)
-         (render game-object update-percent camera renderer)))))
+          (render game-object update-percent camera renderer)))))
   (values))
 
-(defevent-callback killed ((object aabb) (game-scene game-scene))
+(defevent-callback killed ((object obb) (game-scene game-scene))
   (remove-from-scene game-scene object))
 
 @export

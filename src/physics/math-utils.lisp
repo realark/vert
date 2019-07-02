@@ -336,3 +336,16 @@
               (dotimes (j 4)
                 (setf (sb-cga:mref m i j) (/ (sb-cga:mref m i j) det))))
             m)))))
+
+@inline
+(defun interpolate-matrix (m0 m1 interpolation-value)
+  "Construct an interpolation matrix between M0 and M1 based on the INTERPOLATION-VALUE. 0.0 = m0, 1.0 = m1."
+  (declare (optimize (speed 3))
+           (matrix m0 m1)
+           ((single-float 0.0 1.0) interpolation-value))
+  (let ((interpolated-matrix  (identity-matrix)))
+    (loop :for i :from 0 :below (length m0) :do
+         (setf (elt interpolated-matrix i)
+               (+ (* (- 1.0 interpolation-value) (elt m0 i))
+                  (* interpolation-value (elt m1 i)))))
+    interpolated-matrix))

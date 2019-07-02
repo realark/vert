@@ -1,7 +1,7 @@
 ;;;; Generic methods for spatial partitioning. Quadtrees, grids, etc.
 (in-package :recurse.vert)
 
-(defclass spatial-partition (aabb)
+(defclass spatial-partition (obb)
   ()
   (:documentation "A spatial partition organizes and tracks a set of world objects."))
 

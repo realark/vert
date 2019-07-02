@@ -1,11 +1,58 @@
 (in-package :recurse.vert)
 
-(defclass gl-drawable ()
+(defclass gl-drawable (transform)
   ((shader :initform nil :reader shader)
    (vao :initform 0 :reader vao)
-   (texture :initform nil :reader texture))
+   (texture :initform nil :reader texture)
+   (interpolator :initform (make-matrix-interpolator)))
   (:documentation "A class drawn with opengl.
 Its reader slots will be used by the game scene to optimize rendering by reducing gl state changes."))
+
+@inline
+(defun %sprite-transform (transform)
+  "Construct a matrix which can be used to render TRANSFORM as a sprite."
+  (declare (optimize (speed 3)))
+  (let ((translate (translation-matrix (* 1.0 (width transform))
+                                       (* 1.0 (height transform))
+                                       0.0))
+        (dimensions (scale-matrix (width transform)
+                                  (height transform)
+                                  1.0)))
+    (declare (dynamic-extent translate dimensions))
+    (matrix*
+     (local-to-world-matrix transform)
+     ;; render with upper-left = object's origin
+     translate
+     dimensions)))
+
+(defmethod initialize-instance :after ((transform gl-drawable) &rest args)
+  (declare (optimize (speed 3))
+           (ignore args))
+  (with-slots (interpolator) transform
+    (let ((m (%sprite-transform transform)))
+      (declare (dynamic-extent m))
+      (interpolator-update interpolator m))))
+
+(defmethod pre-update :before ((transform gl-drawable))
+  (declare (optimize (speed 3)))
+  (with-slots (interpolator) transform
+    (let ((m (%sprite-transform transform)))
+      (declare (dynamic-extent m))
+      (interpolator-update interpolator m)))
+  (values))
+
+(defun interpolated-sprite-matrix (drawable update-percent)
+  (declare (optimize (speed 3))
+           ((single-float 0.0 1.0) update-percent))
+  (with-slots (interpolator) drawable
+    (unless (= update-percent
+               (matrix-interpolator-cached-update-percent interpolator))
+      (let ((m (%sprite-transform drawable)))
+        (declare (dynamic-extent m))
+        (interpolator-compute interpolator
+                              m
+                              update-percent)))
+    (matrix-interpolator-imatrix interpolator)))
 
 (defun gl-< (gl-drawable1 gl-drawable2)
   (declare (gl-drawable gl-drawable1 gl-drawable2))

@@ -24,8 +24,6 @@
 
    ;; core game-object
    :game-object
-   :pin-to
-   :unpin-from
    :update
    :update-input
    :update-user
@@ -75,7 +73,6 @@
    :z
    :rotation
    ;; shape and size
-   :aabb
    :width
    :height
    :local-points
@@ -176,8 +173,6 @@
    :project-onto-axis
 
    ;; utility object
-   :composed-object
-   :sub-objects
    :touch-tracker
    :touch-region
    :add-touch-region

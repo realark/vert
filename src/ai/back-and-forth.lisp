@@ -21,7 +21,7 @@
 (defmethod update-user :after ((agent back-and-forth) delta-t-ms context)
   (apply-vector agent (slot-value agent 'agent-acceleration)))
 
-(defmethod collision :after ((agent back-and-forth) (object aabb))
+(defmethod collision :after ((agent back-and-forth) (object obb))
   (with-slots ((direction agent-acceleration))
       agent
     (setf (x direction) (* -1.0 (x direction))

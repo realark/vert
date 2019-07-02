@@ -1,6 +1,7 @@
 (in-package :recurse.vert/test)
 
-(defclass test-object (test-introspector obb kinematic-object static-sprite input-handler)
+;; defclass test-object (test-introspector kinematic-object static-sprite input-handler)
+(defclass test-object (obb)
   ((path-to-sprite
     :initform (test-resource-path "rectangle.png")
     :reader path-to-sprite

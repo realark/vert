@@ -313,7 +313,6 @@ It is invoked after the engine is fully started.")
                          (camera-width width)
                          (camera-height height))
             camera
-          (set-camera-projection-matrix camera 1.0)
           (with-accessors ((text-width width))
               rendered-text
             (declare (camera-scale camera-zoom)

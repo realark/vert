@@ -84,3 +84,19 @@ inside of PHYSICS-CONTEXT and call COLLISION-RESOLUTION-NAME if any collisions o
 (defgeneric favored-collision-resolution-axis (moving-object stationary-object)
   (:documentation "If both x and y axis collide, use this method to favor one over the other. X to preserver the x-motion, Y to Preserve the y, or nil for no preference.")
   (:method (moving-object stationary-object) nil))
+
+@export
+(defgeneric hit-box (game-object other-object)
+  (:documentation "Returns a game-object which will be used to check for collisions between GAME-OBJECT and OTHER-OBJECT. This object must be entirely inside GAME-OBJECT
+The default method should be good enough for most game objects. Extend this method to provide specific hit-box logic between two objects (for example, to provide a smaller hit-box for player<>enemy collision checks).")
+  (:method ((object game-object) other-object) object))
+
+;; if hit-boxes are defined on either object, use them to determine if there was a collision.
+(defmethod collidep :around ((obj1 game-object) (obj2 game-object))
+  (declare (optimize (speed 3)))
+  (let ((hit-box1 (hit-box obj1 obj2))
+        (hit-box2 (hit-box obj2 obj1)))
+    (and (call-next-method obj1 obj2)
+         (or (and (eq obj1 hit-box1)
+                  (eq obj2 hit-box2))
+             (collidep hit-box1 hit-box2)))))

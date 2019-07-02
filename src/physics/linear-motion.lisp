@@ -3,7 +3,7 @@
 (let ((colliding-point (vector3 0.0 0.0 0.0))
       (non-colliding-point (vector3 0.0 0.0 0.0)))
   (defcollision-resolution linear-resolution ((moving-object kinematic-object)
-                                              (stationary-object AABB)
+                                              (stationary-object obb)
                                               &key original-position)
     (declare (optimize (speed 3))
              (ftype (function (vector3 vector3) world-position) distance-between))
@@ -86,16 +86,15 @@
         (setf (x original-position) x
               (y original-position) y
               (z original-position) z)
-        (with-motion-lock object
-          (with-collision-check (object physics-context)
-            (:position-update
-             ;; for some reason, the compiler complains if I use incf
-             (setf x (+ x (* v-x delta-t-ms)))
-             (setf y (+ y (* v-y delta-t-ms))))
-            (:on-collision stationary-object
-                           (linear-resolution object
-                                              stationary-object
-                                              :original-position original-position))))))
+        (with-collision-check (object physics-context)
+          (:position-update
+           ;; for some reason, the compiler complains if I use incf
+           (setf x (+ x (* v-x delta-t-ms)))
+           (setf y (+ y (* v-y delta-t-ms))))
+          (:on-collision stationary-object
+                         (linear-resolution object
+                                            stationary-object
+                                            :original-position original-position)))))
     (unless (= 0.0
                (the vector-dimension (slot-value object 'velocity-x))
                (the vector-dimension (slot-value object 'velocity-y))
