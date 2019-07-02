@@ -45,6 +45,14 @@
             (sdl2:gl-get-attr :CONTEXT-MINOR-VERSION)
             (sdl2:gl-get-attr :context-profile-mask))
 
+    ;; disabling the compositor makes the framerate look a lot smoother
+    ;; but I could eventually add an option to keep the compositor on
+    #+nil
+    (cffi:with-foreign-strings ((hint-name "SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR")
+                                (hint-val "0"))
+      ;; prevent SDL from disabling the linux compositor
+      (sdl2-ffi.functions:sdl-set-hint hint-name hint-val))
+
     (sdl2:with-window (win :w 1280 :h 720
                            :flags '(:shown :opengl)
                            :title (getconfig 'game-name *config*))
