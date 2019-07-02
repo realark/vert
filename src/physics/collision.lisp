@@ -2,7 +2,7 @@
 
 ;; collision defs and checks
 
-(defvar *collision-defs* (make-hash-table) "alist of collisions defined with defcollision.")
+(defvar *collision-defs* (make-hash-table) "hash of collisions defined with defcollision.")
 
 (defun assert-collisions-defined (class &rest classes-to-check)
   (loop with defined-collisions = (gethash class *collision-defs*)
@@ -100,3 +100,16 @@ The default method should be good enough for most game objects. Extend this meth
          (or (and (eq obj1 hit-box1)
                   (eq obj2 hit-box2))
              (collidep hit-box1 hit-box2)))))
+
+@export-class
+(defclass phantom ()
+  ()
+  (:documentation "An object which can collide with other objects, but other objects cannot collide with it.
+COLLISION callbacks will still be invoked when objects collide with a phantom, but no collision resolution will occur."))
+
+(defmethod collidep :around ((phantom1 phantom) (phantom2 phantom))
+  nil)
+
+(defmethod collidep :around (other-object (phantom phantom))
+  (collision other-object phantom)
+  nil)
