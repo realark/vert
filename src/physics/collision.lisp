@@ -94,12 +94,32 @@ The default method should be good enough for most game objects. Extend this meth
 ;; if hit-boxes are defined on either object, use them to determine if there was a collision.
 (defmethod collidep :around ((obj1 game-object) (obj2 game-object))
   (declare (optimize (speed 3)))
-  (let ((hit-box1 (hit-box obj1 obj2))
-        (hit-box2 (hit-box obj2 obj1)))
-    (and (call-next-method obj1 obj2)
-         (or (and (eq obj1 hit-box1)
-                  (eq obj2 hit-box2))
-             (collidep hit-box1 hit-box2)))))
+  (labels ((any-element-collides-p (object-array other-object)
+             (declare ((simple-array game-object) object-array)
+                      (game-object other-object))
+             ;; t if any elements of the array collide
+             (loop :for obj :across (the (simple-array game-object) object-array) :do
+                  (when (collidep obj other-object)
+                    (return t))))
+           (any-hit-boxes-collidep (boxes1 boxes2)
+             (cond ((and (typep boxes1 '(simple-array game-object))
+                         (typep boxes2 '(simple-array game-object)))
+                    (loop :for obj1 :across (the (simple-array game-object) boxes1) :do
+                         (when (loop :for obj2 :across (the (simple-array game-object) boxes2) :do
+                                    (when (collidep obj1 obj2)
+                                      (return t)))
+                           (return t))))
+                   ((typep boxes1 'simple-array)
+                    (any-element-collides-p boxes1 boxes2))
+                   ((typep boxes2 'simple-array)
+                    (any-element-collides-p boxes2 boxes1))
+                   (t (collidep boxes1 boxes2)))))
+    (let ((hit-box1 (hit-box obj1 obj2))
+          (hit-box2 (hit-box obj2 obj1)))
+      (and (call-next-method obj1 obj2)
+           (or (and (eq obj1 hit-box1)
+                    (eq obj2 hit-box2))
+               (any-hit-boxes-collidep hit-box1 hit-box2))))))
 
 @export-class
 (defclass phantom ()

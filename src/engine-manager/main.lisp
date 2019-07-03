@@ -10,6 +10,10 @@
                                       (config *default-config*))
   "Start the game engine. No effect if the engine is already started.
 If BLOCK is non-nil, the calling thread will block until the game finishes."
+  (declare (config config)
+           ((or null config) dev-mode)
+           (audio-player audio-player)
+           (function scene-creator-function))
   (unless *engine-manager*
     #+os-macosx
     (unless (and (eq (or #+sbcl (sb-thread:main-thread)

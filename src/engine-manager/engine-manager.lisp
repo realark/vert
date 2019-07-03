@@ -16,11 +16,6 @@
   "Duration of the update timeslice in milliseconds. 60FPS By default.")
 (declaim (type (integer 1 100) *timestep*))
 
-@export
-(defvar *dev-mode*
-  nil
-  "Set to T to enable dev features (potentially at a cost to performance).")
-
 (defclass engine-manager (event-publisher)
   ;; global services
   ((input-manager :initform (make-instance 'input-manager)
@@ -146,9 +141,11 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                   nil
                   renderer)
           (incf render-time-nanos (the fixnum (- (the fixnum (ticks-nanos)) t0))))
-        (when *dev-mode* (dev-mode-pre-render engine-manager))
+        (when (get-dev-config 'dev-mode-performance-hud)
+          (dev-mode-pre-render engine-manager))
         (render-game-window engine-manager)
-        (when *dev-mode* (dev-mode-post-game-loop-iteration engine-manager  update-time-nanos num-updates render-time-nanos))))))
+        (when (get-dev-config 'dev-mode-performance-hud)
+          (dev-mode-post-game-loop-iteration engine-manager  update-time-nanos num-updates render-time-nanos))))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
   (:documentation "Initialize ENGINE-MANAGER and start the game.
@@ -166,6 +163,9 @@ It is invoked after the engine is fully started.")
            (fire-event engine-manager engine-started)
            ;; set up initial active-scene
            (change-scene engine-manager (funcall initial-scene-creator))
+           (loop :for label :being :the hash-keys :of *engine-start-hooks*
+              :using (hash-value hook)
+              :do (funcall hook))
            (sb-ext:gc :full T) ;; run a full gc before the first window is shown
            ;; run the game loop
 
@@ -184,6 +184,9 @@ It is invoked after the engine is fully started.")
     ;; stop services
     (stop-audio-system)
     (fire-event engine-manager engine-stopped)
+    (loop :for label :being :the hash-keys :of *engine-stop-hooks*
+       :using (hash-value hook)
+       :do (funcall hook))
     (do-cache (*engine-caches* cache-name cache)
       (clear-cache cache))
     (format t "~%~%")))

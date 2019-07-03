@@ -111,3 +111,29 @@ Assumes ARRAY is initially sorted."
     (with-accessors ((x2 x) (y2 y) (w2 width) (h2 height)) target
       (setf x1 (- (+ x2 (/ w2 2)) (/ w1 2))
             y1 (- (+ y2 (/ h2 2)) (/ h1 2))))))
+
+
+(eval-when (:load-toplevel :execute)
+  (defvar *engine-start-hooks*
+    (make-hash-table)
+    "zero arg functions to invoke when the engine stops.")
+
+  (defvar *engine-stop-hooks*
+    (make-hash-table)
+    "zero arg functions to invoke when the engine stops."))
+
+(defmacro on-engine-start ((label) &body body)
+  "Executed BODY once each time the engine starts.
+LABEL must be symbol. Previously bound label code will be replaced if the same label is used twice."
+  `(eval-when (:load-toplevel :execute)
+     (setf (gethash ,label *engine-start-hooks*)
+           (lambda ()
+             ,@body))))
+
+(defmacro on-engine-stop ((label) &body body)
+  "Executed BODY once each time the engine stops.
+LABEL must be symbol. Previously bound label code will be replaced if the same label is used twice."
+  `(eval-when (:load-toplevel :execute)
+     (setf (gethash ,label *engine-stop-hooks*)
+           (lambda ()
+             ,@body))))

@@ -155,13 +155,14 @@
       (convex-poly-collidep rect1 rect2)))
 
 @export-class
-(defclass cross (obb)
+(defclass cross ()
   ((vertical-rect :initform nil)
-   (horizontal-rect :initform nil))
+   (horizontal-rect :initform nil)
+   (hit-boxes :initform (make-array 2 :element-type 'obb)))
   (:documentation "A cross-shaped hitbox which favors different axes for the two sections. Horizontal favors X and vertical favors Y."))
 
 (defmethod initialize-instance :after ((cross cross) &key (vertical-width 1) (horizontal-height 1))
-  (with-slots (vertical-rect horizontal-rect) cross
+  (with-slots (vertical-rect horizontal-rect hit-boxes) cross
     (with-accessors ((width width) (height height) (x x) (y y) (z z)) cross
       (setf vertical-rect (make-instance 'obb
                                          :width vertical-width
@@ -176,14 +177,14 @@
                            :y (/ height 2)
                            :z 0))
       (setf (parent vertical-rect) cross
-            (parent horizontal-rect) cross))))
+            (parent horizontal-rect) cross
+            (elt hit-boxes 0) vertical-rect
+            (elt hit-boxes 1) horizontal-rect)
+      (values))))
 
-;; TODO instead of requiring a custom collision check hit-box could be extended to allow for multiple hit boxes
-(defcollision ((cross cross) (rect obb))
+(defmethod hit-boxe ((cross cross) object)
   (declare (optimize (speed 3)))
-  (with-slots (vertical-rect horizontal-rect) cross
-    (or (collidep vertical-rect rect)
-        (collidep horizontal-rect rect))))
+  (slot-value cross 'hit-boxes))
 
 (defmethod favored-collision-resolution-axis ((cross cross) stationary-object)
     (with-slots (vertical-rect horizontal-rect) cross

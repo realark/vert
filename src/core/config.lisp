@@ -8,8 +8,9 @@
 @export
 (defun getconfig (key config)
   (declare (symbol key)
-           (config config))
-  (gethash key (slot-value config '%config-hash)))
+           ((or null config) config))
+  (when config
+    (gethash key (slot-value config '%config-hash))))
 
 @export
 (defmacro make-config ((&optional base-config) &rest key-value-pairs)
@@ -62,3 +63,33 @@ Example:
 (defvar *config*
   nil
   "The active config")
+
+(defvar *dev-mode*
+  nil
+  "Set to T to enable dev features (potentially at a cost to performance).")
+(defvar *old-dev-mode* nil)
+
+(export-config-key
+ 'dev-mode-performance-hud "Render a hud with performance stats.")
+(export-config-key
+ 'dev-mode-render-collision-hitboxes "Render collision hitboxes in transparent red and phantoms in transparent blue.")
+
+@export
+(defun toggle-dev-mode (&optional new-dev-config)
+  "Toggle dev mode on the active config"
+  (declare ((or null config) new-dev-config))
+  (cond (new-dev-config
+         (setf *old-dev-mode* nil
+               *dev-mode* new-dev-config))
+        (*dev-mode* (setf *old-dev-mode* *dev-mode*
+                          *dev-mode* nil))
+        (t (setf *dev-mode* (or *old-dev-mode*
+                                (make-config ()
+                                             ('dev-mode-performance-hud t)
+                                             ('dev-mode-render-collision-hitboxes nil)))))))
+
+@export
+(defun get-dev-config (config-name)
+  "Return t if a specific dev-mode option is enabled"
+  (and *dev-mode*
+       (getconfig config-name *dev-mode*)))
