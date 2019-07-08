@@ -51,6 +51,8 @@ Example:
  'game-name "Name of the game. Will affect the executable name and window title.")
 (export-config-key
  'window-icon "Path to a PNG to use for the window icon. Path must be a relative path to the active config's RESOURCE-PATH. May be nil.")
+(export-config-key
+ 'enable-compositor "Allow running the game window with desktop compositor (e.g. x11 effects). This may affect the game's framerate.")
 
 @export
 (defvar *default-config* (make-config ()
