@@ -310,26 +310,24 @@ It is invoked after the engine is fully started.")
         engine-manager
       (let ((camera (camera (active-scene engine-manager)))
             (line-num 0))
-        (with-accessors ((camera-zoom zoom)
-                         (camera-x x)
+        (with-accessors ((camera-x x)
                          (camera-y y)
                          (camera-width width)
                          (camera-height height))
             camera
           (with-accessors ((text-width width))
               rendered-text
-            (declare (camera-scale camera-zoom)
-                     (world-position camera-x camera-y)
+            (declare (world-position camera-x camera-y)
                      (world-dimension camera-width camera-height text-width)
                      ((integer 0 50) line-num))
             (setf line-width-px (/ (width (camera (active-scene *engine-manager*))) 10.0)
                   line-height-px (/ (height (camera (active-scene *engine-manager*))) 10.0)
-                  (width rendered-text) (/ line-width-px camera-zoom)
-                  (height rendered-text) (/ line-height-px camera-zoom)
+                  (width rendered-text) line-width-px
+                  (height rendered-text) line-height-px
                   (x rendered-text) (- (+ camera-x camera-width) text-width))
             (flet ((render-debug-line (text)
                      (setf (text rendered-text) text
-                           (y rendered-text) (+ camera-y (/ (* line-num line-height-px) camera-zoom)))
+                           (y rendered-text) (+ camera-y (* line-num line-height-px)))
                      (render rendered-text
                              1.0
                              camera

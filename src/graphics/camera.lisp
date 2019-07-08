@@ -15,6 +15,8 @@
                   :accessor screen-height
                   :type screen-unit
                   :documentation "Height of the display screen in pixels")
+   (unzoomed-width :initform 0)
+   (unzoomed-height :initform 0)
    (zoom :initarg :zoom
          :initform 1.0
          :accessor zoom
@@ -52,8 +54,12 @@
 (defmethod initialize-instance :after ((camera simple-camera) &rest args)
   (declare (ignore args))
   (with-accessors ((zoom zoom)) camera
-    ;; running through setf specializers bypassed by :initform
-    (setf zoom zoom) ;; coerce to float
+    (with-slots (unzoomed-width unzoomed-height) camera
+      (setf unzoomed-width (width camera)
+            unzoomed-height (height camera)
+            ;; set zoom last so its accessor hook runs and resizes camera
+            ;; according to zoom
+            zoom zoom))
     (with-slots (screen-width screen-height) camera
       (multiple-value-bind (w h)
           (window-size-pixels (application-window *engine-manager*))
@@ -80,6 +86,9 @@
 (defmethod (setf zoom) :around (new-zoom (camera simple-camera))
   (prog1
       (call-next-method (coerce new-zoom 'single-float) camera)
+    (with-slots (unzoomed-width unzoomed-height zoom) camera
+      (setf (width camera) (/ unzoomed-width zoom))
+      (setf (height camera) (/ unzoomed-height zoom)))
     (fire-event camera camera-screen-resized)))
 
 ;;;; bounded-camera
@@ -118,19 +127,19 @@
   (:documentation "A camera which will not move outside of a user-defined x-y-z boundary."))
 
 (defmethod (setf x) (value (camera bounded-camera))
-  (with-accessors ((min min-x) (max max-x) (w width) (z zoom)) camera
+  (with-accessors ((min min-x) (max max-x) (w width)) camera
     (when (and min (< value min))
       (setf value min))
-    (when (and max (> value (- max (/ w z))))
-      (setf value (- max (/ w z)))))
+    (when (and max (> value (- max w)))
+      (setf value (- max w))))
   (call-next-method (coerce value 'world-position) camera))
 
 (defmethod (setf y) (value (camera bounded-camera))
-  (with-accessors ((min min-y) (max max-y) (h height) (z zoom)) camera
+  (with-accessors ((min min-y) (max max-y) (h height)) camera
     (when (and min (< value min))
       (setf value min))
-    (when (and max (> value (- max (/ h z))))
-      (setf value (- max (/ h z)))))
+    (when (and max (> value (- max h)))
+      (setf value (- max h))))
   (call-next-method (coerce value 'world-position) camera))
 
 (defmethod (setf z) (value (camera bounded-camera))
@@ -207,8 +216,7 @@
          (with-accessors ((camera-width width) (camera-height height)
                           (center-x target-center-x) (center-y target-center-y)
                           (max-offset target-max-offset)
-                          ;; TODO: check this with zoom
-                          (zoom zoom) (target target))
+                          (target target))
              camera
            (when target
              (with-accessors ((target-x x) (target-y y)) target
@@ -220,14 +228,10 @@
                  (setf center-x (- target-x max-offset)))
                (when (>= center-x (+ target-x max-offset))
                  (setf center-x (+ target-x max-offset))))
-             ;; (setf (x camera) (- (+ (x target) (/ (width target) 2))
-             ;;                     (/ camera-width zoom 2)))
-             ;; (setf (y camera) (- (+ (y target) (/ (height target) 2))
-             ;;                     (/ camera-height zoom 2)))
              (setf (x camera) (- center-x
-                                 (/ camera-width zoom 2)))
+                                 (/ camera-width 2)))
              (setf (y camera) (- center-y
-                                 (/ camera-height zoom 2)))))))
+                                 (/ camera-height 2)))))))
 
   (defmethod (setf target) :after (new-target (camera target-tracking-camera))
              (camera-track-target camera))
