@@ -53,7 +53,7 @@
   (slot-value transform 'parent))
 
 (defmethod (setf parent) (new-parent (transform transform))
-  (declare (transform new-parent))
+  (declare ((or null transform) new-parent))
   (flet ((add-child (parent child)
            (with-slots (transform-children) parent
              (if (find child transform-children)

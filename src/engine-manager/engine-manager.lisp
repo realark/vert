@@ -52,6 +52,7 @@
    (avg-update-time :initform 0)
    (avg-render-time :initform 0))
   (:documentation "Starts and stops the game. Manages global engine state and services."))
+(export '(rendering-context))
 
 (defevent engine-started ((engine-manager engine-manager))
     "Fired once when the engine starts running.")

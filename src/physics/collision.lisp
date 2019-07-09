@@ -131,5 +131,6 @@ COLLISION callbacks will still be invoked when objects collide with a phantom, b
   nil)
 
 (defmethod collidep :around (other-object (phantom phantom))
-  (collision other-object phantom)
+  (when (call-next-method other-object phantom)
+    (collision other-object phantom))
   nil)
