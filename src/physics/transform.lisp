@@ -3,11 +3,13 @@
 (defclass transform (game-object)
   ((parent :initform nil
            :documentation "The parent transform of this matrix, or nil for world coordinates.")
-   (transform-children :initform (make-array 0
-                                   :element-type 'transform
-                                   :adjustable t
-                                   :fill-pointer 0)
-             :documentation "objects positioned relative to this transform.")
+   (transform-children
+    :initform (make-array 0
+                          :element-type 'transform
+                          :adjustable t
+                          :fill-pointer 0)
+    :accessor transform-children
+    :documentation "objects positioned relative to this transform.")
    (local-position :initform (vector3 0.0 0.0 0.0)
                    :documentation "position in local space")
    (local-rotation :initform 0.0
@@ -62,14 +64,14 @@
              (if (find child transform-children)
                  (setf transform-children (delete child transform-children))
                  (error "~A not a child of ~A" child parent)))))
-    (loop :with p = new-parent
-       :while (not (null p)) :do
-         (when (eq p transform)
-           (error "~A cannot parent itself" transform))
-         (setf p (parent p)))
-
     (with-slots (parent) transform
       (unless (eq new-parent parent)
+        (loop :with p = new-parent
+           :while (not (null p)) :do
+             (when (eq p transform)
+               (error "~A cannot parent itself" transform))
+             (setf p (parent p)))
+
         (when parent
           (remove-child parent transform))
         (setf parent new-parent)

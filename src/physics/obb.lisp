@@ -154,6 +154,27 @@
       (aabb-collidep rect1 rect2)
       (convex-poly-collidep rect1 rect2)))
 
+@inline
+@export
+(defun world-dimensions (obb)
+  (declare (optimize (speed 3))
+           (obb obb))
+  (let* ((tmp (vector3 0f0 0f0 0f0))
+         (world-point (transform-point tmp obb))
+         (world-width (* (scale-x obb) (width obb)))
+         (world-height (* (scale-y obb) (height obb))))
+    (declare (dynamic-extent world-point tmp)
+             (single-float world-width world-height))
+    (loop :with parent = (parent obb) :while parent :do
+         (setf world-width (* world-width (scale-x parent))
+               world-height (* world-height (scale-y parent))
+               parent (parent parent)))
+    (values (x world-point)
+            (y world-point)
+            (z world-point)
+            world-width
+            world-height)))
+
 @export-class
 (defclass cross ()
   ((vertical-rect :initform nil)

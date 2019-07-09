@@ -101,6 +101,7 @@
                         :serial T
                         :components
                         ((:file "scene")
+                         (:file "overlay")
                          (:file "menu")
                          (:file "scene-background")
                          (:file "object-manager")

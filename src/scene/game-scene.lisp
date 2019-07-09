@@ -68,6 +68,16 @@ On the next render frame, the objects will be given a chance to load and this li
 @export
 (defgeneric add-to-scene (scene object)
   (:documentation "Add an object to the game scene")
+  (:method ((scene scene) (overlay overlay))
+    (with-slots (scene-overlays) scene
+      (unless (find overlay scene-overlays)
+        (vector-push-extend overlay scene-overlays)
+        (push overlay (unloaded-game-objects scene)))))
+  (:method ((scene game-scene) (overlay overlay))
+    (with-slots (scene-overlays) scene
+      (unless (find overlay scene-overlays)
+        (vector-push-extend overlay scene-overlays)
+        (push overlay (unloaded-game-objects scene)))))
   (:method ((scene game-scene) (object game-object))
     (unless (find-spatial-partition object (spatial-partition scene))
       (add-subscriber object scene killed)
@@ -81,6 +91,16 @@ On the next render frame, the objects will be given a chance to load and this li
 @export
 (defgeneric remove-from-scene (scene object)
   (:documentation "Remove an object from the game scene")
+  (:method ((scene scene) (overlay overlay))
+    (with-slots (scene-overlays) scene
+      (when (find overlay scene-overlays)
+        (setf scene-overlays (delete overlay scene-overlays))
+        (release-resources overlay))))
+  (:method ((scene game-scene) (overlay overlay))
+    (with-slots (scene-overlays) scene
+      (when (find overlay scene-overlays)
+        (setf scene-overlays (delete overlay scene-overlays))
+        (release-resources overlay))))
   (:method ((scene game-scene) (object game-object))
     (stop-tracking (spatial-partition scene) object)
     (release-resources object)))
@@ -92,17 +112,22 @@ On the next render frame, the objects will be given a chance to load and this li
 (defmethod update ((game-scene game-scene) delta-t-ms (null null))
   (declare (optimize (speed 3))
            (ignore null))
-  (with-slots ((bg scene-background)) game-scene
+  (with-slots ((bg scene-background) scene-overlays) game-scene
+    (when bg (pre-update bg))
     (do-spatial-partition (game-object (spatial-partition game-scene))
       (unless (typep game-object 'static-object)
         (pre-update game-object)))
+    (loop :for overlay :across (the (vector overlay) scene-overlays) :do
+         (pre-update overlay))
     (pre-update (camera game-scene))
-    (when bg (pre-update bg))
     (%run-scheduled-callbacks game-scene)
     (do-spatial-partition (game-object (spatial-partition game-scene))
       (unless (typep game-object 'static-object)
         (update game-object delta-t-ms game-scene)))
+    ;; update camera first in case overlay or bg to use the camera's position
     (update (camera game-scene) delta-t-ms game-scene)
+    (loop :for overlay :across (the (vector overlay) scene-overlays) :do
+         (update overlay delta-t-ms game-scene))
     (when bg (update bg delta-t-ms game-scene))
     (incf (slot-value game-scene 'scene-ticks) delta-t-ms)
     (values)))
@@ -111,7 +136,8 @@ On the next render frame, the objects will be given a chance to load and this li
   (declare (optimize (speed 3)))
   (with-slots ((bg scene-background)
                spatial-partition
-               unloaded-game-objects)
+               unloaded-game-objects
+               scene-overlays)
       game-scene
     (when bg
       (render bg update-percent camera renderer))
@@ -137,7 +163,9 @@ On the next render frame, the objects will be given a chance to load and this li
       (declare (inline in-camera))
       (do-spatial-partition (game-object spatial-partition)
         (when (in-camera camera game-object)
-          (render game-object update-percent camera renderer)))))
+          (render game-object update-percent camera renderer))))
+    (loop :for overlay :across (the (vector overlay) scene-overlays) :do
+         (render overlay update-percent camera renderer)))
   (values))
 
 (defevent-callback killed ((object obb) (game-scene game-scene))

@@ -13,53 +13,55 @@
 
 (defvar %font-key% (make-instance 'standard-object))
 
-(defclass gl-font (gl-drawable)
-  ((text :initarg :text
-         :initform (error ":text required")
-         :accessor text)
-   (path-to-font :initarg :path-to-font
-                 :initform "fonts/liberation_sans/LiberationSans-Regular.ttf"
-                 :reader path-to-font
-                 :documentation "Path to font file.")
-   (font-size :initform 72
-              :initarg :font-size
-              :documentation "Pixel depth of the font.")
-   (color :initarg :color
-          :initform nil
-          :documentation "Color of the text."
-          :accessor color)
-   (shader-cache :initarg :shader-cache
-                 :initform *shader-cache*)
-   (shader :initform nil :reader shader)
-   (glyph-cache :initarg :glyph-cache
-                :initform
-                (getcache-default
-                 "glyph-cache"
-                 *engine-caches*
-                 (make-instance 'counting-cache
-                                :on-evict
-                                (lambda (font-size glyph-map)
-                                  (declare (ignore font-size))
-                                  (%free-glyph-map glyph-map))))
-                :documentation "cache font-size->glyph-cache")
-   (glyph-map :initform nil)
-   (buffer-cache :initarg :buffer-cache
-                 :initform
-                 (getcache-default "font-buffer-cache"
-                                   *engine-caches*
-                                   (make-instance 'counting-cache
-                                                  :on-evict
-                                                  (lambda (sprite-key gl-buffers)
-                                                    (declare (ignore sprite-key))
-                                                    (destructuring-bind (cached-vao cached-vbo cached-vertices) gl-buffers
-                                                      (gl:delete-vertex-arrays (list cached-vao))
-                                                      (gl:delete-buffers (list cached-vbo))
-                                                      (gl:free-gl-array cached-vertices))))))
-   (vao :initform 0 :reader vao)
-   (vbo :initform 0)
-   (vertices-byte-size :initform 0)
-   (vertices-pointer-offset :initform 0)
-   (vertices :initform nil)))
+(progn
+  (defclass gl-font (gl-drawable)
+    ((text :initarg :text
+           :initform (error ":text required")
+           :accessor text)
+     (path-to-font :initarg :path-to-font
+                   :initform "fonts/liberation_sans/LiberationSans-Regular.ttf"
+                   :reader path-to-font
+                   :documentation "Path to font file.")
+     (font-size :initform 72
+                :initarg :font-size
+                :documentation "Pixel depth of the font.")
+     (color :initarg :color
+            :initform nil
+            :documentation "Color of the text."
+            :accessor color)
+     (shader-cache :initarg :shader-cache
+                   :initform *shader-cache*)
+     (shader :initform nil :reader shader)
+     (glyph-cache :initarg :glyph-cache
+                  :initform
+                  (getcache-default
+                   "glyph-cache"
+                   *engine-caches*
+                   (make-instance 'counting-cache
+                                  :on-evict
+                                  (lambda (font-size glyph-map)
+                                    (declare (ignore font-size))
+                                    (%free-glyph-map glyph-map))))
+                  :documentation "cache font-size->glyph-cache")
+     (glyph-map :initform nil)
+     (buffer-cache :initarg :buffer-cache
+                   :initform
+                   (getcache-default "font-buffer-cache"
+                                     *engine-caches*
+                                     (make-instance 'counting-cache
+                                                    :on-evict
+                                                    (lambda (sprite-key gl-buffers)
+                                                      (declare (ignore sprite-key))
+                                                      (destructuring-bind (cached-vao cached-vbo cached-vertices) gl-buffers
+                                                        (gl:delete-vertex-arrays (list cached-vao))
+                                                        (gl:delete-buffers (list cached-vbo))
+                                                        (gl:free-gl-array cached-vertices))))))
+     (vao :initform 0 :reader vao)
+     (vbo :initform 0)
+     (vertices-byte-size :initform 0)
+     (vertices-pointer-offset :initform 0)
+     (vertices :initform nil)))
+  (export '(text)))
 
 (defun font-dimensions (gl-font)
   (declare (gl-font gl-font))
@@ -133,16 +135,7 @@
 
 
       (multiple-value-bind (ix iy iz iw ih)
-          (progn
-            (when (or (parent gl-font)
-                      (/= 0.0 (rotation gl-font)))
-              (error "TODO: transform matrix for gl-fonts"))
-            (values
-             (x gl-font)
-             (y gl-font)
-             (z gl-font)
-             (width gl-font)
-             (height gl-font)))
+          (world-dimensions gl-font)
         (loop
            ;; width = text-width * scale
            :with scale = (min 1.0

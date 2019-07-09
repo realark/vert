@@ -10,6 +10,7 @@
                                     :screen-width 100
                                     :screen-height 100)
            :accessor camera)
+   (scene-overlays :initform (make-array 1 :adjustable T :fill-pointer 0))
    (scene-input :initform (make-array 4 :adjustable T :fill-pointer 0)
                 :accessor scene-input
                 :documentation "list of input-devices hooked up to the scene"))
