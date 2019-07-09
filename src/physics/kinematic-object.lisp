@@ -40,11 +40,13 @@
 (defgeneric apply-vector (kinematic-object vector2)
   (:documentation "Apply a 2d vector to an object's acceleration.")
   (:method ((object kinematic-object) vector)
-    (declare (vector2 vector))
+    (declare (optimize (speed 3))
+             (vector2 vector))
     (with-accessors ((v-x x) (v-y y)) vector
       (with-accessors ((acc-x acceleration-x) (acc-y acceleration-y)) object
-        (incf acc-x v-x)
-        (incf acc-y v-y)
+        (declare (single-float v-x v-y acc-x acc-y))
+        (setf acc-x (+ acc-x v-x)
+              acc-y (+ acc-y v-y))
         (values)))))
 
 (defun moving-towards (kinematic-object point-or-object)

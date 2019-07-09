@@ -349,3 +349,21 @@
                (+ (* (- 1.0 interpolation-value) (elt m0 i))
                   (* interpolation-value (elt m1 i)))))
     interpolated-matrix))
+
+@export
+(defun distance-between-objects (obj1 obj2)
+  "Compute the distance between the centers of OBJ1 and OBJ2"
+  (declare (optimize (speed 3))
+           (transform obj1 obj2))
+  (let* ((obj1-center (vector2 (/ (the single-float (width obj1)) 2.0)
+                               (/ (the single-float (height obj1)) 2.0)))
+         (obj2-center (vector2 (/ (the single-float (width obj2)) 2.0)
+                               (/ (the single-float (height obj2)) 2.0)))
+         (transformed-obj1-center (transform-point obj1-center obj1 obj2)))
+    (declare (dynamic-extent obj1-center obj2-center transformed-obj1-center))
+    (with-accessors ((x1 x) (y1 y)) transformed-obj1-center
+      (with-accessors ((x2 x) (y2 y)) obj2-center
+        (declare (single-float x1 y1 x2 y2))
+        (the single-float
+             (sqrt (+ (expt (- x1 x2) 2)
+                      (expt (- y1 y2) 2))))))))
