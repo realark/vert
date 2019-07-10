@@ -171,9 +171,11 @@
     (funcall (slot-value action-node 'action) device-id)))
 
 (defmethod update ((menu menu) (delta-t-ms real) (null null))
-  (update (camera menu) delta-t-ms menu)
+  (pre-update menu)
+  (pre-update (camera menu))
   ;; update input
-  (update menu delta-t-ms menu))
+  (update menu delta-t-ms menu)
+  (update (camera menu) delta-t-ms menu))
 
 ;; Render Menu
 

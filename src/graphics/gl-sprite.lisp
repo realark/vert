@@ -215,7 +215,6 @@ Nil has the same effect as *white*."
           texture nil
           vao 0
           vbo 0)))
-
 (defun %create-sprite-shader ()
   (let* ((vertex-shader-source
           "#version 330 core
@@ -228,6 +227,7 @@ uniform mat4 worldModel;
 uniform mat4 worldProjection;
 
 uniform vec4 spriteSrc;
+float roundingPrecision = 10000.0;
 
 void main()
 {
@@ -237,7 +237,11 @@ void main()
   float spriteHeight = spriteSrc.w;
 
   TexCoord = vec2(spriteSrcX + (srcCoord.x * spriteWidth), spriteSrcY + (srcCoord.y * spriteHeight));
-  gl_Position = worldProjection * worldModel * vec4(screenPos, 1.0);
+  vec4 rawPosition = worldProjection * worldModel * vec4(screenPos, 1.0);
+  gl_Position = vec4(round((rawPosition.x * roundingPrecision)) / roundingPrecision,
+                     round((rawPosition.y * roundingPrecision)) / roundingPrecision,
+                     rawPosition.z,
+                     rawPosition.a);
 }")
          (fragment-shader-source
           "#version 330 core
