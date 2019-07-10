@@ -230,7 +230,7 @@ void main()
   (let ((vao (gl:gen-vertex-array))
         (vbo (gl:gen-buffer)))
 
-    (gl:bind-vertex-array vao)
+    (gl-use-vao *gl-context* vao)
 
     (gl:bind-buffer :array-buffer vbo)
     (%gl::buffer-data :array-buffer (* (cffi:foreign-type-size :float) 6 4) (cffi:null-pointer) :dynamic-draw)
@@ -239,7 +239,6 @@ void main()
     (gl:vertex-attrib-pointer 0 4 :float 0 (* 4 (cffi:foreign-type-size :float)) 0)
     (gl:enable-vertex-attrib-array 0)
     (gl:bind-buffer :array-buffer 0)
-    (gl:bind-vertex-array 0)
 
     (list vao
           vbo

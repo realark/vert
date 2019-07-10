@@ -53,6 +53,8 @@ On the next render frame, the objects will be given a chance to load and this li
       (load-resources bg renderer))
     (do-spatial-partition (game-object (spatial-partition game-scene))
       (load-resources game-object renderer))
+    (loop :for overlay :across (the (vector overlay) (slot-value game-scene 'scene-overlays)) :do
+         (load-resources overlay renderer))
     (when music
       ;; Hack to resume music on unpause
       (if (eq :paused (music-state *audio*))
@@ -63,7 +65,9 @@ On the next render frame, the objects will be given a chance to load and this li
   (do-spatial-partition (game-object (spatial-partition game-scene))
     (remove-from-scene game-scene game-object))
   (when (scene-background game-scene)
-    (release-resources (scene-background game-scene))))
+    (release-resources (scene-background game-scene)))
+  (loop :for overlay :across (the (vector overlay) (slot-value game-scene 'scene-overlays)) :do
+       (release-resources overlay)))
 
 @export
 (defgeneric add-to-scene (scene object)

@@ -288,7 +288,7 @@ void main()
            (setf vao (gl:gen-vertex-array)
                  vbo (gl:gen-buffer))
 
-           (gl:bind-vertex-array vao)
+           (gl-use-vao *gl-context* vao)
 
            ;; put the vertices in the VBO
            (gl:bind-buffer :array-buffer vbo)
@@ -302,6 +302,5 @@ void main()
 
            ;; note: this is okay because vertex-attrib-pointer binds the vertex shader's input
            (gl:bind-buffer :array-buffer 0)
-           (gl:bind-vertex-array 0)
            (list vao vbo))
       (gl:free-gl-array gl-vertices))))

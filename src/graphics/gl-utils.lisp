@@ -39,8 +39,8 @@ For example, the "
 (defun gl-use-vao (gl-context vao)
   (declare (optimize (speed 3))
            (gl-context gl-context)
-           (integer vao))
-  (unless (eq (gl-context-vao gl-context) vao)
+           (fixnum vao))
+  (unless (= (gl-context-vao gl-context) vao)
     (setf (gl-context-vao gl-context) vao)
     (n-bind-vertex-array vao))
   (values))
@@ -242,10 +242,21 @@ For example, the "
 ;;;; FFIs
 ;;;; cl-opengl wrapper is consing so we'll redefine some non-consing alternatives to use in hot code.
 
-(cffi:defcfun ("glBindVertexArray" n-bind-vertex-array) :void
+(defmacro %defglfunction ((gl-fn-name lisp-fn-name) return-type &rest arguments)
+  (assert (stringp gl-fn-name))
+  (assert (symbolp lisp-fn-name))
+  `(progn
+     (cffi:defcfun (,gl-fn-name ,(alexandria:symbolicate '% lisp-fn-name)) ,return-type
+       ,@arguments)
+     (defun ,lisp-fn-name (,@(loop :for arg :in arguments :collect (first arg)))
+       (prog1
+           (,(alexandria:symbolicate '% lisp-fn-name) ,@(loop :for arg :in arguments :collect (first arg)))
+         (gl:check-error)))))
+
+(%defglfunction ("glBindVertexArray" n-bind-vertex-array) :void
         (array :unsigned-int))
 
-(cffi:defcfun ("glUseProgram" n-use-program) :void
+(%defglfunction ("glUseProgram" n-use-program) :void
   (program :unsigned-int))
 
 (cffi:defcfun ("glGetUniformLocation" %n-get-uniform-location) :int
@@ -254,9 +265,11 @@ For example, the "
 
 (defun n-get-uniform-location (program name)
   (cffi:with-foreign-string (c-str name)
-    (%n-get-uniform-location
-     program
-     c-str)))
+    (prog1
+        (%n-get-uniform-location
+         program
+         c-str)
+      (gl:check-error))))
 
 (cffi:defcfun ("glUniform1f" %n-uniform-1f) :void
   (location :int)
@@ -281,11 +294,13 @@ For example, the "
   (v3 :float))
 
 (defun n-uniformf (location x &optional y z w)
-  (cond
-    (w (%n-uniform-4f location (float x) (float y) (float z) (float w)))
-    (z (%n-uniform-3f location (float x) (float y) (float z)))
-    (y (%n-uniform-2f location (float x) (float y)))
-    (x (%n-uniform-1f location (float x)))))
+  (prog1
+      (cond
+        (w (%n-uniform-4f location (float x) (float y) (float z) (float w)))
+        (z (%n-uniform-3f location (float x) (float y) (float z)))
+        (y (%n-uniform-2f location (float x) (float y)))
+        (x (%n-uniform-1f location (float x))))
+    (gl:check-error)))
 
 (cffi:defcfun ("glUniformMatrix4fv" %n-uniform-matrix-4fv) :void
   (location :int)
@@ -301,22 +316,24 @@ For example, the "
       (setf tmp-arr (cffi:foreign-alloc :float :count 16)))
     (loop :for i :from 0 :below (length matrix) :do
          (setf (cffi:mem-aref tmp-arr :float i) (elt matrix i)))
-    (%n-uniform-matrix-4fv
-     location
-     1
-     (if (or (null transpose) (equalp 0 transpose))
-         0
-         1)
-     tmp-arr)))
+    (prog1
+        (%n-uniform-matrix-4fv
+         location
+         1
+         (if (or (null transpose) (equalp 0 transpose))
+             0
+             1)
+         tmp-arr)
+      (gl:check-error))))
 
-(cffi:defcfun ("glActiveTexture" n-active-texture) :void
+(%defglfunction ("glActiveTexture" n-active-texture) :void
   (texture %gl:enum))
 
-(cffi:defcfun ("glBindBuffer" n-bind-buffer) :void
+(%defglfunction ("glBindBuffer" n-bind-buffer) :void
   (target %gl:enum)
   (buffer :unsigned-int))
 
-(cffi:defcfun ("glBindTexture" n-bind-texture) :void
+(%defglfunction ("glBindTexture" n-bind-texture) :void
   (target %gl:enum)
   (texture :unsigned-int))
 
@@ -328,17 +345,19 @@ For example, the "
 
 (defun n-buffer-sub-data (target array &key (offset 0) (buffer-offset 0)
                                          (size (gl::gl-array-byte-size array)))
-  (%n-buffer-sub-data target
-                      buffer-offset
-                      size
-                      (gl::gl-array-pointer-offset array offset)))
+  (prog1
+      (%n-buffer-sub-data target
+                          buffer-offset
+                          size
+                          (gl::gl-array-pointer-offset array offset))
+    (gl:check-error)))
 
-(cffi:defcfun ("glDrawArrays" n-draw-arrays) :void
+(%defglfunction ("glDrawArrays" n-draw-arrays) :void
   (mode %gl:enum)
   (first :int)
   (count cl-opengl-bindings:sizei))
 
-(cffi:defcfun ("glDrawElements" n-draw-elements) :void
+(%defglfunction ("glDrawElements" n-draw-elements) :void
   (mode %gl:enum)
   (count cl-opengl-bindings:sizei)
   (type %gl:enum)

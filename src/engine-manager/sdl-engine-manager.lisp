@@ -16,7 +16,8 @@
 
 (defmethod render-game-window ((engine-manager sdl-engine-manager))
   (sdl2:gl-swap-window (sdl-window (application-window engine-manager)))
-  (gl:clear :depth-buffer-bit :color-buffer-bit)
+  ;; (gl:clear :depth-buffer-bit :color-buffer-bit)
+  (gl:clear :color-buffer-bit)
   (values))
 
 (defmethod run-game ((engine-manager sdl-engine-manager) initial-scene-creator)
@@ -100,7 +101,8 @@
           (setf (slot-value engine-manager 'application-window)
                 (make-instance 'sdl-application-window :sdl-window win)
                 (slot-value engine-manager 'rendering-context)
-                (make-gl-context :wrapper sdl-glcontext))
+                (make-gl-context :wrapper sdl-glcontext)
+                *gl-context* (slot-value engine-manager 'rendering-context))
           (register-input-device (input-manager engine-manager)
                                  (slot-value engine-manager 'keyboard-input))
           (loop for i from 0 below (sdl2:joystick-count) do
@@ -114,6 +116,7 @@
          (remove-sdl-controller engine-manager sdl-joystick-id))))
 
 (defmethod quit-engine ((engine-manager sdl-engine-manager))
+  (setf *gl-context* nil)
   (sdl2:push-event :quit))
 
 (defun sdl-key-down (keyboard keysym)
