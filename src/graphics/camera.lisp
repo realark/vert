@@ -22,12 +22,17 @@
          :accessor zoom
          :documentation "A slot to zoom the camera in or out.")
    (ortho-matrix :initform (identity-matrix))
-   (ortho-interpolator :initform (make-matrix-interpolator
-                                  :rounding-factor (expt 10.0 4))
+   (ortho-interpolator :initform (make-matrix-interpolator)
                        :documentation "render interpolation for world projection matrix"))
   (:documentation "2d camera which can be moved and zoom in and out."))
 
-(defmethod update ((camera simple-camera) delta-t-ms world-context)
+(defmethod pre-update :before ((camera simple-camera))
+  (with-slots (ortho-matrix ortho-interpolator) camera
+    (interpolator-update ortho-interpolator
+                         ortho-matrix))
+  (values))
+
+(defmethod update :after ((camera simple-camera) delta-t-ms world-context)
   (with-slots (ortho-matrix ortho-interpolator) camera
     (let ((tmp (ortho-matrix (x camera)
                              (+ (x camera) (width camera))
@@ -36,10 +41,8 @@
                              100.0
                              -100.0)))
       (declare (dynamic-extent tmp))
-      (interpolator-update ortho-interpolator
-                           ortho-matrix)
-      (copy-array-contents tmp ortho-matrix)))
-  (values))
+      (copy-array-contents tmp ortho-matrix)
+      (values))))
 
 (defun interpolated-world-projection-matrix (camera update-percent)
   "Get CAMERA's projection matrix in world space"
@@ -251,7 +254,7 @@
   (defmethod (setf zoom) :after (value (camera target-tracking-camera))
              (camera-track-target camera))
 
-  (defevent-callback object-moved ((object game-object) (camera simple-camera))
+  (defevent-callback object-moved ((object game-object) (camera target-tracking-camera))
     (when (eq object (target camera))
       (camera-track-target camera))))
 

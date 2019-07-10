@@ -34,7 +34,8 @@
 (defparameter *min-vector-magnitude* 0.0
   "Smallest magnitude a single dimension of an acceleration or velocity vector will have.")
 
-(defparameter *movement-threshold* (units-per-second 100)
+(declaim ((single-float 0f0 1f0 ) *movement-threshold*))
+(defvar *movement-threshold* 0.01
   "Movable objects with movement below this threshold are not considered moving.")
 (defparameter *collision-precision* #.(expt 10.0 -2)
               "Objects will not overlap at or above this number.")
@@ -96,7 +97,7 @@
                    :reader max-velocity-y
                    :documentation "Max y velocity objects can move through this world.")
    (movement-threshold :initarg :movement-threshold
-                       :initform (coerce (units-per-second 100) 'single-float)
+                       :initform *movement-threshold*
                        :reader movement-threshold
                        :documentation "Movable objects with movement below this threshold are not considered moving.")
    (spatial-partition :initarg :spatial-partition

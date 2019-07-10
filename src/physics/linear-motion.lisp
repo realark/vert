@@ -1,12 +1,13 @@
 (in-package :recurse.vert)
 
-(let ((colliding-point (vector3 0.0 0.0 0.0))
-      (non-colliding-point (vector3 0.0 0.0 0.0)))
-  (defcollision-resolution linear-resolution ((moving-object kinematic-object)
-                                              (stationary-object obb)
-                                              &key original-position)
-    (declare (optimize (speed 3))
-             (ftype (function (vector3 vector3) world-position) distance-between))
+(defcollision-resolution linear-resolution ((moving-object kinematic-object)
+                                            (stationary-object obb)
+                                            &key original-position)
+  (declare (optimize (speed 3))
+           (ftype (function (vector3 vector3) world-position) distance-between))
+  (let ((colliding-point (vector3 0.0 0.0 0.0))
+        (non-colliding-point (vector3 0.0 0.0 0.0)))
+    (declare (dynamic-extent colliding-point non-colliding-point))
     (setf (x colliding-point) (x moving-object)
           (y colliding-point) (y moving-object)
           (z colliding-point) (z moving-object))
@@ -68,16 +69,27 @@
                      (y moving-object) (y non-colliding-point)
                      (z moving-object) (z non-colliding-point)))))
 
-(let ((original-position (vector3 0.0 0.0 0.0)))
-  (defmotion linear-motion ((object kinematic-object) delta-t-ms (physics-context physics-context-2d))
-    (declare (optimize (speed 3))
-             ((integer 1 100) delta-t-ms))
+(defmotion linear-motion ((object kinematic-object) delta-t-ms (physics-context physics-context-2d))
+  (declare (optimize (speed 3))
+           ((integer 1 100) delta-t-ms))
+  (let ((original-position (vector3 0.0 0.0 0.0)))
+    (declare (dynamic-extent original-position))
+    (with-accessors ((v-x velocity-x) (v-y velocity-y)
+                     (a-x acceleration-x) (a-y acceleration-y))
+        object
+      (declare (vector-dimension v-x v-y a-x a-y))
+      (when (and (/= 0f0 v-x)
+                 (= 0f0 a-x)
+                 (< 0f0 (abs v-x) *movement-threshold*))
+        (setf v-x 0f0))
+      (when (and (/= 0f0 v-y)
+                 (= 0f0 a-y)
+                 (< 0f0 (abs v-y) *movement-threshold*))
+        (setf v-y 0f0)))
     ;; update position
     (unless (= 0.0
-               ;; using the accessor conses so we'll check
-               ;; the slot directly for the fast case
-               (the vector-dimension (slot-value object 'velocity-x))
-               (the vector-dimension (slot-value object 'velocity-y)))
+               (the vector-dimension (velocity-x object))
+               (the vector-dimension (velocity-y object)))
       (with-accessors ((x x) (y y) (z z)
                        (v-x velocity-x) (v-y velocity-y))
           object
@@ -94,36 +106,36 @@
           (:on-collision stationary-object
                          (linear-resolution object
                                             stationary-object
-                                            :original-position original-position)))))
-    (unless (= 0.0
-               (the vector-dimension (slot-value object 'velocity-x))
-               (the vector-dimension (slot-value object 'velocity-y))
-               (the vector-dimension (slot-value object 'acceleration-x))
-               (the vector-dimension (slot-value object 'acceleration-y)))
-      (with-accessors ((v-x velocity-x) (v-y velocity-y)
-                       (a-x acceleration-x) (a-y acceleration-y))
-          object
-        (declare (vector-dimension v-x v-y a-x a-y))
-        (with-accessors ((max-v-x max-velocity-x) (max-v-y max-velocity-y)
-                         (friction-x friction-x) (drag-y drag-y))
-            physics-context
-          (declare ((single-float 0.0 1.0) friction-x drag-y))
-          (flet ((cap (max-magnitude x)
-                   (declare (single-float x))
-                   (if max-magnitude
-                       (locally (declare (type vector-dimension max-magnitude))
-                         (if (<= 0 x)
-                             (min x max-magnitude)
-                             (max x (- max-magnitude))))
-                       x)))
-            (setf
-             ;; update velocity
-             v-x (cap max-v-x (+ ;; friction applied to previous x velocity
-                               (* (expt friction-x delta-t-ms) v-x)
-                               (* a-x delta-t-ms)))
-             v-y (cap max-v-y (+ (* (expt drag-y delta-t-ms) v-y)
-                                 (* a-y delta-t-ms)))
-             ;; update acceleration
-             a-x 0.0
-             a-y 0.0)))))
-    (values)))
+                                            :original-position original-position))))))
+  (unless (= 0.0
+             (the vector-dimension (slot-value object 'velocity-x))
+             (the vector-dimension (slot-value object 'velocity-y))
+             (the vector-dimension (slot-value object 'acceleration-x))
+             (the vector-dimension (slot-value object 'acceleration-y)))
+    (with-accessors ((v-x velocity-x) (v-y velocity-y)
+                     (a-x acceleration-x) (a-y acceleration-y))
+        object
+      (declare (vector-dimension v-x v-y a-x a-y))
+      (with-accessors ((max-v-x max-velocity-x) (max-v-y max-velocity-y)
+                       (friction-x friction-x) (drag-y drag-y))
+          physics-context
+        (declare ((single-float 0.0 1.0) friction-x drag-y))
+        (flet ((cap (max-magnitude x)
+                 (declare (single-float x))
+                 (if max-magnitude
+                     (locally (declare (type vector-dimension max-magnitude))
+                       (if (<= 0 x)
+                           (min x max-magnitude)
+                           (max x (- max-magnitude))))
+                     x)))
+          (setf
+           ;; update velocity
+           v-x (cap max-v-x (+ ;; friction applied to previous x velocity
+                             (* (expt friction-x delta-t-ms) v-x)
+                             (* a-x delta-t-ms)))
+           v-y (cap max-v-y (+ (* (expt drag-y delta-t-ms) v-y)
+                               (* a-y delta-t-ms)))
+           ;; update acceleration
+           a-x 0.0
+           a-y 0.0)))))
+  (values))
