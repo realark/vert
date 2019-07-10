@@ -10,11 +10,11 @@
   nil
   "The active scene being updated")
 
+(declaim ((integer 1 100) *timestep*))
 @export
 (defvar *timestep*
-  16
-  "Duration of the update timeslice in milliseconds. 60FPS By default.")
-(declaim (type (integer 1 100) *timestep*))
+  24
+  "Duration of the update timeslice in milliseconds. Has no effect on the rendering framerate.")
 
 (defclass engine-manager (event-publisher)
   ;; global services

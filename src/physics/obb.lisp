@@ -176,36 +176,29 @@
             world-height)))
 
 @export-class
-(defclass cross ()
+(defclass cross (obb)
   ((vertical-rect :initform nil)
-   (horizontal-rect :initform nil)
-   (hit-boxes :initform (make-array 2 :element-type 'obb)))
+   (horizontal-rect :initform nil))
   (:documentation "A cross-shaped hitbox which favors different axes for the two sections. Horizontal favors X and vertical favors Y."))
 
 (defmethod initialize-instance :after ((cross cross) &key (vertical-width 1) (horizontal-height 1))
-  (with-slots (vertical-rect horizontal-rect hit-boxes) cross
+  (with-slots (vertical-rect horizontal-rect) cross
     (with-accessors ((width width) (height height) (x x) (y y) (z z)) cross
       (setf vertical-rect (make-instance 'obb
                                          :width vertical-width
                                          :height height
-                                         :x (/ width 2)
+                                         :x (- (/ width 2) (/ vertical-width 2))
                                          :y 0
                                          :z 0)
             horizontal-rect (make-instance 'obb
                            :width width
                            :height horizontal-height
                            :x 0
-                           :y (/ height 2)
+                           :y (- (/ height 2) (/ horizontal-height 2))
                            :z 0))
       (setf (parent vertical-rect) cross
-            (parent horizontal-rect) cross
-            (elt hit-boxes 0) vertical-rect
-            (elt hit-boxes 1) horizontal-rect)
+            (parent horizontal-rect) cross)
       (values))))
-
-(defmethod hit-boxe ((cross cross) object)
-  (declare (optimize (speed 3)))
-  (slot-value cross 'hit-boxes))
 
 (defmethod favored-collision-resolution-axis ((cross cross) stationary-object)
     (with-slots (vertical-rect horizontal-rect) cross
