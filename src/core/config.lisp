@@ -20,24 +20,29 @@ Each pair is a two value list with the first value being a symbol. Any keys pres
 
 Example:
   (make-config (*default-config*) ('foo \"foo val\") ('bar \"bar val\"))"
-  (when base-config (error "base-config not implemented yet"))
-  (alexandria:with-gensyms (config hash)
-    `(let ((,config (make-instance 'config)))
-       (with-slots ((,hash %config-hash)) ,config
-         ,@(loop :with config-setters = (list)
-              :for key-val :in key-value-pairs :do
-
-                (unless (and (listp key-val) (= 2 (length key-val)))
-                  (error "key-value-pairs must be two arg list of (key val). Got ~A" key-val))
-                (push `(setf (gethash (runtime-type-assert
-                                       ,(first key-val)
-                                       'symbol
-                                       "config keys must be symbols")
-                                      ,hash)
-                             ,(second key-val))
-                      config-setters)
-              :finally (return (nreverse config-setters)))
-         ,config))))
+  (alexandria:with-gensyms (config hash base-hash)
+    (alexandria:once-only (base-config)
+      `(let ((,config (make-instance 'config)))
+         (with-slots ((,hash %config-hash)) ,config
+           (when ,base-config
+             (with-slots ((,base-hash %config-hash)) ,base-config
+               (loop :for config-key :being :the hash-keys :of ,base-hash
+                  :using (hash-value config-val)
+                  :do (setf (gethash config-key ,hash)
+                            (gethash config-key ,base-hash)))))
+           ,@(loop :with config-setters = (list)
+                :for key-val :in key-value-pairs :do
+                  (unless (and (listp key-val) (= 2 (length key-val)))
+                    (error "key-value-pairs must be two arg list of (key val). Got ~A" key-val))
+                  (push `(setf (gethash (runtime-type-assert
+                                         ,(first key-val)
+                                         'symbol
+                                         "config keys must be symbols")
+                                        ,hash)
+                               ,(second key-val))
+                        config-setters)
+                :finally (return (nreverse config-setters)))
+           ,config)))))
 
 @export
 (defun export-config-key (symbol &optional documentation)
