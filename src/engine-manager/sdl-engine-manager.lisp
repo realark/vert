@@ -54,18 +54,21 @@
         ;; prevent SDL from disabling the linux compositor
         (sdl2-ffi.functions:sdl-set-hint hint-name hint-val)))
 
-    (sdl2:with-window (win :w 1280 :h 720
-                           :flags '(:shown :opengl)
-                           :title (getconfig 'game-name *config*))
+    (destructuring-bind (win-w-px win-h-px)
+        (getconfig 'initial-window-size *config*)
+      (sdl2:with-window (win :w win-w-px :h win-h-px
+                             :flags '(:shown :opengl)
+                             :title (getconfig 'game-name *config*))
 
         (sdl2:with-gl-context (sdl-glcontext win)
           (sdl2:gl-make-current win sdl-glcontext)
-          (gl:viewport 0 0 1280 720)
+          (gl:viewport 0 0 win-w-px win-h-px)
 
           (progn ; set global gl options
-            (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
-              (sdl2::sdl-gl-set-swap-interval 1))
-            (format T "set swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval))
+            (when (getconfig 'enable-vsync *config*)
+              (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
+                (sdl2::sdl-gl-set-swap-interval 1))
+              (format T "set swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval)))
             (gl:enable :cull-face)
             (gl:enable :blend)
             (gl:blend-func :src-alpha :one-minus-src-alpha))
@@ -103,12 +106,14 @@
                 (slot-value engine-manager 'rendering-context)
                 (make-gl-context :wrapper sdl-glcontext)
                 *gl-context* (slot-value engine-manager 'rendering-context))
+          (when (getconfig 'initial-window-fullscreen-p *config*)
+            (toggle-fullscreen (slot-value engine-manager 'application-window)))
           (register-input-device (input-manager engine-manager)
                                  (slot-value engine-manager 'keyboard-input))
           (loop for i from 0 below (sdl2:joystick-count) do
                (initialize-sdl-controller engine-manager i))
 
-          (call-next-method)))))
+          (call-next-method))))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
   (with-slots (sdl-controllers) engine-manager

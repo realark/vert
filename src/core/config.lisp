@@ -58,12 +58,24 @@ Example:
  'window-icon "Path to a PNG to use for the window icon. Path must be a relative path to the active config's RESOURCE-PATH. May be nil.")
 (export-config-key
  'enable-compositor "Allow running the game window with desktop compositor (e.g. x11 effects). This may affect the game's framerate.")
+(export-config-key
+ 'enable-vsync "Enable vsync for render buffer swapping.")
+(export-config-key
+ 'game-resolution "Resolution to run the game at. (list width-px height-px). Must be integers.")
+(export-config-key
+ 'initial-window-size "A list of of the window's initial width,height. Must be integers.")
+(export-config-key
+ 'initial-window-fullscreen-p "When t, run the game in fullscreen mode")
 
 @export
 (defvar *default-config* (make-config ()
                                       ('config-resource-dirs (list "./resources"))
                                       ('game-name "VertGame")
-                                      ('window-icon nil))
+                                      ('window-icon nil)
+                                      ('enable-vsync t)
+                                      ('game-resolution '(320 180))
+                                      ('initial-window-size '(1280 720))
+                                      ('initial-window-fullscreen-p nil))
   "The config used by vert if no config is specified.")
 
 @export
