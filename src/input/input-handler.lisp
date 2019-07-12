@@ -53,8 +53,8 @@
   (when (active-input-device input-handler)
     ;; TODO: instead of `scene-input` make a generic getter (separate from the concept of scenes)
     (loop for input-device across (scene-input input-context) do
-         (when (or (= *all-input-id* (active-input-device input-handler))
-                   (= (active-input-device input-handler) (device-id input-device)))
+         (when (or (eql *all-input-id* (active-input-device input-handler))
+                   (eql (active-input-device input-handler) (device-id input-device)))
            (loop for input across (get-active-inputs input-device) do
                 (%handle-active-input input-handler input-device input))
            (loop for input across (get-deactivated-inputs input-device) do
