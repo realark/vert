@@ -269,8 +269,9 @@
     (:idle ()
            (restart-case
                (progn
-
                  (game-loop-iteration engine-manager))
-             (continue () :report "Continue Game Loop")))
+             (continue () :report "Continue Vert Game Loop")
+             (quit () :report "Quit Vert"
+                   (quit))))
     (:quit ()
            t)))
