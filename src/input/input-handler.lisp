@@ -16,8 +16,13 @@
     :documentation "The DEVICE-ID of the input device the input handler is hooked up to."))
   (:documentation "Map raw inputs into user-defined commands."))
 
-(defgeneric %default-input-command-map (input-handler))
-(defgeneric %default-command-action-map (input-handler))
+(let ((empty-mappings (make-hash-table)))
+  (defgeneric %default-input-command-map (input-handler)
+    (:method (input-handler)
+      empty-mappings))
+  (defgeneric %default-command-action-map (input-handler)
+    (:method (input-handler)
+      empty-mappings)))
 
 (defun %%handle-input (input-handler input-map command-map input-device input input-type)
   (let* ((input-plist (gethash (input-name input-device) input-map))

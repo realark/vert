@@ -104,10 +104,10 @@
                          (:file "overlay")
                          (:file "menu")
                          (:file "scene-background")
-                         (:file "object-manager")
                          (:file "game-scene")
                          (:file "pause-scene")
-                         (:file "pause-menu")))
+                         (:file "pause-menu")
+                         (:file "object-manager")))
                (:module state-machine
                 :pathname "src/plugins"
                 :depends-on (:core)

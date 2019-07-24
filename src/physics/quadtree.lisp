@@ -166,10 +166,9 @@
   "T if the object is entirely inside of the quadtree."
   ;; NOTE: quadtree ignores Z axis
   (declare (optimize (speed 3)))
-  ;; FIXME: quadtree to handle child transforms
-  (with-accessors ((x1 x) (y1 y)
-                   (w1 width) (h1 height))
-      game-object
+  (multiple-value-bind (x1 y1 z1 w1 h1)
+      (world-dimensions game-object)
+    (declare (ignore z1))
     (with-accessors ((x2 x) (y2 y)
                      (w2 width) (h2 height)
                      (p2 world-position))

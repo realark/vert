@@ -140,7 +140,17 @@
                                 :height 5
                                 :x 1
                                 :y 1
-                                :z 1)))
+                                :z 1))
+         (basis3 (make-instance 'obb
+                                :parent nil
+                                :rotation 0f0
+                                :scale-x 2.0
+                                :scale-y 3.0
+                                :width 10
+                                :height 5
+                                :x 1.0
+                                :y 1.0
+                                :z 1.0)))
     (is (transform-point (vector3 -100.0 -100.0 -1.0)
                          basis1)
         (vector3 0.0 0.0 0.0)
@@ -157,4 +167,17 @@
                          basis1)
         (vector3 19.0 9.0 2.0)
         "transform point from basis2 to basis1"
-        :test #'equalp)))
+        :test #'equalp)
+
+    (is (transform-point (vector3 1.0 1.0 1.0)
+                         basis3)
+        (vector3 3.0 4.0 2.0)
+        "transform point with scaling"
+        :test #'equalp)
+
+    (multiple-value-bind (x y z w h) (world-dimensions basis3)
+      (is x 1.0 "x point scaled by 2" :test #'equalp)
+      (is y 1.0 "y point scaled by 3" :test #'equalp)
+      (is z 1.0 "z not scaled" :test #'equalp)
+      (is w 20 "width scaled by 2" :test #'equalp)
+      (is h 15 "height scaled by 3" :test #'equalp))))

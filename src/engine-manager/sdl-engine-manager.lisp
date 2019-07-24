@@ -272,6 +272,6 @@
                  (game-loop-iteration engine-manager))
              (continue () :report "Continue Vert Game Loop")
              (quit () :report "Quit Vert"
-                   (quit))))
+               (quit))))
     (:quit ()
            t)))

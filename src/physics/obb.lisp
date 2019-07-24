@@ -19,15 +19,18 @@
             (width obb) (height obb)
             (rotation obb))))
 
-(defmethod width ((obb obb))
-  (width (slot-value obb 'local-dimensions)))
-(defmethod (setf width) (value (obb obb))
-  (setf (width (slot-value obb 'local-dimensions)) (coerce value 'single-float)))
-
-(defmethod height ((obb obb))
-  (height (slot-value obb 'local-dimensions)))
-(defmethod (setf height) (value (obb obb))
-  (setf (height (slot-value obb 'local-dimensions)) (coerce value 'single-float)))
+(defun %set-local-points (obb)
+  (declare (optimize (speed 3))
+           (obb obb))
+  (with-slots (local-points) obb
+    (with-accessors ((w width) (h height)) obb
+      (setf local-points (make-array
+                          4
+                          :element-type 'vector3
+                          :initial-contents (list (vector3 0.0 0.0 0.0)
+                                                  (vector3 w 0.0 0.0)
+                                                  (vector3 w h 0.0)
+                                                  (vector3 0.0 h 0.0)))))))
 
 (defgeneric local-points (obb)
   (:documentation "Return a vector containing the four corners of the Bounding Box.
@@ -36,15 +39,20 @@
   (:method ((obb obb))
     (with-slots (local-points) obb
       (unless local-points
-        (with-accessors ((w width) (h height)) obb
-          (setf local-points (make-array
-                              4
-                              :element-type 'vector3
-                              :initial-contents (list (vector3 0.0 0.0 0.0)
-                                                      (vector3 w 0.0 0.0)
-                                                      (vector3 w h 0.0)
-                                                      (vector3 0.0 h 0.0))))))
+        (%set-local-points obb))
       local-points)))
+
+(defmethod width ((obb obb))
+  (width (slot-value obb 'local-dimensions)))
+(defmethod (setf width) (value (obb obb))
+  (prog1 (setf (width (slot-value obb 'local-dimensions)) (coerce value 'single-float))
+    (%set-local-points obb)))
+
+(defmethod height ((obb obb))
+  (height (slot-value obb 'local-dimensions)))
+(defmethod (setf height) (value (obb obb))
+  (prog1 (setf (height (slot-value obb 'local-dimensions)) (coerce value 'single-float))
+    (%set-local-points obb)))
 
 ;; TODO: could optimize further by only computing world points when the transform is dirtied
 (defun world-points (obb)
@@ -148,9 +156,10 @@
 
 (defcollision ((rect1 obb) (rect2 obb))
   (declare (optimize (speed 3)))
-  (if (= 0f0
-         (the single-float (rotation rect1))
-         (the single-float (rotation rect2)))
+  (if (and (= 0f0
+              (the single-float (rotation rect1))
+              (the single-float (rotation rect2)))
+           (eq (parent rect1) (parent rect2)))
       (aabb-collidep rect1 rect2)
       (convex-poly-collidep rect1 rect2)))
 

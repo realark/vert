@@ -88,10 +88,6 @@ On the next render frame, the objects will be given a chance to load and this li
       (start-tracking (spatial-partition scene) object)
       (push object (unloaded-game-objects scene)))))
 
-(defmethod add-to-scene :after ((scene game-scene) (object-manager object-manager))
-  (loop :for managed-obj :in (get-managed-objects object-manager) :do
-       (add-to-scene scene managed-obj)))
-
 @export
 (defgeneric remove-from-scene (scene object)
   (:documentation "Remove an object from the game scene")
@@ -108,10 +104,6 @@ On the next render frame, the objects will be given a chance to load and this li
   (:method ((scene game-scene) (object game-object))
     (stop-tracking (spatial-partition scene) object)
     (release-resources object)))
-
-(defmethod remove-from-scene :after ((scene game-scene) (object-manager object-manager))
-  (loop :for managed-obj :in (get-managed-objects object-manager) :do
-       (remove-from-scene scene managed-obj)))
 
 (defmethod update ((game-scene game-scene) delta-t-ms (null null))
   (declare (optimize (speed 3))
@@ -153,9 +145,7 @@ On the next render frame, the objects will be given a chance to load and this li
              (with-accessors ((x1 x) (y1 y) (z1 z)
                               (w1 width) (h1 height))
                  camera
-               (with-accessors ((x2 x) (y2 y) (z2 z)
-                                (w2 width) (h2 height))
-                   game-object
+               (multiple-value-bind (x2 y2 z2 w2 h2) (world-dimensions game-object)
                  (declare (world-dimension w1 h1 w2 h2)
                           (world-position x1 y1 z1 x2 y2 z2))
                  (let ((delta 10))

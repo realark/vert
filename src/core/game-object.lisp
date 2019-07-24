@@ -36,6 +36,7 @@
 
 (declaim (ftype (function (t) world-position) x y z)
          (ftype (function (t) world-dimension) width height)
+         (ftype (function (t) world-dimension) scale-x scale-y)
          (ftype (function (game-object) rotation-radians) rotation))
 
 ;; object movement event publishing

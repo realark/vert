@@ -75,6 +75,8 @@
    ;; shape and size
    :width
    :height
+   :scale-x
+   :scale-y
    :local-points
    :world-points
    :convex-polygon
