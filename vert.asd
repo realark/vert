@@ -153,71 +153,11 @@
 
 (defsystem vert/test
   :name "vert/test"
-  :description "Vert implementation used for testing."
+  :description "Vert test utils"
   :pathname "t/"
   :serial t
   :depends-on (:prove :vert)
   :components ((:file "packages")
-               (:file "test-impl/test-utils")
-               (:file "test-impl/test-introspector")
-               (:file "test-impl/test-event-publisher")
-               (:file "test-impl/test-event-subscriber")
-               (:file "test-impl/test-object")
-               (:file "test-impl/test-outline")
-               (:file "test-impl/test-circle")
-               (:file "test-impl/test-music-queuer")
-               (:file "test-impl/test-scene")
-               (:file "test-impl/test-runner")))
-
-(defsystem vert/unit-test
-  :name "vert/unit-test"
-  :pathname "t/unit/"
-  :serial t
-  :depends-on (:vert/test)
-  :defsystem-depends-on (:prove-asdf)
-  :components ((:file "core/clos-events-test")
-               (:file "core/game-object-test")
-               (:file "core/composed-object-test")
-               (:file "memory/cache-test")
-               (:file "physics/physics-utils-test")
-               (:file "physics/aabb-test")
-               (:file "physics/convex-polygon-test")
-               (:file "physics/collision-test")
-               (:file "physics/linear-motion-test")
-               (:file "physics/touch-tracker-test")
-               (:file "physics/spatial-partition-test")
-               (:file "graphics/camera-test")
-               (:file "graphics/render-interpolation-test")
-               (:file "graphics/animation-test")
-               (:file "ai/builtin-agent-tests")
-               (:file "input/input-handler-test")
-               (:file "input/input-device-test")
-               (:file "scene/menu-test")
-               (:file "scene/pause-scene-test")
-               (:file "scene/game-scene-test")
-               (:test-file "run-unit-tests"))
-  :perform (test-op :after (op c)
-                    (funcall (intern #.(string :run) :prove) c)))
-
-(defsystem vert/integration-test
-  :name "vert/integration-test"
-  :pathname "t/integration/"
-  :serial t
-  :depends-on (:vert/test)
-  :defsystem-depends-on (:prove-asdf)
-  :components ((:file "services-test")
-               (:file "scene-management-test")
-               (:test-file "run-tests"))
-  :perform (test-op :after (op c)
-                    (funcall (intern #.(string :run) :prove) c)))
-
-(defsystem vert/performance-test
-  :name "vert/performance-test"
-  :pathname "t/performance/"
-  :serial t
-  :depends-on (:vert/test)
-  :defsystem-depends-on (:prove-asdf)
-  :components ((:file "performance-test")
-               (:test-file "run-tests"))
-  :perform (test-op :after (op c)
-                    (funcall (intern #.(string :run) :prove) c)))
+               (:file "test-runner")
+               (:file "core-test")
+               (:file "cache-test")))

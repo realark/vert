@@ -1,4 +1,4 @@
-(in-package :recurse.vert/unit-test)
+(in-package :recurse.vert/test)
 
 (deftest event-pub-sub
   "basic pub-sub"

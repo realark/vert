@@ -1,4 +1,4 @@
-(in-package :recurse.vert/unit-test)
+(in-package :recurse.vert/test)
 
 (deftest base-cache
   (let* ((last-evicted-value nil)

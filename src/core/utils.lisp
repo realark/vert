@@ -16,6 +16,15 @@
 (defun rad->deg (x) (* x (/ 180 float-pi)))
 
 @export
+(defun float= (real1 real2 &key (precision 5))
+  "Superset of #'=. T if (= real1 real2) or reals are floats within PRECISION."
+  (declare (real real1 real2)
+           (fixnum precision))
+  (or (= real1 real2)
+      (= 0 (truncate (* (expt 10 precision) (- real1 real2))))))
+
+
+@export
 (defmacro ticks ()
   "Wallclock millisecond timestamp starting from an arbitrary point in time."
   `(sdl2:get-ticks))
