@@ -1,5 +1,7 @@
 (in-package :recurse.vert)
 
+(defvar +game-loop-thread-name+ "vert-game-loop")
+
 (defparameter *engine-manager*
   nil
   "Manages the current scene and runs the game loop")
@@ -41,7 +43,7 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
           (run-engine)
           (make-thread
            #'run-engine
-           :name "vert-game-loop")))))
+           :name +game-loop-thread-name+)))))
 
 (defun quit ()
   "Stop the running game engine."

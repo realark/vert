@@ -50,9 +50,20 @@
    (fps-timer-duration-seconds :initform 4)
    (num-render-frames :initform 0)
    (avg-update-time :initform 0)
-   (avg-render-time :initform 0))
+   (avg-render-time :initform 0)
+   (pending-action :initform 'no-action
+                   :documentation "A zero-arg lambda to execute at the end of the next game loop iteration"))
   (:documentation "Starts and stops the game. Manages global engine state and services."))
 (export '(rendering-context))
+
+(defgeneric quit-engine (engine-manager)
+  (:documentation "Stop the running game engine"))
+
+(defgeneric render-game-window (engine-manager)
+  (:documentation "Render the current rendering context to the application-window."))
+
+(defgeneric run-game-loop (engine-manager)
+  (:documentation "Provided by engine-manager subclasses. Runs the game loop."))
 
 (defevent engine-started ((engine-manager engine-manager))
     "Fired once when the engine starts running.")
@@ -146,7 +157,14 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           (dev-mode-pre-render engine-manager))
         (render-game-window engine-manager)
         (when (get-dev-config 'dev-mode-performance-hud)
-          (dev-mode-post-game-loop-iteration engine-manager  update-time-nanos num-updates render-time-nanos))))))
+          (dev-mode-post-game-loop-iteration engine-manager  update-time-nanos num-updates render-time-nanos))))
+    (with-slots (pending-action) engine-manager
+      (unless (eq 'no-action pending-action)
+        (funcall pending-action)
+        (sb-ext:atomic-update pending-action
+                              (lambda (previous-action)
+                                (declare (ignore previous-action))
+                                'no-action))))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
   (:documentation "Initialize ENGINE-MANAGER and start the game.
@@ -372,13 +390,16 @@ It is invoked after the engine is fully started.")
                                                        (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
                                                        (format nil "~Amb/s" dynamic-delta))))))))))))
 
-;;;; methods which will be provided by the implementation
+;;;; on-game-thread macro
 
-(defgeneric quit-engine (engine-manager)
-  (:documentation "Stop the running game engine"))
-
-(defgeneric render-game-window (engine-manager)
-  (:documentation "Render the current rendering context to the application-window."))
-
-(defgeneric run-game-loop (engine-manager)
-  (:documentation "Provided by engine-manager subclasses. Runs the game loop."))
+@export
+(defmacro on-game-thread (&body body)
+  "Run BODY on vert's game-thread at the end of the next loop iteration."
+  `(if (equal (bt:thread-name (bt:current-thread))
+              +game-loop-thread-name+)
+       (progn ,@body)
+       (unless (eq 'no-action
+                   (sb-ext:compare-and-swap (slot-value *engine-manager* 'pending-action)
+                                            'no-action
+                                            (lambda () ,@body)))
+         (error "Action already pending"))))
