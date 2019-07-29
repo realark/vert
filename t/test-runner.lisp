@@ -9,6 +9,7 @@
 (defun run-prove-tests (&key (reporter :fiveam) packages tests)
   "Reset counts and run all tests. T if all tests pass."
   (loop :for test-symb :in tests :do
+       (format T "~%----~A----~%" test-symb)
        (let ((prove:*default-test-function* #'vert-test-fn)
              (prove:*default-reporter* reporter)
              (*package* (symbol-package test-symb)))
@@ -17,6 +18,7 @@
          (unless (prove:run-test test-symb)
            (return nil))))
   (loop :for pack :in packages :do
+       (format T "~%----~A----~%" pack)
        (let ((*package* (find-package pack))
              (prove:*default-test-function* #'vert-test-fn)
              ;; list :dot :tap :fiveam
