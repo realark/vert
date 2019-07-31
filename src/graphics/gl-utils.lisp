@@ -62,11 +62,71 @@ For example, the "
      (if texture (texture-id texture) 0)))
   (values))
 
+(defun gl-context-clear-all (gl-context)
+  (setf (gl-context-shader gl-context) nil
+        (gl-context-texture gl-context) nil
+        (gl-context-vao gl-context) 0))
+
 ;;;; Shader
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defstruct shader-source
+    (source-file (error ":source-file required"))
+    (file-contents nil :type (or null string)))
+
+  (defun shader-source-load (shader-source)
+    (declare (shader-source shader-source))
+    (if (shader-source-source-file shader-source)
+        (setf (shader-source-file-contents shader-source)
+              (uiop:read-file-string (shader-source-source-file shader-source)))
+        (warn "Unable to find shader source file: ~A. Not changing in-memory source."
+              (shader-source-source-file shader-source))))
+
+  (defvar %builtin-shaders% (make-hash-table))
+
+  @export
+  (defun add-builtin-shader-source (name path-to-shader)
+    (let* ((path (probe-file path-to-shader))
+           (shader-source
+            (make-shader-source :source-file path)))
+      (assert path)
+      (when (gethash name %builtin-shaders%)
+        (error "shader already defined"))
+
+      (shader-source-load shader-source)
+      (setf (gethash name %builtin-shaders%)
+            shader-source)))
+
+  @export
+  (defun get-builtin-shader-source (name)
+    (gethash name %builtin-shaders%))
+
+  (when (= 0 (hash-table-count %builtin-shaders%))
+    (add-builtin-shader-source 'polygon-shader.vert
+                       (merge-pathnames (pathname "src/graphics/polygon-shader.vert")
+                                        (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'polygon-shader.frag
+                       (merge-pathnames (pathname "src/graphics/polygon-shader.frag")
+                                        (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'sprite-shader.vert
+                       (merge-pathnames (pathname "src/graphics/sprite-shader.vert")
+                                        (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'sprite-shader.frag
+                       (merge-pathnames (pathname "src/graphics/sprite-shader.frag")
+                                        (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'font-shader.vert
+                       (merge-pathnames (pathname "src/graphics/font-shader.vert")
+                                        (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'font-shader.frag
+                       (merge-pathnames (pathname "src/graphics/font-shader.frag")
+                                        (asdf:system-source-directory :vert)))))
+
 (defclass shader ()
   ((vertex-source
     :initarg :vertex-source
     :initform (error ":vertex-source required"))
+   (geometry-source
+    :initarg :geometry-source
+    :initform nil)
    (fragment-source
     :initarg :fragment-source
     :initform (error ":fragment-source required"))
@@ -75,7 +135,22 @@ For example, the "
    (uniform-locations :initform (make-instance 'cache)
                       :documentation "cache uniform-name -> uniform-id")))
 
-(defmethod load-resources ((shader shader) (renderer gl-context))
+(defmethod initialize-instance :after ((shader shader) &rest args)
+  (declare (ignore args))
+  (flet ((make-shader-source (shader-source)
+           (unless (typep shader-source 'shader-source)
+             (assert (probe-file shader-source))
+             (setf shader-source (make-shader-source :source-file (pathname shader-source))))
+           (shader-source-load shader-source)
+           (assert (shader-source-file-contents shader-source))
+           shader-source))
+    (with-slots (vertex-source geometry-source fragment-source) shader
+      (setf vertex-source (make-shader-source vertex-source)
+            fragment-source (make-shader-source fragment-source))
+      (when geometry-source
+        (setf geometry-source (make-shader-source geometry-source))))))
+
+(defmethod load-resources ((shader shader) context)
   ;; compile and link the shader if not already done
   (flet ((assert-no-shader-errors (shader-id)
            (assert (/= 0 shader-id))
@@ -95,21 +170,28 @@ For example, the "
                     (when (/= 1 (cffi:mem-aref success :int))
                       (error "OpenGl error:~%~A" (gl:get-program-info-log program-id))))
                (cffi:foreign-free success)))))
-    (with-slots (vertex-source fragment-source program-id uniform-locations)
+    (with-slots (vertex-source
+                 fragment-source
+                 program-id
+                 uniform-locations)
         shader
-      (when (= 0 program-id)
-        (clear-cache uniform-locations)
-        (let ((vertex-shader 0)
+      (unless (/= 0 program-id)
+        (release-resources shader)
+        (shader-source-load vertex-source)
+        (shader-source-load fragment-source)
+        (let ((vertex-source-code (shader-source-file-contents vertex-source))
+              (fragment-source-code (shader-source-file-contents fragment-source))
+              (vertex-shader 0)
               (fragment-shader 0))
           (unwind-protect
                (progn
                  (setf vertex-shader (gl:create-shader :vertex-shader)
                        fragment-shader (gl:create-shader :fragment-shader))
-                 (gl:shader-source vertex-shader vertex-source)
+                 (gl:shader-source vertex-shader vertex-source-code)
                  (gl:compile-shader vertex-shader)
                  (assert-no-shader-errors vertex-shader)
 
-                 (gl:shader-source fragment-shader fragment-source)
+                 (gl:shader-source fragment-shader fragment-source-code)
                  (gl:compile-shader fragment-shader)
                  (assert-no-shader-errors fragment-shader)
 
@@ -134,6 +216,12 @@ For example, the "
       (gl:delete-program program-id)
       (setf program-id 0)
       (clear-cache uniform-locations))))
+
+(defmethod reload ((shader shader))
+  "Reload a shader's source. No effect if the shader is not already loaded."
+  (unless (= 0 (slot-value shader 'program-id))
+    (release-resources shader)
+    (load-resources shader t)))
 
 (defun set-uniformf (shader uniform-name x &optional y z w)
   (declare (optimize (speed 3))
@@ -230,6 +318,8 @@ For example, the "
             texture-src-height nil))))
 
 ;;;; globals
+(defvar *gl-context* nil)
+
 (defvar *shader-cache*
   (getcache-default "shader-cache"
                     *engine-caches*
@@ -238,6 +328,26 @@ For example, the "
                                    (lambda (key value)
                                      (declare (ignore key))
                                      (release-resources value)))))
+
+(defvar *texture-cache*
+  (getcache-default "texture-cache"
+                    *engine-caches*
+                    (make-instance 'resource-cache)))
+
+;; TODO: generalize resource reloading
+@export
+(defun reload-all-shaders ()
+  (on-game-thread
+    (do-cache (*shader-cache* shader-key shader)
+      (format T "reload: ~A -- ~A~%" shader-key shader)
+      (loop :with shader-loaded = nil
+         :while (not shader-loaded) :do
+           (restart-case
+               ;; wrap in loop so we can retry shader load if there is an error
+               (progn (reload shader)
+                      (setf shader-loaded t))
+             (retry-shader-load () :report "Retry loading shader"))))
+    (gl-context-clear-all *gl-context*)))
 
 ;;;; FFIs
 ;;;; cl-opengl wrapper is consing so we'll redefine some non-consing alternatives to use in hot code.

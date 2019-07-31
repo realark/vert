@@ -11,51 +11,37 @@
   ;; Horizontal offset to advance to next glyph
   (advance (error ":advance required") :type (integer 0 *)))
 
-(defvar %font-key% (make-instance 'standard-object))
+(defvar %font-key% 'gl-font)
+
+(defvar %font-buffer-cache%
+  (getcache-default "font-buffer-cache"
+                    *engine-caches*
+                    (make-instance 'counting-cache
+                                   :on-evict
+                                   (lambda (sprite-key gl-buffers)
+                                     (declare (ignore sprite-key))
+                                     (destructuring-bind (cached-vao cached-vbo cached-vertices) gl-buffers
+                                       (gl:delete-vertex-arrays (list cached-vao))
+                                       (gl:delete-buffers (list cached-vbo))
+                                       (gl:free-gl-array cached-vertices))))))
+
+(defvar %glyph-cache%
+  (getcache-default
+   "glyph-cache"
+   *engine-caches*
+   (make-instance 'counting-cache
+                  :on-evict
+                  (lambda (font-size glyph-map)
+                    (declare (ignore font-size))
+                    (%free-glyph-map glyph-map)))))
 
 (progn
-  (defclass gl-font (gl-drawable)
-    ((text :initarg :text
-           :initform (error ":text required")
-           :accessor text)
-     (path-to-font :initarg :path-to-font
-                   :initform "fonts/liberation_sans/LiberationSans-Regular.ttf"
-                   :reader path-to-font
-                   :documentation "Path to font file.")
-     (font-size :initform 72
-                :initarg :font-size
-                :documentation "Pixel depth of the font.")
-     (color :initarg :color
-            :initform nil
-            :documentation "Color of the text."
-            :accessor color)
-     (shader-cache :initarg :shader-cache
-                   :initform *shader-cache*)
+  (defclass gl-font (draw-component)
+    ((font-drawable :initarg :font-drawable
+                    :initform (error ":font-drawable required"))
      (shader :initform nil :reader shader)
-     (glyph-cache :initarg :glyph-cache
-                  :initform
-                  (getcache-default
-                   "glyph-cache"
-                   *engine-caches*
-                   (make-instance 'counting-cache
-                                  :on-evict
-                                  (lambda (font-size glyph-map)
-                                    (declare (ignore font-size))
-                                    (%free-glyph-map glyph-map))))
-                  :documentation "cache font-size->glyph-cache")
      (glyph-map :initform nil)
-     (buffer-cache :initarg :buffer-cache
-                   :initform
-                   (getcache-default "font-buffer-cache"
-                                     *engine-caches*
-                                     (make-instance 'counting-cache
-                                                    :on-evict
-                                                    (lambda (sprite-key gl-buffers)
-                                                      (declare (ignore sprite-key))
-                                                      (destructuring-bind (cached-vao cached-vbo cached-vertices) gl-buffers
-                                                        (gl:delete-vertex-arrays (list cached-vao))
-                                                        (gl:delete-buffers (list cached-vbo))
-                                                        (gl:free-gl-array cached-vertices))))))
+
      (vao :initform 0 :reader vao)
      (vbo :initform 0)
      (vertices-byte-size :initform 0)
@@ -63,128 +49,118 @@
      (vertices :initform nil)))
   (export '(text)))
 
-(defun font-dimensions (gl-font)
-  (declare (gl-font gl-font))
-  (with-slots (text glyph-cache font-size) gl-font
-    (let ((glyph-map (getcache font-size glyph-cache)))
-      (if glyph-map
-          (values (%compute-text-width text glyph-map)
-                  (elt (glyph-size (gethash (char-code #\y) glyph-map)) 1))
-          (values 100 10)))))
-
 (defmethod load-resources ((gl-font gl-font) (renderer gl-context))
-  (with-slots (shader-cache shader font-size glyph-map glyph-cache vao vbo vertices vertices-byte-size vertices-pointer-offset buffer-cache)
+  (with-slots (font-drawable shader glyph-map vao vbo vertices vertices-byte-size vertices-pointer-offset)
       gl-font
-    (setf shader
+    (when (= 0 vao)
+      (setf shader
+            (getcache-default %font-key%
+                              *shader-cache*
+                              (let ((shader (%create-font-shader)))
+                                (load-resources shader renderer)
+                                shader)))
+      (setf glyph-map (getcache-default (font-size font-drawable)
+                                        %glyph-cache%
+                                        (%init-glyph-map gl-font)))
+
+      (destructuring-bind (cached-vao cached-vbo cached-vertices)
           (getcache-default %font-key%
-                            shader-cache
-                            (let ((shader (%create-font-shader)))
-                              (load-resources shader renderer)
-                              shader)))
-
-    (setf glyph-map (getcache-default font-size
-                                      glyph-cache
-                                      (%init-glyph-map gl-font)))
-
-    (destructuring-bind (cached-vao cached-vbo cached-vertices)
-        (getcache-default %font-key%
-                          buffer-cache
-                          (%create-font-buffers))
-      (setf vao cached-vao
-            vbo cached-vbo
-            vertices cached-vertices
-            vertices-byte-size (gl::gl-array-byte-size vertices)
-            vertices-pointer-offset (gl::gl-array-pointer-offset vertices 0)))))
+                            %font-buffer-cache%
+                            (%create-font-buffers))
+        (setf vao cached-vao
+              vbo cached-vbo
+              vertices cached-vertices
+              vertices-byte-size (gl::gl-array-byte-size vertices)
+              vertices-pointer-offset (gl::gl-array-pointer-offset vertices 0))))))
 
 (defmethod release-resources ((gl-font gl-font))
-  (with-slots (shader-cache shader font-size glyph-cache glyph-map buffer-cache vao vbo)
+  (with-slots (font-drawable shader glyph-map vao vbo)
       gl-font
-    (remcache %font-key% shader-cache)
-    (remcache font-size glyph-cache)
-    (remcache %font-key% buffer-cache)
-    (setf shader nil
-          glyph-map nil
-          vao 0
-          vbo 0)))
+    (unless (= 0 vao)
+      (remcache %font-key% *shader-cache*)
+      (remcache (font-size font-drawable) %glyph-cache%)
+      (remcache %font-key% %font-buffer-cache%)
+      (setf shader nil
+            glyph-map nil
+            vao 0
+            vbo 0))))
 
 (defmethod render ((gl-font gl-font) update-percent (camera simple-camera) (renderer gl-context))
     (declare (optimize (speed 3)))
-    (with-slots (color shader glyph-map vao vbo text vertices vertices-byte-size vertices-pointer-offset)
+    (with-slots (font-drawable shader glyph-map vao vbo vertices vertices-byte-size vertices-pointer-offset)
         gl-font
+      (with-accessors ((color color) (text text))
+          font-drawable
+        (gl-use-shader renderer shader)
 
-      (gl-use-shader renderer shader)
+        (set-uniform-matrix-4fv shader "projection"
+                                (interpolated-world-projection-matrix camera update-percent)
+                                nil)
 
-      (set-uniform-matrix-4fv shader
-                              "projection"
-                              (interpolated-world-projection-matrix camera update-percent)
-                              nil)
+        (if color
+            (set-uniformf shader "textColor"
+                          (r color)
+                          (g color)
+                          (b color)
+                          (a color))
+            (set-uniformf shader "textColor"
+                          1.0 1.0 1.0 1.0))
+        (n-active-texture :texture0)
+        (gl-use-vao renderer vao)
+        (n-bind-buffer :array-buffer vbo)
 
-      (if color
-          (set-uniformf shader
-                        "textColor"
-                        (r color)
-                        (g color)
-                        (b color)
-                        (a color))
-          (set-uniformf shader
-                        "textColor"
-                        1.0 1.0 1.0 1.0))
-      (n-active-texture :texture0)
-      (gl-use-vao renderer vao)
-      (n-bind-buffer :array-buffer vbo)
+        (multiple-value-bind (ix iy iz iw ih)
+            (world-dimensions font-drawable)
+          (declare (ignore iz))
+          (loop
+             ;; width = text-width * scale
+             :with scale = (min 1.0
+                                (/ iw (%compute-text-width text glyph-map))
+                                (/ ih (elt (glyph-size (gethash (char-code #\y) glyph-map)) 1)))
+             :and x = ix
+             :and y = iy
+             ;; Using for offset #\H because its bearing touches the top of the glyph space
+             :and h-bearing-y = (elt (glyph-bearing (gethash (char-code #\H) glyph-map)) 1)
+             :for char :across text :do
+               (let* ((glyph (gethash (char-code char) glyph-map))
+                      (glyph-bearing-x (elt (glyph-bearing glyph) 0))
+                      (glyph-bearing-y (elt (glyph-bearing glyph) 1))
+                      (glyph-size-x (elt (glyph-size glyph) 0))
+                      (glyph-size-y (elt (glyph-size glyph) 1))
+                      (xpos (+ x (* glyph-bearing-x scale)))
+                      (ypos (+ y (* (- h-bearing-y glyph-bearing-y) scale)) )
+                      (w (* glyph-size-x scale))
+                      (h (* glyph-size-y scale)))
+                 (macrolet ((set-vertices-data (&rest data)
+                              `(progn
+                                 ,@(loop :for val :in data
+                                      :for i :from 0 :collect
+                                        `(setf (cffi:mem-aref (gl::gl-array-pointer vertices)
+                                                              :float
+                                                              ,i)
+                                               ,val)))))
+                   (set-vertices-data
+                    ;; bottom right
+                    (+ xpos w)   (+ ypos h)  1.0  1.0
+                    ;; top right
+                    (+ xpos w)   ypos        1.0  0.0
+                    ;; top left
+                    xpos         ypos        0.0  0.0
+                    ;; bottom left
+                    xpos         (+ ypos h)  0.0  1.0))
 
+                 ;; TODO: it would probably be a lot faster to generate and cache the texture just once
+                 (gl-bind-texture renderer nil)
+                 (n-bind-texture :texture-2d (glyph-texture-id glyph))
+                 (%n-buffer-sub-data :array-buffer
+                                     0
+                                     vertices-byte-size
+                                     vertices-pointer-offset)
+                 (n-draw-arrays :triangle-fan 0 4)
 
-      (multiple-value-bind (ix iy iz iw ih)
-          (world-dimensions gl-font)
-        (loop
-           ;; width = text-width * scale
-           :with scale = (min 1.0
-                              (/ iw (%compute-text-width text glyph-map))
-                              (/ ih (elt (glyph-size (gethash (char-code #\y) glyph-map)) 1)))
-           :and x = ix
-           :and y = iy
-           ;; Using for offset #\H because its bearing touches the top of the glyph space
-           :and h-bearing-y = (elt (glyph-bearing (gethash (char-code #\H) glyph-map)) 1)
-           :for char :across text :do
-             (let* ((glyph (gethash (char-code char) glyph-map))
-                    (glyph-bearing-x (elt (glyph-bearing glyph) 0))
-                    (glyph-bearing-y (elt (glyph-bearing glyph) 1))
-                    (glyph-size-x (elt (glyph-size glyph) 0))
-                    (glyph-size-y (elt (glyph-size glyph) 1))
-                    (xpos (+ x (* glyph-bearing-x scale)))
-                    (ypos (+ y (* (- h-bearing-y glyph-bearing-y) scale)) )
-                    (w (* glyph-size-x scale))
-                    (h (* glyph-size-y scale)))
-               (macrolet ((set-vertices-data (&rest data)
-                            `(progn
-                               ,@(loop :for val :in data
-                                    :for i :from 0 :collect
-                                      `(setf (cffi:mem-aref (gl::gl-array-pointer vertices)
-                                                            :float
-                                                            ,i)
-                                             ,val)))))
-                 (set-vertices-data
-                  ;; bottom right
-                  (+ xpos w)   (+ ypos h)  1.0  1.0
-                  ;; top right
-                  (+ xpos w)   ypos        1.0  0.0
-                  ;; top left
-                  xpos         ypos        0.0  0.0
-                  ;; bottom left
-                  xpos         (+ ypos h)  0.0  1.0))
-
-               ;; TODO: it would probably be a lot faster to generate and cache the texture just once
-               (gl-bind-texture renderer nil)
-               (n-bind-texture :texture-2d (glyph-texture-id glyph))
-               (%n-buffer-sub-data :array-buffer
-                                   0
-                                   vertices-byte-size
-                                   vertices-pointer-offset)
-               (n-draw-arrays :triangle-fan 0 4)
-
-               ;; Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
-               ;; Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
-               (incf x (* (ash (glyph-advance glyph) -6) scale)))))))
+                 ;; Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+                 ;; Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+                 (incf x (* (ash (glyph-advance glyph) -6) scale))))))))
 
 (defun %compute-text-width (text glyph-map)
   (loop :with width = 0
@@ -195,41 +171,11 @@
      :finally (return width)))
 
 (defun %create-font-shader ()
-  (let* ((vertex-shader-source
-          "#version 330 core
-layout (location = 0) in vec4 vertex; // <vec2 pos, vec2 tex>
-out vec2 TexCoords;
-
-uniform mat4 projection;
-float roundingPrecision = 10000.0;
-
-void main()
-{
-
-    vec4 rawPosition = projection * vec4(vertex.xy, 0.0, 1.0);
-    gl_Position = vec4(round((rawPosition.x * roundingPrecision)) / roundingPrecision,
-                       round((rawPosition.y * roundingPrecision)) / roundingPrecision,
-                       rawPosition.z,
-                       rawPosition.a);
-    TexCoords = vertex.zw;
-}")
-         (fragment-shader-source
-          "#version 330 core
-in vec2 TexCoords;
-out vec4 color;
-
-uniform sampler2D text;
-uniform vec4 textColor;
-
-void main()
-{
-    vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, TexCoords).r);
-    color = textColor * sampled;
-}")
-         (font-shader (make-instance 'shader
-                                     :vertex-source vertex-shader-source
-                                     :fragment-source fragment-shader-source)))
-    font-shader))
+  (make-instance 'shader
+                 :vertex-source
+                 (get-builtin-shader-source 'font-shader.vert)
+                 :fragment-source
+                 (get-builtin-shader-source 'font-shader.frag)))
 
 (defun %create-font-buffers ()
   "set up the vao, vbo, and vertex array for rendering the font"
@@ -257,9 +203,9 @@ void main()
 
 (defun %init-glyph-map (gl-font)
   (declare (gl-font gl-font))
-  (with-slots (path-to-font)
+  (with-slots (font-drawable)
       gl-font
-    (let ((font-face (freetype2:new-face (resource-path path-to-font))))
+    (let ((font-face (freetype2:new-face (resource-path (path-to-font font-drawable)))))
       (freetype2:set-pixel-sizes font-face 0 48)
       (gl:pixel-store :unpack-alignment 1)
       ;; TODO: configurable chars

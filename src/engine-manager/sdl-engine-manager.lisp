@@ -121,8 +121,10 @@
          (remove-sdl-controller engine-manager sdl-joystick-id))))
 
 (defmethod quit-engine ((engine-manager sdl-engine-manager))
-  (setf *gl-context* nil)
   (sdl2:push-event :quit))
+
+(on-engine-stop ('clear-gl-context)
+  (setf *gl-context* nil))
 
 (defun sdl-key-down (keyboard keysym)
   (activate-input keyboard (sdl2:scancode keysym)))
