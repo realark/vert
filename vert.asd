@@ -73,7 +73,6 @@
                          (:static-file "font-shader.frag")
                          (:file "draw-component")
                          (:file "drawable")
-                         (:file "gl-font")
                          (:file "static-sprite")
                          (:file "animated-sprite")
                          (:file "font-drawable")))
