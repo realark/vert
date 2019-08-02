@@ -1,7 +1,9 @@
 #version 330 core
 out vec4 FragColor;
 
-in vec2 TexCoord;
+in VertexData {
+  vec2 textureCoords;
+} fragmentData;
 
 // texture sampler
 uniform sampler2D ourTexture;
@@ -12,7 +14,7 @@ uniform float spriteColorMapTolerance;
 
 void main()
 {
-  vec4 colorMappedTexture = texture(ourTexture, TexCoord);
+  vec4 colorMappedTexture = texture(ourTexture, fragmentData.textureCoords);
   if (spriteColorMapFrom != spriteColorMapTo) {
     if ((abs(spriteColorMapFrom.r - colorMappedTexture.r) <= spriteColorMapTolerance)
         && (abs(spriteColorMapFrom.g - colorMappedTexture.g) <= spriteColorMapTolerance)

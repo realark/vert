@@ -172,6 +172,7 @@ For example, the "
                (cffi:foreign-free success)))))
     (with-slots (vertex-source
                  fragment-source
+                 geometry-source
                  program-id
                  uniform-locations)
         shader
@@ -179,10 +180,15 @@ For example, the "
         (release-resources shader)
         (shader-source-load vertex-source)
         (shader-source-load fragment-source)
+        (when geometry-source
+          (shader-source-load geometry-source))
         (let ((vertex-source-code (shader-source-file-contents vertex-source))
               (fragment-source-code (shader-source-file-contents fragment-source))
+              (geometry-source-code (when geometry-source
+                                      (shader-source-file-contents geometry-source)))
               (vertex-shader 0)
-              (fragment-shader 0))
+              (fragment-shader 0)
+              (geometry-shader 0))
           (unwind-protect
                (progn
                  (setf vertex-shader (gl:create-shader :vertex-shader)
@@ -195,10 +201,18 @@ For example, the "
                  (gl:compile-shader fragment-shader)
                  (assert-no-shader-errors fragment-shader)
 
+                 (when geometry-source
+                   (setf geometry-shader (gl:create-shader :geometry-shader))
+                   (gl:shader-source geometry-shader geometry-source-code)
+                   (gl:compile-shader geometry-shader)
+                   (assert-no-shader-errors geometry-shader))
+
                  (handler-case
                      (progn
                        (setf program-id (gl:create-program))
                        (gl:attach-shader program-id vertex-shader)
+                       (when geometry-source
+                         (gl:attach-shader program-id geometry-shader))
                        (gl:attach-shader program-id fragment-shader)
                        (gl:link-program program-id)
                        (assert-no-program-errors program-id))
@@ -208,7 +222,9 @@ For example, the "
             (unless (= 0 vertex-shader)
               (gl:delete-shader vertex-shader))
             (unless (= 0 fragment-shader)
-              (gl:delete-shader fragment-shader))))))))
+              (gl:delete-shader fragment-shader))
+            (unless (= 0 geometry-shader)
+              (gl:delete-shader geometry-shader))))))))
 
 (defmethod release-resources ((shader shader))
   (with-slots (program-id uniform-locations) shader
@@ -333,21 +349,6 @@ For example, the "
   (getcache-default "texture-cache"
                     *engine-caches*
                     (make-instance 'resource-cache)))
-
-;; TODO: generalize resource reloading
-@export
-(defun reload-all-shaders ()
-  (on-game-thread
-    (do-cache (*shader-cache* shader-key shader)
-      (format T "reload: ~A -- ~A~%" shader-key shader)
-      (loop :with shader-loaded = nil
-         :while (not shader-loaded) :do
-           (restart-case
-               ;; wrap in loop so we can retry shader load if there is an error
-               (progn (reload shader)
-                      (setf shader-loaded t))
-             (retry-shader-load () :report "Retry loading shader"))))
-    (gl-context-clear-all *gl-context*)))
 
 ;;;; FFIs
 ;;;; cl-opengl wrapper is consing so we'll redefine some non-consing alternatives to use in hot code.

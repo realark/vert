@@ -2,7 +2,9 @@
 layout (location = 0) in vec3 screenPos;
 layout (location = 1) in vec2 srcCoord;
 
-out vec2 TexCoord;
+out VertexData {
+  vec2 textureCoords;
+} vertexData;
 
 uniform mat4 worldModel;
 uniform mat4 worldProjection;
@@ -17,7 +19,7 @@ void main()
   float spriteWidth = spriteSrc.z;
   float spriteHeight = spriteSrc.w;
 
-  TexCoord = vec2(spriteSrcX + (srcCoord.x * spriteWidth), spriteSrcY + (srcCoord.y * spriteHeight));
+  vertexData.textureCoords = vec2(spriteSrcX + (srcCoord.x * spriteWidth), spriteSrcY + (srcCoord.y * spriteHeight));
   vec4 rawPosition = worldProjection * worldModel * vec4(screenPos, 1.0);
   gl_Position = vec4(round((rawPosition.x * roundingPrecision)) / roundingPrecision,
                      round((rawPosition.y * roundingPrecision)) / roundingPrecision,

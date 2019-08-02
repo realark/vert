@@ -115,6 +115,16 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
       (when pending-scene-changes
         (funcall pending-scene-changes)
         (setf pending-scene-changes nil)))
+    ;; then any pending dev actions
+    (with-slots (pending-action) engine-manager
+      (unless (eq 'no-action pending-action)
+        (let ((pending pending-action))
+          (declare (function pending))
+          (sb-ext:atomic-update pending-action
+                                (lambda (previous-action)
+                                  (declare (ignore previous-action))
+                                  'no-action))
+          (funcall pending))))
     ;; I've considered wrapping this methig in (sb-sys:without-gcing)
     ;; to prevent short GCs from dropping the FPS.
     ;; It seems like that could deadlock if the game is multithreaded.
@@ -157,14 +167,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           (dev-mode-pre-render engine-manager))
         (render-game-window engine-manager)
         (when (get-dev-config 'dev-mode-performance-hud)
-          (dev-mode-post-game-loop-iteration engine-manager  update-time-nanos num-updates render-time-nanos))))
-    (with-slots (pending-action) engine-manager
-      (unless (eq 'no-action pending-action)
-        (funcall pending-action)
-        (sb-ext:atomic-update pending-action
-                              (lambda (previous-action)
-                                (declare (ignore previous-action))
-                                'no-action))))))
+          (dev-mode-post-game-loop-iteration engine-manager  update-time-nanos num-updates render-time-nanos))))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
   (:documentation "Initialize ENGINE-MANAGER and start the game.

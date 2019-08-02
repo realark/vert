@@ -1,8 +1,13 @@
 ;; An external device that generates input.
 (in-package :recurse.vert)
 
+@export
 (defparameter *all-input-id* -1
   "ID for binding every available input. This is useful for menus or shared controls.")
+
+@export
+(defparameter *no-input-id* -2
+  "ID for binding every no inputs. Used to disable input (for example, while playing a death animation).")
 
 (defparameter %next-input-id% 0)
 

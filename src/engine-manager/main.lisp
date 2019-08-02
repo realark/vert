@@ -49,3 +49,24 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
   "Stop the running game engine."
   (when *engine-manager*
     (quit-engine *engine-manager*)))
+
+
+(defun %reload-all-shaders ()
+  ;; first clear out any existing gl errors
+  (gl:get-error)
+  (do-cache (*shader-cache* shader-key shader)
+    (format T "reload: ~A -- ~A~%" shader-key shader)
+    (loop :with shader-loaded = nil
+       :while (not shader-loaded) :do
+         (restart-case
+             ;; wrap in loop so we can retry shader load if there is an error
+             (progn (reload shader)
+                    (setf shader-loaded t))
+           (retry-shader-load () :report "Retry loading shader"))))
+  (gl-context-clear-all *gl-context*))
+
+;; TODO: generalize resource reloading
+@export
+(defun reload-all-shaders ()
+  (on-game-thread
+    (%reload-all-shaders)))
