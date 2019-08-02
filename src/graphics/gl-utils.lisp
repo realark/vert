@@ -151,6 +151,7 @@ For example, the "
         (setf geometry-source (make-shader-source geometry-source))))))
 
 (defmethod load-resources ((shader shader) context)
+  (declare (ignore context))
   ;; compile and link the shader if not already done
   (flet ((assert-no-shader-errors (shader-id)
            (assert (/= 0 shader-id))
@@ -176,8 +177,7 @@ For example, the "
                  program-id
                  uniform-locations)
         shader
-      (unless (/= 0 program-id)
-        (release-resources shader)
+      (when (= 0 program-id)
         (shader-source-load vertex-source)
         (shader-source-load fragment-source)
         (when geometry-source

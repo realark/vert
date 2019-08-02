@@ -60,7 +60,8 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
        :while (not shader-loaded) :do
          (restart-case
              ;; wrap in loop so we can retry shader load if there is an error
-             (progn (reload shader)
+             (progn (release-resources shader)
+                    (load-resources shader t)
                     (setf shader-loaded t))
            (retry-shader-load () :report "Retry loading shader"))))
   (gl-context-clear-all *gl-context*))
