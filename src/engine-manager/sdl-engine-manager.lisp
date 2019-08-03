@@ -106,7 +106,7 @@
                 (slot-value engine-manager 'rendering-context)
                 (make-gl-context :wrapper sdl-glcontext)
                 *gl-context* (slot-value engine-manager 'rendering-context))
-          (when (getconfig 'initial-window-fullscreen-p *config*)
+          (when (getconfig 'fullscreen-p *config*)
             (toggle-fullscreen (slot-value engine-manager 'application-window)))
           (register-input-device (input-manager engine-manager)
                                  (slot-value engine-manager 'keyboard-input))

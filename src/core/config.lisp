@@ -63,6 +63,8 @@ Example:
 (export-config-key
  'game-resolution "Resolution to run the game at. (list width-px height-px). Must be integers.")
 (export-config-key
+ 'fullscreen-p "When T, start the game in fullscreen mode")
+(export-config-key
  'initial-window-size "A list of of the window's initial width,height. Must be integers.")
 (export-config-key
  'initial-window-fullscreen-p "When t, run the game in fullscreen mode")
@@ -74,6 +76,7 @@ Example:
                                       ('window-icon nil)
                                       ('enable-vsync t)
                                       ('game-resolution '(320 180))
+                                      ('fullscreen-p nil)
                                       ('initial-window-size '(1280 720))
                                       ('initial-window-fullscreen-p nil))
   "The config used by vert if no config is specified.")
