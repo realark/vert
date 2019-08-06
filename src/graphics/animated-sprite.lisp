@@ -74,6 +74,22 @@
                     (active-animation-frame-index animated-sprite) 0)))))))
 
 @export
+(defgeneric interrupt-animation (game-object)
+  (:documentation "Cancel the current animation and get a new one")
+  (:method ((animated-sprite animated-sprite))
+    (with-slots (animations
+                 active-animation-frame-index
+                 active-animation
+                 next-frame-change-timestamp
+                 active-animation-keyword)
+        animated-sprite
+      (setf active-animation-keyword (get-new-animation animated-sprite)
+            active-animation (getf animations active-animation-keyword)
+            next-frame-change-timestamp 0
+            active-animation-frame-index 0)
+      active-animation-keyword)))
+
+@export
 (defgeneric get-new-animation (game-object)
   (:documentation "Called every draw updated.
 A keyword present in the animation plist must be returned.
