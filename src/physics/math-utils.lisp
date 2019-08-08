@@ -2,13 +2,13 @@
 
 (in-package :recurse.vert)
 
+@export
 (defun deg->rad (x)
-  ;; (declare (optimize (speed 3)))
   (declare (rotation-degrees x))
   (the rotation-radians (* x #.(/ float-pi 180))))
 
+@export
 (defun rad->deg (x)
-  ;; (declare (optimize (speed 3)))
   (declare (rotation-radians x))
   (the rotation-degrees (* x #.(/ 180 float-pi))))
 
