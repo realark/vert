@@ -62,7 +62,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
                       (tg:cancel-finalization chunk)
                       chunk)))
 
-(eval-when (:compile-toplevel :load-toplevel)
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (cffi:defcallback
       music-finished-callback :void ()
     "When music finishes playing queue up"
@@ -77,14 +77,15 @@ Computed as (* (/ bit-rate 8) num-channels)")
              ((= num-music-plays 0) (setf (music-state *audio*) :stopped))
              (T (setf num-music-plays -1 (music-state *audio*) :playing))))
           (:stopped (setf num-music-plays 0))))))
-  (unwind-protect
-       (progn
-         ;; lock all audio devices
-         (sdl2-ffi.functions:sdl-lock-audio-device 1)
-         (sdl2-ffi.functions:mix-hook-music-finished
-          (cffi:callback music-finished-callback)))
-    ;; unlock all audio devices
-    (sdl2-ffi.functions:sdl-unlock-audio-device 1)))
+  (on-engine-start ('init-sdl-finish-callback)
+    (unwind-protect
+         (progn
+           ;; lock all audio devices
+           (sdl2-ffi.functions:sdl-lock-audio-device 1)
+           (sdl2-ffi.functions:mix-hook-music-finished
+            (cffi:callback music-finished-callback)))
+      ;; unlock all audio devices
+      (sdl2-ffi.functions:sdl-unlock-audio-device 1))))
 
 ;; audio player api implementation
 

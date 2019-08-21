@@ -190,9 +190,8 @@ It is invoked after the engine is fully started.")
               :do (funcall hook))
            (sb-ext:gc :full T) ;; run a full gc before the first window is shown
            ;; run the game loop
-
-
            (run-game-loop engine-manager))
+      (format t "Game Complete. Cleaning up Engine.~%")
       (cleanup-engine engine-manager))))
 
 (defgeneric cleanup-engine (engine-manager)
