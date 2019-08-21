@@ -75,7 +75,8 @@ For example, the "
 
   (defun shader-source-load (shader-source)
     (declare (shader-source shader-source))
-    (if (shader-source-source-file shader-source)
+    (if (and (shader-source-source-file shader-source)
+             (probe-file (shader-source-source-file shader-source)))
         (setf (shader-source-file-contents shader-source)
               (uiop:read-file-string (shader-source-source-file shader-source)))
         (warn "Unable to find shader source file: ~A. Not changing in-memory source."
