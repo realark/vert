@@ -474,3 +474,37 @@ For example, the "
   (count cl-opengl-bindings:sizei)
   (type %gl:enum)
   (indices cl-opengl-bindings::offset-or-pointer))
+
+;; FIXME: defcfun workaround is incomplete for windows. Will need to be re-thought
+#+win32
+(progn
+  (defun n-bind-vertex-array (array)
+    (gl:bind-vertex-array array))
+
+  (defun n-use-program (program-id)
+    (gl:use-program program-id))
+
+  (defun n-get-uniform-location (program name)
+    (gl:get-uniform-location program name))
+
+  (defun n-uniformf (location x &optional y z w)
+    (cond
+      (w (gl:uniformf location (float x) (float y) (float z) (float w)))
+      (z (gl:uniformf location (float x) (float y) (float z)))
+      (y (gl:uniformf location (float x) (float y)))
+      (x (gl:uniformf location (float x)))))
+
+  (defun n-uniform-matrix-4fv (location matrix &optional (transpose T))
+    (gl:uniform-matrix-4fv location matrix transpose))
+
+  (defun n-active-texture (texture)
+    (gl:active-texture texture))
+
+  (defun n-bind-buffer (target buffer)
+    (gl:bind-buffer target buffer))
+
+  (defun n-draw-arrays (mode first count)
+    (gl:draw-arrays mode first count))
+
+  (defun n-draw-elements (mode count type indices)
+    (gl:draw-elements mode indices :count count)))

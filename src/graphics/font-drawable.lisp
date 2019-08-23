@@ -152,10 +152,17 @@
                  ;; TODO: it would probably be a lot faster to generate and cache the texture just once
                  (gl-bind-texture renderer nil)
                  (n-bind-texture :texture-2d (glyph-texture-id glyph))
-                 (%n-buffer-sub-data :array-buffer
-                                     0
-                                     vertices-byte-size
-                                     vertices-pointer-offset)
+                 (cond
+                   (#+win32 t
+                    (%gl:buffer-sub-data :array-buffer
+                                         0
+                                         vertices-byte-size
+                                         vertices-pointer-offset))
+                   (#-win32 t
+                    (%n-buffer-sub-data :array-buffer
+                                        0
+                                        vertices-byte-size
+                                        vertices-pointer-offset)))
                  (n-draw-arrays :triangle-fan 0 4)
 
                  ;; Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
