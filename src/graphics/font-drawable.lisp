@@ -153,12 +153,12 @@
                  (gl-bind-texture renderer nil)
                  (n-bind-texture :texture-2d (glyph-texture-id glyph))
                  (cond
-                   (#+win32 t
+                   ((or #+win32 t)
                     (%gl:buffer-sub-data :array-buffer
                                          0
                                          vertices-byte-size
                                          vertices-pointer-offset))
-                   (#-win32 t
+                   ((or #-win32 t)
                     (%n-buffer-sub-data :array-buffer
                                         0
                                         vertices-byte-size
