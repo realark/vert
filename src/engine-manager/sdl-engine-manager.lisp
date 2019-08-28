@@ -65,7 +65,28 @@
         (sdl2:with-window (win :w win-w-px :h win-h-px
                                :flags window-flags
                                :title (getconfig 'game-name *config*))
-
+          (when (getconfig 'window-icon *config*)
+            (let* ((img-path (resource-path (getconfig 'window-icon *config*)))
+                   (soil-image-pointer nil)
+                   (surf nil))
+              (when img-path
+                (unwind-protect
+                     (progn
+                       (setf surf (multiple-value-bind
+                                        (img-pointer width height component-count-file component-count-data)
+                                      (cl-soil:load-image img-path :rgba)
+                                    (assert (= 4 component-count-file component-count-data))
+                                    (setf soil-image-pointer img-pointer)
+                                    (sdl2:create-rgb-surface-with-format-from
+                                     img-pointer
+                                     width
+                                     height
+                                     (* component-count-data 8)
+                                     (* component-count-data width)
+                                     :format sdl2:+pixelformat-rgba32+)))
+                       (sdl2-ffi.functions:sdl-set-window-icon win surf))
+                  (when surf (sdl2:free-surface surf))
+                  (when soil-image-pointer (cl-soil:free-image-data soil-image-pointer))))))
           (sdl2:with-gl-context (sdl-glcontext win)
             (sdl2:gl-make-current win sdl-glcontext)
             (gl:viewport 0 0 win-w-px win-h-px)
@@ -78,30 +99,6 @@
               (gl:enable :cull-face)
               (gl:enable :blend)
               (gl:blend-func :src-alpha :one-minus-src-alpha))
-
-            (when (getconfig 'window-icon *config*)
-              (let* ((img-path (resource-path (getconfig 'window-icon *config*)))
-                     (surf
-                      (multiple-value-bind
-                            (img-pointer width height component-count-file component-count-data)
-                          (cl-soil:load-image img-path :rgba)
-                        (unwind-protect
-                             (progn
-                               (assert (= 4 component-count-file component-count-data))
-                               (sdl2:create-rgb-surface-with-format-from
-                                img-pointer
-                                width
-                                height
-                                (* component-count-data 8)
-                                (* component-count-data width)
-                                :format sdl2:+pixelformat-rgba32+))
-                          (cl-soil:free-image-data img-pointer)))))
-
-                (sdl2-ffi.functions:sdl-set-window-icon
-                 win
-                 ;; (slot-value (slot-value *engine-manager* 'recurse.vert::application-window) 'recurse.vert::sdl-window)
-                 surf)
-                (sdl2:free-surface surf)))
 
             ;; Stop using rendered
             ;; Initialize gl context and pass to engine manager
