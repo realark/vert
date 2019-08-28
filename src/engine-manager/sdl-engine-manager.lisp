@@ -21,6 +21,9 @@
   (values))
 
 (defmethod run-game ((engine-manager sdl-engine-manager) initial-scene-creator)
+  (if (getconfig 'use-dummy-audio-output *config*)
+      (sb-posix:setenv "SDL_AUDIODRIVER" "dummy" 1)
+      (sb-posix:unsetenv "SDL_AUDIODRIVER"))
   (sdl2:with-init (:everything)
     (progn
       ;; https://wiki.libsdl.org/SDL_GLattr
@@ -54,66 +57,69 @@
         ;; prevent SDL from disabling the linux compositor
         (sdl2-ffi.functions:sdl-set-hint hint-name hint-val)))
 
-    (destructuring-bind (win-w-px win-h-px)
-        (getconfig 'initial-window-size *config*)
-      (sdl2:with-window (win :w win-w-px :h win-h-px
-                             :flags '(:shown :opengl)
-                             :title (getconfig 'game-name *config*))
+    (let ((window-flags (if (getconfig 'hidden-window *config*)
+                            '(:hidden :opengl)
+                            '(:shown :opengl))))
+      (destructuring-bind (win-w-px win-h-px)
+          (getconfig 'initial-window-size *config*)
+        (sdl2:with-window (win :w win-w-px :h win-h-px
+                               :flags window-flags
+                               :title (getconfig 'game-name *config*))
 
-        (sdl2:with-gl-context (sdl-glcontext win)
-          (sdl2:gl-make-current win sdl-glcontext)
-          (gl:viewport 0 0 win-w-px win-h-px)
+          (sdl2:with-gl-context (sdl-glcontext win)
+            (sdl2:gl-make-current win sdl-glcontext)
+            (gl:viewport 0 0 win-w-px win-h-px)
 
-          (progn ; set global gl options
-            (when (getconfig 'enable-vsync *config*)
-              (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
-                (sdl2::sdl-gl-set-swap-interval 1))
-              (format T "set swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval)))
-            (gl:enable :cull-face)
-            (gl:enable :blend)
-            (gl:blend-func :src-alpha :one-minus-src-alpha))
+            (progn                      ; set global gl options
+              (when (getconfig 'enable-vsync *config*)
+                (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
+                  (sdl2::sdl-gl-set-swap-interval 1))
+                (format T "set swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval)))
+              (gl:enable :cull-face)
+              (gl:enable :blend)
+              (gl:blend-func :src-alpha :one-minus-src-alpha))
 
-          (when (getconfig 'window-icon *config*)
-            (let* ((img-path (resource-path (getconfig 'window-icon *config*)))
-                   (surf
-                    (multiple-value-bind
-                          (img-pointer width height component-count-file component-count-data)
-                        (cl-soil:load-image img-path :rgba)
-                      (unwind-protect
-                           (progn
-                             (assert (= 4 component-count-file component-count-data))
-                             (sdl2:create-rgb-surface-with-format-from
-                              img-pointer
-                              width
-                              height
-                              (* component-count-data 8)
-                              (* component-count-data width)
-                              :format sdl2:+pixelformat-rgba32+))
-                        (cl-soil:free-image-data img-pointer)))))
+            (when (getconfig 'window-icon *config*)
+              (let* ((img-path (resource-path (getconfig 'window-icon *config*)))
+                     (surf
+                      (multiple-value-bind
+                            (img-pointer width height component-count-file component-count-data)
+                          (cl-soil:load-image img-path :rgba)
+                        (unwind-protect
+                             (progn
+                               (assert (= 4 component-count-file component-count-data))
+                               (sdl2:create-rgb-surface-with-format-from
+                                img-pointer
+                                width
+                                height
+                                (* component-count-data 8)
+                                (* component-count-data width)
+                                :format sdl2:+pixelformat-rgba32+))
+                          (cl-soil:free-image-data img-pointer)))))
 
-              (sdl2-ffi.functions:sdl-set-window-icon
-               win
-               ;; (slot-value (slot-value *engine-manager* 'recurse.vert::application-window) 'recurse.vert::sdl-window)
-               surf)
-              (sdl2:free-surface surf)))
+                (sdl2-ffi.functions:sdl-set-window-icon
+                 win
+                 ;; (slot-value (slot-value *engine-manager* 'recurse.vert::application-window) 'recurse.vert::sdl-window)
+                 surf)
+                (sdl2:free-surface surf)))
 
-          ;; Stop using rendered
-          ;; Initialize gl context and pass to engine manager
-          ;; set opengl vars: version, vsync
-          ;; sleep the engine if vsync is disabled
-          (setf (slot-value engine-manager 'application-window)
-                (make-instance 'sdl-application-window :sdl-window win)
-                (slot-value engine-manager 'rendering-context)
-                (make-gl-context :wrapper sdl-glcontext)
-                *gl-context* (slot-value engine-manager 'rendering-context))
-          (when (getconfig 'fullscreen-p *config*)
-            (toggle-fullscreen (slot-value engine-manager 'application-window)))
-          (register-input-device (input-manager engine-manager)
-                                 (slot-value engine-manager 'keyboard-input))
-          (loop for i from 0 below (sdl2:joystick-count) do
-               (initialize-sdl-controller engine-manager i))
+            ;; Stop using rendered
+            ;; Initialize gl context and pass to engine manager
+            ;; set opengl vars: version, vsync
+            ;; sleep the engine if vsync is disabled
+            (setf (slot-value engine-manager 'application-window)
+                  (make-instance 'sdl-application-window :sdl-window win)
+                  (slot-value engine-manager 'rendering-context)
+                  (make-gl-context :wrapper sdl-glcontext)
+                  *gl-context* (slot-value engine-manager 'rendering-context))
+            (when (getconfig 'fullscreen-p *config*)
+              (toggle-fullscreen (slot-value engine-manager 'application-window)))
+            (register-input-device (input-manager engine-manager)
+                                   (slot-value engine-manager 'keyboard-input))
+            (loop for i from 0 below (sdl2:joystick-count) do
+                 (initialize-sdl-controller engine-manager i))
 
-          (call-next-method))))))
+            (call-next-method)))))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
   (with-slots (sdl-controllers) engine-manager

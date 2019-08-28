@@ -68,6 +68,10 @@ Example:
  'initial-window-size "A list of of the window's initial width,height. Must be integers.")
 (export-config-key
  'initial-window-fullscreen-p "When t, run the game in fullscreen mode")
+(export-config-key
+ 'hidden-window "When t, run the game without an application window. Used to run automated integration tests from the command line.")
+(export-config-key
+ 'use-dummy-audio-output "When t, audio will be output to a dummy driver.")
 
 @export
 (defvar *default-config* (make-config ()
