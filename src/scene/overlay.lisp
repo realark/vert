@@ -11,11 +11,9 @@
   (:documentation "An OVERLAY scales itself to a camera and renders its child objects to the screen independent of a camera's world position."))
 
 (defmethod render ((overlay overlay) update-percent camera rendering-context)
-  (let ((cam-w (screen-width camera))
-        (cam-h (screen-height camera)))
-    (setf (scale-x overlay) (/ cam-w (width overlay))
-          (scale-y overlay) (/ cam-h (height overlay))
-          (parent overlay) camera))
+  (setf (width overlay) (width camera)
+        (height overlay) (height camera)
+        (parent overlay) camera)
     (loop :for child :across (transform-children overlay) :do
          (render child 1.0 camera rendering-context)))
 
