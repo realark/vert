@@ -138,6 +138,7 @@
   "4x4 matrix"
   `(simple-array single-float (16)))
 
+@export
 @inline
 (defun matrix (m11 m12 m13 m14
                m21 m22 m23 m24
