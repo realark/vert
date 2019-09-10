@@ -21,6 +21,10 @@
     :initform (incf %next-input-id%)
     :reader device-id
     :documentation "Unique id of the input device.")
+   (activated-inputs
+    :initform (make-array 4 :fill-pointer 0 :adjustable T)
+    :reader get-activated-inputs
+    :documentation "Inputs which have just gone active for the first time this frame.")
    (active-inputs
     :initform (make-array 4 :fill-pointer 0 :adjustable T)
     :reader get-active-inputs
@@ -34,20 +38,27 @@
 (defgeneric after-input-update (input-device)
   (:documentation "Called at the end of every input update frame.")
   (:method ((input-device input-device))
-    ;; reset deactivated inputs.
-    (setf (fill-pointer (slot-value input-device 'deactivated-inputs)) 0)))
+    ;; TODO: move all activated -> active
+    (with-slots (activated-inputs active-inputs deactivated-inputs) input-device
+      (loop :for new-input :across activated-inputs :do
+           (vector-push-extend new-input active-inputs))
+      ;; reset activated and deactivated inputs.
+      (setf (fill-pointer activated-inputs) 0
+            (fill-pointer deactivated-inputs) 0))))
 
 (defgeneric activate-input (input-device input)
   (:documentation "Activate INPUT on INPUT-DEVICE")
   (:method ((input-device input-device) (input symbol))
-    (with-slots (active-inputs) input-device
-      (unless (find input active-inputs)
-        (vector-push-extend input active-inputs)))))
+    (with-slots (activated-inputs active-inputs) input-device
+      (unless (or (find input activated-inputs)
+                  (find input active-inputs))
+        (vector-push-extend input activated-inputs)))))
 
 (defgeneric deactivate-input (input-device input)
   (:documentation "Deactivate INPUT on INPUT-DEVICE")
   (:method ((input-device input-device) (input symbol))
-    (with-slots (active-inputs deactivated-inputs) input-device
+    (with-slots (activated-inputs active-inputs deactivated-inputs) input-device
+      (setf activated-inputs (delete input activated-inputs))
       (setf active-inputs (delete input active-inputs))
       (unless (find input deactivated-inputs)
         (vector-push-extend input deactivated-inputs)))))

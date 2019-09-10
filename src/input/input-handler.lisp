@@ -30,9 +30,21 @@
          (command-mapping (gethash command command-map))
          (action (and command-mapping
                       (ecase input-type
-                        (:active (car command-mapping))
-                        (:deactivated (cdr command-mapping))))))
+                        (:activated (elt command-mapping 0))
+                        (:active (elt command-mapping 1))
+                        (:deactivated (elt command-mapping 2))))))
     (when action (funcall action input-handler (device-id input-device)))))
+
+
+(defun %handle-activated-input (input-handler input-device input)
+  (%%handle-input input-handler
+                  (or (slot-value input-handler 'input-command-map)
+                      (%default-input-command-map input-handler))
+                  (or (slot-value input-handler 'command-action-map)
+                      (%default-command-action-map input-handler))
+                  input-device
+                  input
+                  :activated))
 
 (defun %handle-active-input (input-handler input-device input)
   (%%handle-input input-handler
@@ -60,6 +72,8 @@
     (loop for input-device across (scene-input input-context) do
          (when (or (eql *all-input-id* (active-input-device input-handler))
                    (eql (active-input-device input-handler) (device-id input-device)))
+           (loop for input across (get-activated-inputs input-device) do
+                (%handle-activated-input input-handler input-device input))
            (loop for input across (get-active-inputs input-device) do
                 (%handle-active-input input-handler input-device input))
            (loop for input across (get-deactivated-inputs input-device) do
@@ -104,20 +118,33 @@
 (defmacro %make-command-map (classname &rest command-mappings)
   (labels ((action-type (action)
              (ecase (intern (symbol-name (first action)) (symbol-package 'while-active))
+               (on-activate)
                (while-active)
                (on-deactivate))
              (intern (symbol-name (first action)) (symbol-package 'while-active)))
+           (find-action (action-name &rest actions)
+             (loop :for action :in actions :do
+                  (when (and action
+                             (eq action-name (action-type action)))
+                    (return action))))
            (make-action-lambda (action)
              (when action
                `(lambda (,classname device-id)
                   (declare (ignorable ,classname device-id))
                   ,@(rest action))))
-           (make-action-cons (action1 &optional action2)
+           (make-action-lambdas (action1 &optional action2 action3)
              (when action2
                (assert (not (eq (action-type action1) (action-type action2)))))
-             (if (eq 'while-active (action-type action1))
-                 `(cons ,(make-action-lambda action1) ,(make-action-lambda action2))
-                 `(cons ,(make-action-lambda action2) ,(make-action-lambda action1)))))
+             (when action3
+               (assert (not (eq (action-type action1) (action-type action3))))
+               (assert (not (eq (action-type action2) (action-type action3)))))
+             (loop :with action-lambdas = (list)
+                :for action :in '(on-activate while-active on-deactivate) :do
+                  (if (find-action action action1 action2 action3)
+                    (push (make-action-lambda (find-action action action1 action2 action3))
+                          action-lambdas)
+                    (push nil action-lambdas))
+                :finally (return `(make-array 3 :initial-contents (list ,@(nreverse action-lambdas)))))))
     `(let ((command-hash-table (make-hash-table :size ,(length command-mappings))))
        ,@(loop
             for command-mapping in command-mappings do
@@ -126,5 +153,7 @@
               (assert (keywordp (first command-mapping)))
             collect
               `(setf (gethash ,(first command-mapping) command-hash-table)
-                     ,(make-action-cons (second command-mapping) (third command-mapping))))
+                     ,(make-action-lambdas (second command-mapping)
+                                           (third command-mapping)
+                                           (fourth command-mapping))))
        command-hash-table)))
