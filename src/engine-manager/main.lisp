@@ -25,8 +25,8 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
                      (current-thread))
                  block)
       (error "osx will crash if any thread other than thread0 issues drawing calls"))
-    (setf *engine-manager* (make-instance 'sdl-engine-manager)
-          *config* config
+    (setf *config* config
+          *engine-manager* (make-instance 'sdl-engine-manager)
           *dev-mode* dev-mode
           *audio* audio-player)
     (assert-units)

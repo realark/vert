@@ -137,7 +137,8 @@
                         :pathname "src/engine-manager"
                         :serial T
                         :components
-                        ((:file "engine-manager")
+                        ((:file "game-stats")
+                         (:file "engine-manager")
                          (:file "application-window")
                          (:file "sdl-application-window")
                          (:file "sdl-engine-manager")
