@@ -77,7 +77,7 @@
     (prog1
         (with-slots (stats-array prefix) frame-timer
           (setf (elt stats-array 0) (format nil "~Afps: ~A" prefix (truncate-float fps +default-stats-decimal-places+))
-                (elt stats-array 1) (format nil "~Aavg: ~Ams" prefix (truncate-float (/ avg-frame-time-ns #.(expt 10.0 6))
+                (elt stats-array 1) (format nil "~Aavg-ms: ~A" prefix (truncate-float (/ avg-frame-time-ns #.(expt 10.0 6))
                                                                                      +default-stats-decimal-places+)))
           stats-array)
       (frame-timer-reset frame-timer))))
@@ -205,8 +205,8 @@
                  (setf (width drawable) (slot-value hud 'line-width)))
                (unless (= (y drawable) (* index 10))
                  (setf (y drawable) (* index 10)))
-               (unless (= (x drawable) (- (width hud) (width drawable) 40))
-                 (setf (x drawable) (- (width hud) (width drawable) 40))) ; DONTCOMMIT: remove padding
+               (unless (= (x drawable) (- (width hud) (width drawable)))
+                 (setf (x drawable) (- (width hud) (width drawable))))
                (unless (eq (text drawable) stat-string)
                  (setf (text drawable) stat-string)))
              (free-excess-drawables ()

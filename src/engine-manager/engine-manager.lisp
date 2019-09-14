@@ -47,17 +47,7 @@
                                      :fill-pointer 1
                                      :adjustable t)
                :reader game-stats)
-   (stats-hud :initform nil :accessor stats-hud)
-   ;; stats and debugging
-   (update-time-nanos :initform 0)
-   (num-updates :initform 0)
-   (render-time-nanos :initform 0)
-   (fps-timer-start-ns :initform (ticks-nanos))
-   (current-fps :initform 60.0)
-   (fps-timer-duration-seconds :initform 4)
-   (num-render-frames :initform 0)
-   (avg-update-time :initform 0)
-   (avg-render-time :initform 0))
+   (stats-hud :initform nil :accessor stats-hud))
   (:documentation "Starts and stops the game. Manages global engine state and services."))
 (export '(rendering-context))
 
@@ -175,9 +165,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                (when (get-dev-config 'dev-mode-performance-hud)
                  (loop :for stats :across game-stats :do
                       (when (typep stats 'builtin-vert-stats)
-                        (post-update-frame stats))))
-               (incf update-time-nanos (the fixnum (- (the fixnum (ticks-nanos)) t0)))
-               (incf num-updates)))
+                        (post-update-frame stats))))))
 
         (let ((t0 (ticks-nanos)))
           (declare (fixnum t0))
@@ -192,15 +180,10 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           (when (get-dev-config 'dev-mode-performance-hud)
             (loop :for stats :across game-stats :do
                  (when (typep stats 'builtin-vert-stats)
-                   (post-render-frame stats))))
-          (incf render-time-nanos (the fixnum (- (the fixnum (ticks-nanos)) t0))))
-        (when (get-dev-config 'dev-mode-performance-hud)
-          (dev-mode-pre-render engine-manager))
+                   (post-render-frame stats)))))
         (when (get-dev-config 'dev-mode-performance-hud)
           (render stats-hud 0 (camera *scene*) renderer))
-        (render-game-window engine-manager)
-        (when (get-dev-config 'dev-mode-performance-hud)
-          (dev-mode-post-game-loop-iteration engine-manager  update-time-nanos num-updates render-time-nanos))))))
+        (render-game-window engine-manager)))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
   (:documentation "Initialize ENGINE-MANAGER and start the game.
@@ -244,168 +227,6 @@ It is invoked after the engine is fully started.")
     (do-cache (*engine-caches* cache-name cache)
       (clear-cache cache))
     (format t "~%~%")))
-
-;; debugging and dev mode tools
-
-(defun dev-mode-pre-render (engine-manager)
-  (render-dev-mode-info engine-manager))
-
-(defun dev-mode-post-game-loop-iteration (engine-manager update-time-nanos num-updates render-time-nanos)
-  ;; (reload-textures-if-changed)
-  (with-slots ((total-update-time update-time-nanos)
-               (total-num-updates num-updates)
-               (total-render-time render-time-nanos)
-               (total-render-frames num-render-frames))
-      engine-manager
-    (declare (fixnum update-time-nanos
-                     num-updates
-                     render-time-nanos
-                     total-update-time
-                     total-num-updates
-                     total-render-time
-                     total-render-frames))
-    (incf total-update-time update-time-nanos)
-    (incf total-num-updates num-updates)
-    (incf total-render-time render-time-nanos)
-    (incf total-render-frames))
-  (compute-stats engine-manager))
-
-(defun reload-textures-if-changed ()
-  "If any textures have changed, flush the texture cache and reload."
-  (declare (optimize (speed 3)))
-  (flet ((reload-texture (objects-using-texture)
-           (loop :for object :across (copy-seq objects-using-texture) :do
-                (release-resources object))))
-    ;; TODO: clear texture and audio caches
-    #+nil
-    (do-cache-with-metadata (*resource-cache* path tex :mtime original-mtime :objects-using objects-using-texture)
-      (declare (ignore tex))
-      (let ((current-mtime (file-write-date path)))
-        (declare (fixnum current-mtime original-mtime))
-        (when (/= current-mtime original-mtime)
-          (reload-texture objects-using-texture))))))
-
-(defun compute-stats (engine-manager)
-  (declare (optimize (speed 3)))
-  (with-slots (fps-timer-start-ns
-               current-fps
-               fps-timer-duration
-               render-time-nanos
-               num-render-frames
-               update-time-nanos
-               num-updates
-               avg-update-time
-               avg-render-time)
-      engine-manager
-    (let ((duration-seconds (/ (- (ticks-nanos) fps-timer-start-ns) (expt 10 9))))
-      (when (> duration-seconds 2)
-        (setf current-fps (/ (floor (* (/ num-render-frames (if (= 0 duration-seconds) 1 duration-seconds)) 100)) 100.0)
-              avg-render-time (round (/ render-time-nanos #.(expt 10 6)) num-render-frames)
-              avg-update-time (round (/ update-time-nanos #.(expt 10 6) num-updates))
-              fps-timer-start-ns (ticks-nanos)
-              update-time-nanos 0
-              num-updates 0
-              render-time-nanos 0
-              num-render-frames 0)))))
-
-(let* ((line-width-px 150.0)
-       (line-height-px 100.0)
-       (rendered-text nil)
-       (number-cache (make-instance 'cache
-                                    :test #'equal
-                                    :on-evict (lambda (line-num line-cache)
-                                                (declare (ignore line-num))
-                                                (clear-cache line-cache))))
-       (last-known-gc-count (current-gc-count))
-       (dynamic-use-measure-duration-ms 2000)
-       (last-dynamic-use-measure (ticks))
-       (dynamic-delta 0)
-       (previous-dynamic-usage 0))
-
-  (defmethod cleanup-engine :after (engine-manager)
-    (clear-cache number-cache)
-    (setf last-dynamic-use-measure 0)
-    (when rendered-text
-      (release-resources rendered-text)
-      (setf rendered-text nil)))
-
-  (defun render-dev-mode-info (engine-manager)
-    "Render dev-mode info to the upper-right corner of the game window"
-    (declare (optimize (speed 3)))
-    (unless rendered-text
-      (setf rendered-text
-            (make-instance 'font-drawable
-                           :width line-width-px
-                           :height line-height-px
-                           :color *red*
-                           :text "0.0fps"))
-      (load-resources rendered-text (rendering-context engine-manager)))
-    (with-slots (current-fps
-                 avg-render-time
-                 avg-update-time)
-        engine-manager
-      (let ((camera (camera (active-scene engine-manager)))
-            (line-num 0))
-        (with-accessors ((camera-x x)
-                         (camera-y y)
-                         (camera-width width)
-                         (camera-height height))
-            camera
-          (with-accessors ((text-width width))
-              rendered-text
-            (declare (world-position camera-x camera-y)
-                     (world-dimension camera-width camera-height text-width)
-                     ((integer 0 50) line-num))
-            (setf line-width-px (/ (width (camera (active-scene *engine-manager*))) 10.0)
-                  line-height-px (/ (height (camera (active-scene *engine-manager*))) 10.0)
-                  (width rendered-text) line-width-px
-                  (height rendered-text) line-height-px
-                  (x rendered-text) (- (+ camera-x camera-width) text-width))
-            (flet ((render-debug-line (text)
-                     (setf (text rendered-text) text
-                           (y rendered-text) (+ camera-y (* line-num line-height-px)))
-                     (render rendered-text
-                             1.0
-                             camera
-                             (rendering-context engine-manager))
-                     (incf line-num)))
-              (let ((gc-count (current-gc-count)))
-                (declare (fixnum gc-count last-known-gc-count))
-                (when (> gc-count last-known-gc-count)
-                  (setf last-known-gc-count gc-count)
-                  ;; render a mostly green frame when gc occurs
-                  (let ((clear-color (clear-color engine-manager)))
-                    (setf (clear-color engine-manager) *green*)
-                    (gl:clear :depth-buffer-bit :color-buffer-bit)
-                    (setf (clear-color engine-manager) clear-color)))
-                (render-debug-line (getcache-default current-fps
-                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
-                                                     (format nil "~Afps" current-fps)))
-                (render-debug-line (getcache-default avg-render-time
-                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
-                                                     (format nil "r: ~Ams" avg-render-time)))
-                (render-debug-line (getcache-default avg-update-time
-                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
-                                                     (format nil "u: ~Ams" avg-update-time)))
-                (render-debug-line (getcache-default gc-count
-                                                     (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
-                                                     (format nil "GC# ~A" gc-count)))
-                (let ((gc-time-ms (last-gc-time-ms)))
-                  (render-debug-line (getcache-default gc-time-ms
-                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
-                                                       (format nil "GC-MS: ~A" gc-time-ms))))
-                (let* ((dynamic-use (/ (ceiling (the fixnum (sb-kernel:dynamic-usage)) #.(expt 10 5)) 10.0))
-                       (now (ticks)))
-                  (render-debug-line (getcache-default dynamic-use
-                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
-                                                       (format nil "~Amb" dynamic-use)))
-                  (when (>= (- now last-dynamic-use-measure) dynamic-use-measure-duration-ms)
-                    (setf dynamic-delta (/ (round (* 1000 (/ (- dynamic-use previous-dynamic-usage) (/ (- now last-dynamic-use-measure) 1000)))) 1000.0))
-                    (setf previous-dynamic-usage dynamic-use
-                          last-dynamic-use-measure now))
-                  (render-debug-line (getcache-default dynamic-delta
-                                                       (getcache-default line-num number-cache (make-instance 'cache :test #'equalp))
-                                                       (format nil "~Amb/s" dynamic-delta))))))))))))
 
 ;;;; on-game-thread macro
 
