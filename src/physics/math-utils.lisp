@@ -368,3 +368,14 @@
         (the single-float
              (sqrt (+ (expt (- x1 x2) 2)
                       (expt (- y1 y2) 2))))))))
+
+@export
+(defun truncate-float (f num-decimal-places)
+  (declare (optimize (speed 3))
+           (single-float f)
+           ((signed-byte 32) num-decimal-places))
+  (let ((div (expt 10.0 num-decimal-places)))
+    (declare (single-float div))
+    (float
+     (/ (floor (* f div))
+        div))))
