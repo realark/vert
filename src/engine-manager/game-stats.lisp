@@ -106,7 +106,7 @@
   ((next-refresh-timestamp-ms :initform 0
                               :documentation "timestamp (ms) of when stats should be refreshed.")
    (refresh-frequency-ms :initarg :refresh-frequency-ms
-                         :initform 1000)
+                         :initform 2000)
    (stats-array :initform (make-array 8 :element-type 'string :initial-element ""))
    (render-timer :initform (make-instance 'frame-timer :prefix "r "))
    (update-timer :initform (make-instance 'frame-timer :prefix "u "))
@@ -128,12 +128,6 @@
 (defun post-render-frame (vert-stats)
   (with-slots (render-timer) vert-stats
     (frame-timer-stop-timer render-timer)))
-
-(defun compute-memory-stats (vert-stats)
-  (with-slots (gc-count last-gc-duration-ms heap-size-mb mb-per-second) vert-stats
-    (setf gc-count (gc-count)
-          last-gc-duration-ms (last-gc-time-ms))
-    ))
 
 (defmethod get-stats-strings ((builtin-stats builtin-vert-stats))
   (declare (optimize (speed 3)))
