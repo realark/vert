@@ -170,7 +170,7 @@ On the next render frame, the objects will be given a chance to load and this li
     (loop :while unloaded-game-objects :do
          (load-resources (pop unloaded-game-objects) renderer))
     ;; TODO: put this check inside the object being rendered
-    (flet ((in-camera (camera game-object)
+    (flet ((in-camera-p (camera game-object)
              (declare (obb camera game-object))
              (with-accessors ((x1 x) (y1 y) (z1 z)
                               (w1 width) (h1 height))
@@ -178,15 +178,15 @@ On the next render frame, the objects will be given a chance to load and this li
                (multiple-value-bind (x2 y2 z2 w2 h2) (world-dimensions game-object)
                  (declare (world-dimension w1 h1 w2 h2)
                           (world-position x1 y1 z1 x2 y2 z2))
-                 (let ((delta 10))
-                   ;; fudge the check a bit to account for rendering interpolation
-                   (and (< (- x1 delta) (+ x2 w2))
-                        (> (+ x1 w1 delta) x2)
-                        (< (- y1 delta) (+ y2 h2))
-                        (> (+ h1 y1 delta) y2)))))))
-      (declare (inline in-camera))
+                 (let ((delta (max w2 h2 10.0)))
+                   ;; fudge the check a bit to account for rendering interpolation and rotations
+                   (and (<= (- x1 delta) (+ x2 w2))
+                        (>= (+ x1 w1 delta) x2)
+                        (<= (- y1 delta) (+ y2 h2))
+                        (>= (+ y1 h1 delta) y2)))))))
+      (declare (inline in-camera-p))
       (do-spatial-partition (game-object spatial-partition)
-        (when (in-camera camera game-object)
+        (when (in-camera-p camera game-object)
           (render game-object update-percent camera renderer))))
     (loop :for overlay :across (the (vector overlay) scene-overlays) :do
          (render overlay update-percent camera renderer)))

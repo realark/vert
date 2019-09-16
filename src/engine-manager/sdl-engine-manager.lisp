@@ -94,8 +94,8 @@
             (progn                      ; set global gl options
               (when (getconfig 'enable-vsync *config*)
                 (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
-                  (sdl2::sdl-gl-set-swap-interval 1))
-                (format T "set swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval)))
+                  (sdl2::sdl-gl-set-swap-interval 1)))
+              (format T "window swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval))
               (gl:enable :cull-face)
               (gl:enable :blend)
               (gl:blend-func :src-alpha :one-minus-src-alpha))
