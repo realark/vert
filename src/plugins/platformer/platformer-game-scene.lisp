@@ -20,12 +20,6 @@
     (declare (vector2 vector))
     (apply-vector object vector)))
 
-(defmethod update :before ((scene platformer-game-scene) delta-t-ms (null null))
-  (declare (ignore null))
-  (with-accessors ((spatial-partition spatial-partition)
-                   (gravity gravity-vector))
-      scene
-    (do-spatial-partition (game-object spatial-partition)
-      (when (typep game-object 'kinematic-object)
-        (apply-gravity game-object gravity))))
-  (values))
+(defmethod found-object-to-update ((scene platformer-game-scene) (game-object kinematic-object))
+  (with-accessors ((gravity gravity-vector)) scene
+    (apply-gravity game-object gravity)))

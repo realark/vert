@@ -88,6 +88,7 @@
 
 @export
 (defun world-dimensions (obb)
+  "Return dimension info in base-world coordinates. (values x y z width height)"
   (declare (optimize (speed 3))
            (obb obb))
   (flet ((simple-obb-p (obb)
