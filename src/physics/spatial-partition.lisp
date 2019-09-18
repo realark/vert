@@ -18,7 +18,7 @@
   "Placeholder for an object which has been removed from the partition
 but cannot be removed from the implementation due to iteration.")
 
-(defgeneric %map-partition (function partition)
+(defgeneric map-partition (function partition &key min-x max-x min-y max-y min-z max-z)
   (:documentation "Run FUNCTION over every objected in PARTITION.
 FUNCTION should be a one-arg fn which takes a partition object"))
 
@@ -26,14 +26,20 @@ FUNCTION should be a one-arg fn which takes a partition object"))
   (:documentation "Run FUNCTION over all of GAME-OBJECT's neighbors (determined by PARTITION)
 within the RADIUS."))
 
-(defmacro do-spatial-partition ((game-object-name spatial-partition) &body body)
+(defmacro do-spatial-partition ((game-object-name spatial-partition &key min-x max-x min-y max-y min-z max-z) &body body)
   "Run BODY once over every element (bound to GAME-OBJECT-NAME) in SPATIAL-PARTION."
   (assert (symbolp game-object-name))
   (alexandria:once-only (spatial-partition)
     `(with-slots (is-iterating) ,spatial-partition
-       (%map-partition (lambda (,game-object-name)
+       (map-partition (lambda (,game-object-name)
                          ,@body)
-                       ,spatial-partition))))
+                      ,spatial-partition
+                      :min-x ,min-x
+                      :max-x ,max-x
+                      :min-y ,min-y
+                      :max-y ,max-y
+                      :min-z ,min-z
+                      :max-z ,max-z))))
 
 (defmacro do-neighbors ((game-object spatial-partition neighbor-binding &optional (radius 0.0))
                         &body body)

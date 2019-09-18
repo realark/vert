@@ -137,7 +137,10 @@ On the next render frame, the objects will be given a chance to load and this li
         (declare (inline in-update-area-p))
         (with-slots ((bg scene-background) scene-overlays) game-scene
           (when bg (pre-update bg))
-          (do-spatial-partition (game-object (spatial-partition game-scene))
+          (do-spatial-partition (game-object
+                                 (spatial-partition game-scene)
+                                 :min-x x-min :max-x x-max
+                                 :min-y y-min :max-y y-max)
             (when (and (not (typep game-object 'static-object))
                        (in-update-area-p game-object))
               (pre-update game-object)))
@@ -145,9 +148,11 @@ On the next render frame, the objects will be given a chance to load and this li
                (pre-update overlay))
           (pre-update (camera game-scene))
           (%run-scheduled-callbacks game-scene)
-          (do-spatial-partition (game-object (spatial-partition game-scene))
-            (when (and (not (typep game-object 'static-object))
-                       (in-update-area-p game-object))
+          (do-spatial-partition (game-object
+                                 (spatial-partition game-scene)
+                                 :min-x x-min :max-x x-max
+                                 :min-y y-min :max-y y-max)
+            (when (not (typep game-object 'static-object))
               (found-object-to-update game-scene game-object)
               (update game-object delta-t-ms game-scene)))
           ;; update camera first in case overlay or bg to use the camera's position
@@ -169,25 +174,16 @@ On the next render frame, the objects will be given a chance to load and this li
       (render bg update-percent camera renderer))
     (loop :while unloaded-game-objects :do
          (load-resources (pop unloaded-game-objects) renderer))
-    ;; TODO: put this check inside the object being rendered
-    (flet ((in-camera-p (camera game-object)
-             (declare (obb camera game-object))
-             (with-accessors ((x1 x) (y1 y) (z1 z)
-                              (w1 width) (h1 height))
-                 camera
-               (multiple-value-bind (x2 y2 z2 w2 h2) (world-dimensions game-object)
-                 (declare (world-dimension w1 h1 w2 h2)
-                          (world-position x1 y1 z1 x2 y2 z2))
-                 (let ((delta (max w2 h2 10.0)))
-                   ;; fudge the check a bit to account for rendering interpolation and rotations
-                   (and (<= (- x1 delta) (+ x2 w2))
-                        (>= (+ x1 w1 delta) x2)
-                        (<= (- y1 delta) (+ y2 h2))
-                        (>= (+ y1 h1 delta) y2)))))))
-      (declare (inline in-camera-p))
-      (do-spatial-partition (game-object spatial-partition)
-        (when (in-camera-p camera game-object)
-          (render game-object update-percent camera renderer))))
+    (let* ((delta 64.0)
+           (x-min (- (x camera) delta))
+           (x-max (+ x-min (width camera) delta delta))
+           (y-min (- (y camera) delta))
+           (y-max (+ y-min (height camera) delta delta)))
+      (do-spatial-partition (game-object
+                             spatial-partition
+                             :min-x x-min :max-x x-max
+                             :min-y y-min :max-y y-max)
+        (render game-object update-percent camera renderer)))
     (loop :for overlay :across (the (vector overlay) scene-overlays) :do
          (render overlay update-percent camera renderer)))
   (values))

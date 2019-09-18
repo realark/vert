@@ -64,9 +64,16 @@
   (find-spatial-partition game-object
                           (%get-quadtree-at-layer layers (z game-object))))
 
-(defmethod %map-partition ((function function) (layered layered-quadtree))
-  (loop for quadtree across (slot-value layered 'quadtrees) do
-       (%map-partition function quadtree)))
+(defmethod map-partition ((function function) (layered layered-quadtree) &key min-x max-x min-y max-y min-z max-z)
+  (loop :for quadtree :across (slot-value layered 'quadtrees) :do
+       (map-partition function
+                      quadtree
+                      :min-x min-x
+                      :max-x max-x
+                      :min-y min-y
+                      :max-y max-y
+                      :min-z min-z
+                      :max-z max-z)))
 
 (defmethod %map-neighbors ((function function) (game-object game-object)
                            (layers layered-quadtree) &optional (radius 0.0))
