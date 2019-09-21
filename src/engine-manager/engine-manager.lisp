@@ -102,7 +102,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
               (setf *scene* new-scene)
               (multiple-value-bind (width-px height-px)
                   (window-size-pixels (application-window *engine-manager*))
-                (%after-resize-window (application-window engine-manager) width-px height-px))
+                (after-resize-window (application-window engine-manager) width-px height-px))
               (when (and preserve-audio
                          (typep old-scene 'pause-scene)
                          (eq :paused (music-state *audio*)))

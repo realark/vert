@@ -57,9 +57,9 @@
         ;; prevent SDL from disabling the linux compositor
         (sdl2-ffi.functions:sdl-set-hint hint-name hint-val)))
 
-    (let ((window-flags (if (getconfig 'hidden-window *config*)
-                            '(:hidden :opengl)
-                            '(:shown :opengl))))
+    (let ((window-flags (list :opengl
+                              :resizable
+                              (if (getconfig 'hidden-window *config*) :hidden :shown))))
       (destructuring-bind (win-w-px win-h-px)
           (getconfig 'initial-window-size *config*)
         (sdl2:with-window (win :w win-w-px :h win-h-px
@@ -225,7 +225,7 @@
                                         :12)))))))))
 
 (defun initialize-sdl-controller (engine-manager device-index)
-  ;; FIXME: Send event to input users
+  ;; TODO: Send event to input users
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
     (when (sdl2:game-controller-p device-index)
       (let* ((controller (sdl2:game-controller-open device-index))
@@ -240,7 +240,7 @@
           (add-scene-input (active-scene engine-manager) vert-input-device))))))
 
 (defun remove-sdl-controller (engine-manager sdl-joystick-id)
-  ;; FIXME: Send event to input users
+  ;; TODO: Send event to input users
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
     (sdl2:game-controller-close (gethash sdl-joystick-id sdl-controllers))
     (remhash sdl-joystick-id sdl-controllers)
@@ -270,7 +270,7 @@
                          (sdl-controller-button-up controller-id button-id))
     (:windowevent (:event event :data1 width :data2 height)
                   (if (= event sdl2-ffi:+sdl-windowevent-size-changed+)
-                      (%after-resize-window (application-window engine-manager) width height)))
+                      (after-resize-window (application-window engine-manager) width height)))
     (:idle ()
            (restart-case
                (progn
