@@ -71,6 +71,8 @@ Example:
 (export-config-key
  'hidden-window "When t, run the game without an application window. Used to run automated integration tests from the command line.")
 (export-config-key
+ 'resizable-window "Allow application window to be resized. Defaults to t.")
+(export-config-key
  'use-dummy-audio-output "When t, audio will be output to a dummy driver.")
 
 @export
@@ -82,6 +84,7 @@ Example:
                                       ('game-resolution '(320 180))
                                       ('fullscreen-p nil)
                                       ('initial-window-size '(1280 720))
+                                      ('resizable-window t)
                                       ('initial-window-fullscreen-p nil))
   "The config used by vert if no config is specified.")
 

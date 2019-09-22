@@ -140,7 +140,6 @@
                         ((:file "game-stats")
                          (:file "engine-manager")
                          (:file "application-window")
-                         (:file "sdl-application-window")
                          (:file "sdl-engine-manager")
                          (:file "main"))))
   :around-compile "(lambda (compile-fn)
