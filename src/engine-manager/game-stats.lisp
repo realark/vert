@@ -26,7 +26,7 @@
 ;;;; stats which measure some type of framerate
 (defclass frame-timer (game-stats)
   ((prefix :initarg :prefix :initform "")
-   (stats-array :initform (make-array 2 :element-type 'string :initial-element ""))
+   (stats-array :initform (make-array 3 :element-type 'string :initial-element ""))
    (timer-start-timestamp :initform (ticks-nanos)
                           :documentation "timestamp of when this frame timer began to measure frames.")
    (frame-start-timestamp :initform nil
@@ -34,7 +34,9 @@
    (sum-frames :initform 0
                :documentation "Total frame time (nanoseconds)")
    (num-frames :initform 0
-               :documentation "Number of frames seen")))
+               :documentation "Number of frames seen")
+   (longest-frames :initform (make-array 10 :element-type 'fixnum :adjustable nil :initial-element -1)
+                   :documentation "Longest 10 frames observed in the current measurement period. 0 = largest frame seen so far.")))
 
 (defun frame-timer-start-timer (frame-timer)
   (declare (optimize (speed 3)))
@@ -46,39 +48,75 @@
   (with-slots (frame-start-timestamp sum-frames num-frames) frame-timer
     (when frame-start-timestamp
       (locally (declare (fixnum frame-start-timestamp num-frames sum-frames))
-        (let ((frame-time (- (the fixnum (ticks-nanos)) frame-start-timestamp)))
-          (declare (fixnum frame-time))
-          (incf sum-frames frame-time)
-          (incf num-frames))))))
+        (labels ((insert-at-index (array index element)
+                   "insert ELEMENT into ARRAY at INDEX. All elements after INDEX will be downshifted and the final element removed from ARRAY."
+                   (loop :with current-element = element
+                      :while (< index (length array))
+                      :do
+                        (let ((tmp (elt array index)))
+                          (setf (elt array index) current-element
+                                current-element tmp)
+                          (incf index))))
+                 (add-longest-frame-time (frame-timer current-frame-time)
+                   (declare (frame-timer frame-timer)
+                            (fixnum current-frame-time))
+                   (with-slots (longest-frames) frame-timer
+                     (declare ((simple-array fixnum) longest-frames))
+                     (when (> current-frame-time (elt longest-frames (- (length longest-frames) 1)))
+                       (loop :with insertion-index = (- (length longest-frames) 1)
+                          :while (and (> insertion-index 0)
+                                      (> current-frame-time (elt longest-frames (- (length longest-frames) 1))))
+                          :do (decf insertion-index)
+                          :finally
+                            (insert-at-index longest-frames insertion-index current-frame-time))))))
+          (declare (inline insert-at-index add-longest-frame-time))
+          (let ((frame-time (- (the fixnum (ticks-nanos)) frame-start-timestamp)))
+            (declare (fixnum frame-time))
+            (incf sum-frames frame-time)
+            (incf num-frames)
+            (add-longest-frame-time frame-timer frame-time)))))))
 
 (defun frame-timer-stats (frame-timer)
   "Get stats for the time period covering the last reset for FRAME-TIMER to now. (values avg-frame-time-ns frames-per-second)"
   (declare (optimize (speed 3)))
-  (with-slots (timer-start-timestamp frame-start-timestamp sum-frames num-frames) frame-timer
+  (with-slots (timer-start-timestamp frame-start-timestamp sum-frames num-frames longest-frames) frame-timer
     (declare (fixnum timer-start-timestamp sum-frames num-frames))
     (if (= 0 num-frames)
-        (values 0 0.0)
+        (values 0 0.0 0.0)
         (let* ((delta-t-ns (- (the fixnum (ticks-nanos)) timer-start-timestamp))
                (avg-frame-time-ns (/ sum-frames num-frames))
-               (fps (/ num-frames (/ (the fixnum delta-t-ns) #.(expt 10.0 9)))))
-          (values avg-frame-time-ns fps)))))
+               (fps (/ num-frames (/ (the fixnum delta-t-ns) #.(expt 10.0 9))))
+               (longest-average (loop :with sum-frames = 0
+                                   :for i :from 0 :below (length longest-frames) :do
+                                     (incf sum-frames (elt longest-frames i))
+                                   :finally (return (float (/ sum-frames (length longest-frames)))))))
+          (values avg-frame-time-ns fps longest-average)))))
 
 (defun frame-timer-reset (frame-timer)
-  (with-slots (timer-start-timestamp frame-start-timestamp sum-frames num-frames) frame-timer
-    (setf timer-start-timestamp (ticks-nanos)
-          frame-start-timestamp nil
-          sum-frames 0
-          num-frames 0)
-    frame-timer))
+  (labels ((reset-longest-frames (frame-timer)
+             (with-slots (longest-frames) frame-timer
+               (declare ((simple-array fixnum) longest-frames))
+               (loop :for i :from 0 :below (length longest-frames) :do
+                    (setf (elt longest-frames i) -1)))))
+    (declare (inline reset-longest-frames))
+    (with-slots (timer-start-timestamp frame-start-timestamp sum-frames num-frames) frame-timer
+      (setf timer-start-timestamp (ticks-nanos)
+            frame-start-timestamp nil
+            sum-frames 0
+            num-frames 0)
+      (reset-longest-frames frame-timer)
+      frame-timer)))
 
 (defmethod get-stats-strings ((frame-timer frame-timer))
-  (multiple-value-bind (avg-frame-time-ns fps)
+  (multiple-value-bind (avg-frame-time-ns fps longest-average-ns)
       (frame-timer-stats frame-timer)
     (prog1
-        (with-slots (stats-array prefix) frame-timer
+        (with-slots (stats-array prefix longest-frames) frame-timer
+          (declare ((simple-array fixnum) longest-frames))
           (setf (elt stats-array 0) (format nil "~Afps: ~A" prefix (truncate-float fps +default-stats-decimal-places+))
                 (elt stats-array 1) (format nil "~Aavg-ms: ~A" prefix (truncate-float (/ avg-frame-time-ns #.(expt 10.0 6))
-                                                                                     +default-stats-decimal-places+)))
+                                                                                      +default-stats-decimal-places+))
+                (elt stats-array 2) (format nil "~Awrst-avg-ms: ~A" prefix (truncate-float (/ longest-average-ns #.(expt 10.0 6)) +default-stats-decimal-places+)))
           stats-array)
       (frame-timer-reset frame-timer))))
 
@@ -107,7 +145,7 @@
                               :documentation "timestamp (ms) of when stats should be refreshed.")
    (refresh-frequency-ms :initarg :refresh-frequency-ms
                          :initform 2000)
-   (stats-array :initform (make-array 8 :element-type 'string :initial-element ""))
+   (stats-array :initform (make-array 10 :element-type 'string :initial-element ""))
    (render-timer :initform (make-instance 'frame-timer :prefix "r "))
    (update-timer :initform (make-instance 'frame-timer :prefix "u "))
    (last-measured-heap-size :initform (sb-kernel:dynamic-usage)))
