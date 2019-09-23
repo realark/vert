@@ -141,11 +141,8 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
       (declare (fixnum last-loop-start lag))
       (let* ((now-ns (ticks-nanos))
              (delta-ns (- (the fixnum now-ns) last-loop-start))
-             (timestep-ns (* *timestep* #.(expt 10 6)))
-             (num-updates 0)
-             (update-time-nanos 0)
-             (render-time-nanos 0))
-        (declare (fixnum now-ns delta-ns timestep-ns num-updates update-time-nanos render-time-nanos))
+             (timestep-ns (* *timestep* #.(expt 10 6))))
+        (declare (fixnum now-ns delta-ns timestep-ns))
         (setf last-loop-start now-ns)
         (incf lag delta-ns)
 
@@ -155,32 +152,27 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           (setf lag timestep-ns))
         (loop :for i :from 0 :while (>= lag timestep-ns) :do
              (decf lag timestep-ns)
-             (let ((t0 (ticks-nanos)))
-               (declare (fixnum t0))
-               (when (get-dev-config 'dev-mode-performance-hud)
-                 (loop :for stats :across game-stats :do
-                      (when (typep stats 'builtin-vert-stats)
-                        (pre-update-frame stats))))
-               (update active-scene *timestep* nil)
-               (when (get-dev-config 'dev-mode-performance-hud)
-                 (loop :for stats :across game-stats :do
-                      (when (typep stats 'builtin-vert-stats)
-                        (post-update-frame stats))))))
-
-        (let ((t0 (ticks-nanos)))
-          (declare (fixnum t0))
-          (when (get-dev-config 'dev-mode-performance-hud)
-            (loop :for stats :across game-stats :do
-                 (when (typep stats 'builtin-vert-stats)
-                   (pre-render-frame stats))))
-          (render active-scene
-                  (coerce (/ lag timestep-ns) 'single-float)
-                  nil
-                  renderer)
-          (when (get-dev-config 'dev-mode-performance-hud)
-            (loop :for stats :across game-stats :do
-                 (when (typep stats 'builtin-vert-stats)
-                   (post-render-frame stats)))))
+             (when (get-dev-config 'dev-mode-performance-hud)
+               (loop :for stats :across game-stats :do
+                    (when (typep stats 'builtin-vert-stats)
+                      (pre-update-frame stats))))
+             (update active-scene *timestep* nil)
+             (when (get-dev-config 'dev-mode-performance-hud)
+               (loop :for stats :across game-stats :do
+                    (when (typep stats 'builtin-vert-stats)
+                      (post-update-frame stats)))))
+        (when (get-dev-config 'dev-mode-performance-hud)
+          (loop :for stats :across game-stats :do
+               (when (typep stats 'builtin-vert-stats)
+                 (pre-render-frame stats))))
+        (render active-scene
+                (coerce (/ lag timestep-ns) 'single-float)
+                nil
+                renderer)
+        (when (get-dev-config 'dev-mode-performance-hud)
+          (loop :for stats :across game-stats :do
+               (when (typep stats 'builtin-vert-stats)
+                 (post-render-frame stats))))
         (when (get-dev-config 'dev-mode-performance-hud)
           (render stats-hud 0 (camera *scene*) renderer))
         (render-game-window engine-manager)))))
