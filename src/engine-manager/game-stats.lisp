@@ -19,6 +19,7 @@
   (when (find game-stats (slot-value engine-manager 'game-stats))
     (setf (slot-value engine-manager 'game-stats) (delete game-stats (slot-value engine-manager 'game-stats)))))
 
+@export
 (defgeneric get-stats-strings (game-stats)
   (:documentation "Return an array of strings for all stats and reset GAME-STATS timers if appropriate. Each entry will be rendered per line of dev-mode info.")
   (:method ((game-stats game-stats)) (make-array 0 :element-type 'string)))
