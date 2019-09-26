@@ -277,6 +277,14 @@ Nil to render the entire sprite."
                sprite-source)
       (error "using wrap-width/height with sprite-source not supported. ~A" sprite))))
 
+(defmethod (setf path-to-sprite) :around (new-sprite-path (static-sprite static-sprite))
+  (let ((old-path (path-to-sprite static-sprite)))
+    (prog1 (call-next-method new-sprite-path static-sprite)
+      (unless (or (equal old-path (path-to-sprite static-sprite))
+                  (null *engine-manager*))
+        (release-resources static-sprite)
+        (load-resources static-sprite (rendering-context *engine-manager*))))))
+
 (defmethod load-resources ((sprite static-sprite) rendering-context)
   (with-slots (sprite-draw-component path-to-sprite wrap-width wrap-height)
       sprite
