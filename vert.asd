@@ -165,4 +165,5 @@
   :components ((:file "packages")
                (:file "test-runner")
                (:file "core-test")
-               (:file "cache-test")))
+               (:file "cache-test")
+               (:file "spatial-partition-test")))

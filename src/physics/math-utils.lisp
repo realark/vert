@@ -131,6 +131,35 @@
              (setf poly2-min distance))))
     (and (< poly2-min poly1-max) (>= poly2-max poly1-min))))
 
+@export
+(defun distance-between-objects (obj1 obj2)
+  "Compute the distance between the centers of OBJ1 and OBJ2"
+  (declare (optimize (speed 3))
+           (transform obj1 obj2))
+  (let* ((obj1-center (vector2 (/ (the single-float (width obj1)) 2.0)
+                               (/ (the single-float (height obj1)) 2.0)))
+         (obj2-center (vector2 (/ (the single-float (width obj2)) 2.0)
+                               (/ (the single-float (height obj2)) 2.0)))
+         (transformed-obj1-center (transform-point obj1-center obj1 obj2)))
+    (declare (dynamic-extent obj1-center obj2-center transformed-obj1-center))
+    (with-accessors ((x1 x) (y1 y)) transformed-obj1-center
+      (with-accessors ((x2 x) (y2 y)) obj2-center
+        (declare (single-float x1 y1 x2 y2))
+        (the single-float
+             (sqrt (+ (expt (- x1 x2) 2)
+                      (expt (- y1 y2) 2))))))))
+
+@export
+(defun truncate-float (f num-decimal-places)
+  (declare (optimize (speed 3))
+           (single-float f)
+           ((signed-byte 32) num-decimal-places))
+  (let ((div (expt 10.0 num-decimal-places)))
+    (declare (single-float div))
+    (float
+     (/ (floor (* f div))
+        div))))
+
 ;;;; Non-consing matrix utils
 ;; Matrix consing operations are declared inlined and can be used with declare dynamic-extent for non-consing matrix operations
 
@@ -350,32 +379,3 @@
                (+ (* (- 1.0 interpolation-value) (elt m0 i))
                   (* interpolation-value (elt m1 i)))))
     interpolated-matrix))
-
-@export
-(defun distance-between-objects (obj1 obj2)
-  "Compute the distance between the centers of OBJ1 and OBJ2"
-  (declare (optimize (speed 3))
-           (transform obj1 obj2))
-  (let* ((obj1-center (vector2 (/ (the single-float (width obj1)) 2.0)
-                               (/ (the single-float (height obj1)) 2.0)))
-         (obj2-center (vector2 (/ (the single-float (width obj2)) 2.0)
-                               (/ (the single-float (height obj2)) 2.0)))
-         (transformed-obj1-center (transform-point obj1-center obj1 obj2)))
-    (declare (dynamic-extent obj1-center obj2-center transformed-obj1-center))
-    (with-accessors ((x1 x) (y1 y)) transformed-obj1-center
-      (with-accessors ((x2 x) (y2 y)) obj2-center
-        (declare (single-float x1 y1 x2 y2))
-        (the single-float
-             (sqrt (+ (expt (- x1 x2) 2)
-                      (expt (- y1 y2) 2))))))))
-
-@export
-(defun truncate-float (f num-decimal-places)
-  (declare (optimize (speed 3))
-           (single-float f)
-           ((signed-byte 32) num-decimal-places))
-  (let ((div (expt 10.0 num-decimal-places)))
-    (declare (single-float div))
-    (float
-     (/ (floor (* f div))
-        div))))

@@ -279,9 +279,9 @@
     (locally (declare (world-position x y z)
                       (world-dimension w h))
       (and (or (null min-x) (>= x min-x) (>= (+ x w) min-x))
-           (or (null max-x) (<= x max-x) (<= (- x w) max-x))
+           (or (null max-x) (<= x max-x))
            (or (null min-y) (>= y min-y) (>= (+ y h) min-y))
-           (or (null max-y) (<= y max-y) (<= (- y h) max-y))
+           (or (null max-y) (<= y max-y))
            (or (null min-z) (>= z min-z))
            (or (null max-z) (<= z max-z))))))
 

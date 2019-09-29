@@ -30,6 +30,7 @@
 (defgeneric (setf height) (value game-object))
 (defgeneric interpolate-position (game-object update-percent)
   (:documentation "Return an interpolated (x y z) for GAME-OBJECT at UPDATE-PERCENT between its last two update states."))
+@export
 (defgeneric pre-update (game-object)
   (:documentation "Called on each game object before anything in the update frame happens.")
   (:method ((game-object game-object))))
