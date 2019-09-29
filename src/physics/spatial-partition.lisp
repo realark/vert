@@ -30,16 +30,25 @@ within the RADIUS."))
   "Run BODY once over every element (bound to GAME-OBJECT-NAME) in SPATIAL-PARTION."
   (assert (symbolp game-object-name))
   (alexandria:once-only (spatial-partition)
-    `(with-slots (is-iterating) ,spatial-partition
-       (map-partition (lambda (,game-object-name)
-                         ,@body)
-                      ,spatial-partition
-                      :min-x ,min-x
-                      :max-x ,max-x
-                      :min-y ,min-y
-                      :max-y ,max-y
-                      :min-z ,min-z
-                      :max-z ,max-z))))
+    `(cond ((typep ,spatial-partition 'quadtree)
+            (do-quadtree (,game-object-name
+                          ,spatial-partition
+                          :min-x ,min-x
+                          :max-x ,max-x
+                          :min-y ,min-y
+                          :max-y ,max-y
+                          :min-z ,min-z
+                          :max-z ,max-z)
+              ,@body))
+           (t (map-partition (lambda (,game-object-name)
+                               ,@body)
+                             ,spatial-partition
+                             :min-x ,min-x
+                             :max-x ,max-x
+                             :min-y ,min-y
+                             :max-y ,max-y
+                             :min-z ,min-z
+                             :max-z ,max-z)))))
 
 (defmacro do-neighbors ((game-object spatial-partition neighbor-binding &optional (radius 0.0))
                         &body body)
