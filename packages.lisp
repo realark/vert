@@ -62,7 +62,6 @@
    :physics-context-2d
    :spatial-partition
    :do-spatial-partition
-   :do-neighbors
    :quadtree
    :start-tracking
    :stop-tracking

@@ -63,6 +63,7 @@ Invoked once per collision; after collision resolution.")
                      ,@args)
      ,@body))
 
+@export
 (defmacro with-collision-check ((moving-object physics-context)
                                 (position-update-keyword &body position-update-body)
                                 (on-collision-keyword stationary-object
@@ -72,14 +73,25 @@ inside of PHYSICS-CONTEXT and call COLLISION-RESOLUTION-NAME if any collisions o
   (assert (eq position-update-keyword :position-update))
   (assert (eq on-collision-keyword :on-collision))
   (assert (symbolp stationary-object))
-  (assert (symbolp moving-object))
-  (assert (symbolp physics-context))
-  `(progn
-     ,@position-update-body
-     ;; object's position has updated. Now check for collisions
-     (do-neighbors (,moving-object (spatial-partition ,physics-context) ,stationary-object)
-       (collision ,moving-object ,stationary-object)
-       ,@collision-resolution-body)))
+  (alexandria:once-only (moving-object)
+    (alexandria:with-gensyms (game-obj)
+      `(progn
+         ,@position-update-body
+         ;; object's position has updated. Now check for collisions
+         (do-spatial-partition (,game-obj
+                                (spatial-partition ,physics-context)
+                                :min-x (- (x ,moving-object) *collision-precision*)
+                                :max-x (+ (x ,moving-object) (width ,moving-object) *collision-precision*)
+                                :min-y (- (y ,moving-object) *collision-precision*)
+                                :max-y (+ (y ,moving-object) (height ,moving-object) *collision-precision*)
+                                :min-z (z ,moving-object)
+                                :max-z (z ,moving-object))
+           (unless (eq ,game-obj ,moving-object)
+             (when (collidep ,moving-object ,game-obj)
+               (let ((,stationary-object ,game-obj))
+                 (collision ,moving-object ,stationary-object)
+                 ,@collision-resolution-body))))
+         (values)))))
 
 (defgeneric favored-collision-resolution-axis (moving-object stationary-object)
   (:documentation "If both x and y axis collide, use this method to favor one over the other. X to preserver the x-motion, Y to Preserve the y, or nil for no preference.")
