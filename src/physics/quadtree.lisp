@@ -46,7 +46,7 @@
 (defun %mark-updated (object node)
   "Mark an object as updated for a single level of an iteration."
   (let ((skips (%update-skips node)))
-    (unless (find object skips)
+    (unless (find object skips :test #'eq)
       (vector-push-extend object skips))))
 
 (defun %update-skips (node)
@@ -141,7 +141,11 @@
                                   :z z
                                   :width child-width
                                   :height child-height)))
-          (setf children (vector nw ne sw se)))))))
+          (setf children
+                (make-array 4
+                            :element-type 'quadtree
+                            :initial-contents (list nw ne sw se)
+                            :adjustable nil)))))))
 
 @inline
 (defun %quadtree-root (quadtree)
@@ -188,32 +192,40 @@
            (< (+ y1 h1) (+ y2 h2))))))
 
 (defun %node-for-object (object quadtree)
+  (declare (optimize (speed 3)))
   (with-slots (children level) quadtree
     (when (%inside-of object quadtree)
       (or (and children
-               (loop with match = nil
-                  for child across children do
+               (loop :with match = nil
+                  :for child :across (the (simple-array quadtree (4)) children) :do
                     (setf match (%node-for-object object child))
                     (when match (return match))))
           quadtree))))
 
+@inline
 (defun %rebalance (quadtree)
+  (declare (optimize (speed 3)))
   (with-slots (max-objects max-depth level objects children)
       quadtree
-    (setf objects (delete %dead-object% objects))
+    (declare ((vector game-object) objects)
+             (fixnum max-objects level max-depth))
+    (setf objects (delete %dead-object% objects :test #'eq))
     (when (and (null children)
                (> (length objects) max-objects)
                (< level max-depth))
       (let ((objects-tmp objects))
+        (declare ((vector game-object) objects-tmp))
         (%quadtree-split quadtree)
         (setf objects (make-array 10 :fill-pointer 0 :adjustable T))
-        (loop for obj-tmp across objects-tmp do
+        (loop :for obj-tmp :across objects-tmp :do
              (remove-subscriber obj-tmp quadtree object-moved)
              (start-tracking quadtree obj-tmp))))))
 
 ;; expand/rebalance quadtree when tracked objects move
 (defevent-callback object-moved ((object game-object) (quadtree quadtree))
-  (if (= (z object) (z quadtree))
+  (declare (optimize (speed 3)))
+  (if (= (the single-float (z object))
+         (the single-float (z quadtree)))
       (unless (%inside-of object quadtree)
         (with-slots (objects) quadtree
           (stop-tracking quadtree object)
@@ -229,6 +241,7 @@
 ;; implement spatial partition methods
 
 (defmethod start-tracking ((quadtree quadtree) (object game-object))
+  (declare (optimize (speed 3)))
   (let ((node (%node-for-object object quadtree)))
     (unless node
       (if (parent quadtree)
@@ -238,28 +251,32 @@
             (return-from start-tracking (start-tracking quadtree object)))))
 
     (with-slots (objects) node
+      (declare ((vector game-object) objects))
       (add-subscriber object node object-moved)
       (vector-push-extend object objects)
       (unless (%is-iterating node)
         (%rebalance node)))))
 
 (defmethod stop-tracking ((quadtree quadtree) (object game-object))
+  (declare (optimize (speed 3)))
   (with-slots (children objects) quadtree
+    (declare ((vector game-object) objects))
     (or (and children
-             (loop for child across children do
+             (loop :for child :across (the (simple-array quadtree (4)) children) :do
                   (when (stop-tracking child object)
                     (return object))))
-        (when (find object objects)
+        (when (find object objects :test #'eq)
           (remove-subscriber object quadtree object-moved)
           (if (%is-iterating quadtree)
               (%mark-dead object quadtree)
-              (setf objects (delete object objects)))
+              (setf objects (delete object objects :test #'eq)))
           object))))
 
 (defmethod find-spatial-partition (game-object (quadtree quadtree))
+  (declare (optimize (speed 3)))
   (let ((node (%node-for-object game-object quadtree)))
     (when node
-      (find game-object (objects node)))))
+      (find game-object (the (vector game-object) (objects node)) :test #'eq))))
 
 @inline
 (defun %in-boundary-p (object min-x max-x min-y max-y min-z max-z)
@@ -287,69 +304,3 @@
            (or (null max-y) (<= y max-y))
            (or (null min-z) (>= z min-z))
            (or (null max-z) (<= z max-z))))))
-
-(defmethod map-partition ((function function) (quadtree quadtree) &key min-x max-x min-y max-y min-z max-z)
-  (declare (optimize (speed 3)))
-  (break "map-partition!")
-  (with-slots (children objects level) quadtree
-    (declare (fixnum level)
-             ((vector T) objects))
-    (when (%in-boundary-p quadtree min-x max-x min-y max-y min-z max-z)
-      (unwind-protect
-           (progn
-             (%push-iteration-context quadtree)
-             (when children
-               (loop :for child :across children :do
-                    (map-partition function
-                                   child
-                                   :min-x min-x
-                                   :max-x max-x
-                                   :min-y min-y
-                                   :max-y max-y
-                                   :min-z min-z
-                                   :max-z max-z)))
-             (loop :with update-skips = (%update-skips quadtree)
-                :for object :across objects :do
-                  (locally (declare ((vector T) update-skips)
-                                    (game-object object))
-                    (when (and (not (eq %dead-object% object))
-                               (not (find object update-skips))
-                               (%in-boundary-p object min-x max-x min-y max-y min-z max-z))
-                      (funcall function object)))))
-        (%pop-iteration-context quadtree)
-        (unless (%is-iterating quadtree)
-          (%rebalance quadtree))
-        (values)))))
-
-(defmethod %map-neighbors ((function function) (game-object game-object)
-                           (quadtree quadtree) &optional (radius 0.0))
-  (declare (optimize (speed 3))
-           (world-position radius))
-  (break "map-neighbors!")
-  (unless (= 0.0 radius) (error "FIXME: quadtree radius lookup not implemented"))
-  (let ((node (%node-for-object game-object quadtree)))
-    (unless node
-      (error "game-object (~A) not tracked by quadtree (~A)" game-object quadtree))
-    (labels ((map-neighbors (node)
-               (with-slots (objects) node
-                 (declare ((vector T) objects))
-                 (loop for neighbor across objects do
-                    ;; (format T "check neighbor: ~A~%" neighbor)
-                      (unless (or (eq neighbor %dead-object%)
-                                  (eq neighbor game-object))
-                        (when (collidep game-object neighbor)
-                          (funcall function neighbor))))))
-             (map-children (children-vector)
-               (when children-vector
-                 (loop for child across children-vector do
-                      (map-neighbors child)
-                      (map-children (slot-value child 'children)))))
-             (map-parents (node)
-               (when node
-                 (map-neighbors node)
-                 (map-parents (slot-value node 'parent)))
-               (values)))
-      (map-children (slot-value node 'children))
-      (map-neighbors node)
-      (map-parents (slot-value node 'parent))
-      (values))))

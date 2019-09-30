@@ -5,7 +5,7 @@
   ((width :initarg :width)
    (height :initarg :height)
    (max-objects :initarg :max-objects
-                :initform 10
+                :initform 20
                 :reader max-objects
                 :documentation "Max objects to be added before a split.")
    (max-depth :initarg :max-depth
@@ -22,9 +22,9 @@
   (with-slots (quadtrees width height max-objects max-depth)
       layered-quadtree
     (declare ((vector quadtree) quadtrees))
-    (or (loop for quadtree across quadtrees do
-             (when (= (z quadtree)
-                      z-layer)
+    (or (loop :for quadtree :across quadtrees :do
+             (when (= (the single-float (z quadtree))
+                      (the single-float z-layer))
                (return quadtree)))
         (let ((new-tree (make-instance 'quadtree
                                        :3d-partition layered-quadtree
@@ -63,24 +63,3 @@
 (defmethod find-spatial-partition (game-object (layers layered-quadtree))
   (find-spatial-partition game-object
                           (%get-quadtree-at-layer layers (z game-object))))
-
-(defmethod map-partition ((function function) (layered layered-quadtree) &key min-x max-x min-y max-y min-z max-z)
-  (loop :for quadtree :across (slot-value layered 'quadtrees) :do
-       (map-partition function
-                      quadtree
-                      :min-x min-x
-                      :max-x max-x
-                      :min-y min-y
-                      :max-y max-y
-                      :min-z min-z
-                      :max-z max-z)))
-
-(defmethod %map-neighbors ((function function) (game-object game-object)
-                           (layers layered-quadtree) &optional (radius 0.0))
-  (%map-neighbors
-   function
-   game-object
-   (%get-quadtree-at-layer
-    layers
-    (z game-object))
-   radius))

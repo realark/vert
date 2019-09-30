@@ -18,14 +18,6 @@
   "Placeholder for an object which has been removed from the partition
 but cannot be removed from the implementation due to iteration.")
 
-(defgeneric map-partition (function partition &key min-x max-x min-y max-y min-z max-z)
-  (:documentation "Run FUNCTION over every objected in PARTITION.
-FUNCTION should be a one-arg fn which takes a partition object"))
-
-(defgeneric %map-neighbors (function game-object partition &optional radius)
-  (:documentation "Run FUNCTION over all of GAME-OBJECT's neighbors (determined by PARTITION)
-within the RADIUS."))
-
 (defmacro do-quadtree ((game-object-name quadtree &key min-x max-x min-y max-y min-z max-z) &body body)
   "Optimized implementation of DO-SPATIAL-PARTITION for quadtrees."
   (assert (symbolp game-object-name))
@@ -44,10 +36,10 @@ within the RADIUS."))
                          (progn
                            (%push-iteration-context ,current-quad)
                            (when ,children
-                             (loop :for ,child :across (the (vector quadtree) ,children) :do
+                             (loop :for ,child :across (the (simple-array quadtree (4)) ,children) :do
                                   (push ,child ,quadtrees-to-iterate)))
                            (loop :with update-skips = (%update-skips ,current-quad)
-                              :for ,object :across ,objects :do
+                              :for ,object :across (the (vector game-object) ,objects) :do
                                 (locally (declare ((vector T) update-skips)
                                                   (game-object ,object))
                                   (when (and (not (eq %dead-object% ,object))
@@ -111,15 +103,3 @@ within the RADIUS."))
                              :max-y ,max-y
                              :min-z ,min-z
                              :max-z ,max-z)))))
-
-(defmacro do-neighbors ((game-object spatial-partition neighbor-binding &optional (radius 0.0))
-                        &body body)
-  (assert (symbolp neighbor-binding))
-  (alexandria:once-only (game-object spatial-partition radius)
-    `(%map-neighbors (lambda (,neighbor-binding)
-                       (declare (optimize (speed 3)))
-                       ,@body
-                       (values))
-                     ,game-object
-                     ,spatial-partition
-                     ,radius)))
