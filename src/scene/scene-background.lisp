@@ -87,7 +87,17 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
   (declare (optimize (speed 3)))
   (with-slots (layers wrap-width orig-wrap-width wrap-height) background
     (loop :for layer :across (the (simple-array parallax-image) layers) :do
-         (update layer delta-t-ms world-context))))
+         #+nil
+         (update layer delta-t-ms world-context)
+         (with-accessors ((zoom zoom)) (camera world-context)
+           (let ((orig-zoom (zoom (camera world-context))))
+             (declare (single-float zoom orig-zoom))
+             (unless (= orig-zoom 1.0)
+               (setf zoom 1.0))
+             (unwind-protect
+                  (update layer delta-t-ms world-context)
+               (unless (= orig-zoom zoom)
+                 (setf zoom orig-zoom))))))))
 
 (defmethod pre-update :after ((background scene-background))
   (declare (optimize (speed 3)))

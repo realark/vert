@@ -94,12 +94,4 @@ but cannot be removed from the implementation due to iteration.")
                                  :min-z ,min-z
                                  :max-z ,max-z)
               ,@body))
-           (t (map-partition (lambda (,game-object-name)
-                               ,@body)
-                             ,spatial-partition
-                             :min-x ,min-x
-                             :max-x ,max-x
-                             :min-y ,min-y
-                             :max-y ,max-y
-                             :min-z ,min-z
-                             :max-z ,max-z)))))
+           (t (error "unsupported partition type: ~A" ,spatial-partition)))))
