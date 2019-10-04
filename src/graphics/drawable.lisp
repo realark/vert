@@ -24,8 +24,8 @@
 (defun sprite-transform (transform)
   "Construct a matrix which can be used to render TRANSFORM as a sprite."
   (declare (optimize (speed 3)))
-  (let ((translate (translation-matrix (* 1.0 (width transform))
-                                       (* 1.0 (height transform))
+  (let ((translate (translation-matrix (width transform)
+                                       (height transform)
                                        0.0))
         (dimensions (scale-matrix (width transform)
                                   (height transform)

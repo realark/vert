@@ -8,6 +8,7 @@ float roundingPrecision = 10000.0;
 void main()
 {
 
+  // Note: Hardcoding 0.0 for z vertex. This will break with depth buffers
   vec4 rawPosition = projection * vec4(vertex.xy, 0.0, 1.0);
   gl_Position = vec4(round((rawPosition.x * roundingPrecision)) / roundingPrecision,
                      round((rawPosition.y * roundingPrecision)) / roundingPrecision,

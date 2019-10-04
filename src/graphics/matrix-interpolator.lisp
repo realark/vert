@@ -7,7 +7,8 @@
   ;; slot to store cached interpolated matrix
   (imatrix (identity-matrix) :type matrix)
   ;; the update-percent last used to calculate imatrix
-  (cached-update-percent -1.0 :type single-float))
+  (cached-update-percent -1.0 :type single-float)
+  (matrix-changed-p nil :type boolean))
 
 (defun interpolator-compute (interpolator 1matrix update-percent)
   "Construct an interpolation matrix"
@@ -17,17 +18,20 @@
            ((single-float 0.0 1.0) update-percent))
   (with-accessors ((0matrix matrix-interpolator-0matrix)
                    (imatrix matrix-interpolator-imatrix)
-                   (cached matrix-interpolator-cached-update-percent))
+                   (cached matrix-interpolator-cached-update-percent)
+                   (changed-p matrix-interpolator-matrix-changed-p))
       interpolator
     (unless (= cached update-percent)
       (setf cached update-percent)
       (cond ((sb-cga:matrix~ 0matrix 1matrix)
+             (setf changed-p nil)
              (copy-array-contents 1matrix imatrix))
             (t (let ((interpolated-matrix (interpolate-matrix
                                            0matrix
                                            1matrix
                                            update-percent)))
                  (declare (dynamic-extent interpolated-matrix))
+                 (setf changed-p t)
                  (copy-array-contents interpolated-matrix imatrix)))))
     imatrix))
 

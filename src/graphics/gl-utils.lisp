@@ -464,6 +464,12 @@ For example, the "
                           (gl::gl-array-pointer-offset array offset))
     (gl:check-error)))
 
+(%defglfunction ("glBufferData" n-buffer-data) :void
+  (target %gl:enum)
+  (size :int)
+  (data (:pointer :void))
+  (usage %gl:enum))
+
 (%defglfunction ("glDrawArrays" n-draw-arrays) :void
   (mode %gl:enum)
   (first :int)
