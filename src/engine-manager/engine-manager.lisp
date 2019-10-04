@@ -170,11 +170,11 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                 nil
                 renderer)
         (when (get-dev-config 'dev-mode-performance-hud)
+          (render stats-hud 0 (camera *scene*) renderer))
+        (when (get-dev-config 'dev-mode-performance-hud)
           (loop :for stats :across game-stats :do
                (when (typep stats 'builtin-vert-stats)
                  (post-render-frame stats))))
-        (when (get-dev-config 'dev-mode-performance-hud)
-          (render stats-hud 0 (camera *scene*) renderer))
         (render-game-window engine-manager)))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
