@@ -204,18 +204,19 @@ On the next render frame, the objects will be given a chance to load and this li
   (error "TODO"))
 
 (defun %run-scheduled-callbacks (game-scene)
-  (declare (game-scene game-scene))
+  (declare (optimize (speed 3))
+           (game-scene game-scene))
   (with-slots ((tasks scheduled-tasks) (now scene-ticks)) game-scene
+    (declare (vector tasks))
     (loop :for i :from 0 :below (length tasks) :by 2 :do
          (let ((time-to-run (elt tasks i))
                (callback (elt tasks (+ i 1))))
-           (if (>= now time-to-run)
-               (progn
-                 (funcall callback)
-                 (setf (elt tasks i) nil
-                       (elt tasks (+ 1 i)) nil))
-               ;; timestamps are ordered so we know nothing else is scheduled
-               (return))))
+           (declare ((function ()) callback)
+                    (fixnum time-to-run now))
+           (when (>= now time-to-run)
+             (funcall callback)
+             (setf (elt tasks i) nil
+                   (elt tasks (+ 1 i)) nil))))
     (setf tasks (delete nil tasks))))
 
 @export
