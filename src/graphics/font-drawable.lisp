@@ -36,7 +36,8 @@
 
 (on-engine-start ('atlas-init)
   (let ((atlas (%create-text-atlas
-                "fonts/liberation_sans/LiberationSans-Regular.ttf"
+                (or (getconfig 'default-font *config*)
+                    (error "No default font specified in ~A" *config*))
                 72
                 *gl-context*
                 :char-code-beginning 0
@@ -325,7 +326,8 @@
          :initform (error ":text required")
          :accessor text)
    (path-to-font :initarg :path-to-font
-                 :initform "fonts/liberation_sans/LiberationSans-Regular.ttf"
+                 :initform (or (getconfig 'default-font *config*)
+                               (error "No default font specified in ~A" *config*))
                  :reader path-to-font
                  :documentation "Path to font file.")
    (font-size :initform 72

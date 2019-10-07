@@ -57,6 +57,8 @@ Example:
 (export-config-key
  'window-icon "Path to a PNG to use for the window icon. Path must be a relative path to the active config's RESOURCE-PATH. May be nil.")
 (export-config-key
+ 'default-font "Path to a font to use for the default font. Path must be a relative path to the active config's RESOURCE-PATH.")
+(export-config-key
  'enable-compositor "Allow running the game window with desktop compositor (e.g. x11 effects). This may affect the game's framerate.")
 (export-config-key
  'enable-vsync "Enable vsync for render buffer swapping.")
@@ -80,6 +82,7 @@ Example:
                                       ('config-resource-dirs (list "./resources"))
                                       ('game-name "VertGame")
                                       ('window-icon nil)
+                                      ('default-font "fonts/liberation_sans/LiberationSans-Regular.ttf")
                                       ('enable-vsync t)
                                       ('game-resolution '(320 180))
                                       ('fullscreen-p nil)
