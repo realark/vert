@@ -22,46 +22,144 @@
   ;; location
   (src-x (error "src-x required") :type (integer 0 *)))
 
-(defstruct text-atlas
-  (path-to-font (error ":path-to-font required") :type string :read-only t)
-  (font-size 72 :type (integer 1 *) :read-only t)
-  (beginning 0 :type (integer 0 *) :read-only t)
-  (end 128 :type (integer 0 *) :read-only t)
-  (texture-id -1 :type integer)
-  (width 0 :type (integer 0 *))
-  (height 0 :type (integer 0 *))
-  (glyph-info #() :type (simple-array glyph-info)))
+(defclass text-atlas (texture)
+  ((path-to-texture :initform nil)
+   (path-to-font :initarg :path-to-font
+                 :initform (error ":path-to-font required"))
+   (font-size :initarg :font-size
+              :initform 72)
+   (char-code-beginning :initarg :char-code-beginning :initform 0)
+   (char-code-end :initarg :char-code-end :initform 128)
+   (texture-parameters :initarg :texture-parameters
+                       :initform '(:texture-wrap-s :clamp-to-edge
+                                   :texture-wrap-t :clamp-to-edge
+                                   ;; Note: If you change :nearest to :linear you will get artifacts
+                                   ;; due to sampling neighboring glyphs. To avid this you will have to add padding.
+                                   :texture-min-filter :nearest
+                                   :texture-mag-filter :nearest)
+                       :documentation "plist passed to (gl:tex-parameter KEY VAL)")
+   (glyph-info :initform #())))
+
+(defmethod load-resources ((atlas text-atlas) (gl-context gl-context))
+  (with-slots (path-to-font font-size char-code-beginning char-code-end) atlas
+    (labels ((create-font-face (path-to-font font-size)
+               "Create a freetype font-face for the given font and font-size."
+               (let ((font-face (freetype2:new-face (resource-path path-to-font))))
+                 (freetype2:set-pixel-sizes font-face 0 font-size)
+                 font-face))
+             (load-freetype-glyphs (font-face char-code-beginning char-code-end)
+               "Initialize freetype for specified chars and return (sum-of-all-char-width max-char-height)"
+               (loop :with total-width = 0 :and max-height = 0
+                  :for c :from char-code-beginning :below char-code-end :do
+                    (freetype2:load-char font-face c :render)
+                    (setf total-width
+                          (+ total-width (freetype2::ft-bitmap-width (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face))))
+                          max-height (max max-height (freetype2::ft-bitmap-rows (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face)))))
+                  :finally
+                    (return (values total-width max-height))))
+             (create-empty-texture (width height texture-parameters)
+               "Create an empty opengl texture WIDTHxHEIGHT. Return gl id to texture."
+               (gl:active-texture :texture0)
+               (let ((texture-id (gl:gen-texture)))
+                 (gl:bind-texture :texture-2d texture-id)
+                 (gl:pixel-store :unpack-alignment 1)
+                 (gl:tex-image-2d :texture-2d 0 :red width height 0 :red :unsigned-byte nil)
+                 (loop :for (gl-texture-param gl-texture-param-val) :on texture-parameters :by #'cddr :do
+                      (when (null gl-texture-param-val)
+                        (error "texture params list must be a plist: ~A"
+                               texture-parameters))
+                      (gl:tex-parameter :texture-2d gl-texture-param gl-texture-param-val))
+                 texture-id)))
+      (let ((font-face (create-font-face path-to-font font-size)))
+        (multiple-value-bind (atlas-width atlas-height)
+            (load-freetype-glyphs font-face char-code-beginning char-code-end)
+          (let ((texture-id (create-empty-texture atlas-width atlas-height (slot-value atlas 'texture-parameters)))
+                (glyph-info (make-array (- char-code-end char-code-beginning)
+                                        :element-type 'glyph-info)))
+            (declare (simple-array glyph-info glyph-info))
+            ;; iterate freetype chars, capture glyph info, and write pixels to the texture
+            ;; texture is a single-row of all chars in order
+            (loop :with x-offset = 0
+               :for i :from 0
+               :for c :from char-code-beginning :below char-code-end :do
+                 (freetype2:load-char font-face c :render)
+                 (let ((glyph-bitmap-width (freetype2::ft-bitmap-width (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face))))
+                       (glyph-bitmap-rows (freetype2::ft-bitmap-rows (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face)))))
+                   (setf (elt glyph-info i)
+                         (make-glyph-info
+                          :size (make-array 2
+                                            :initial-contents (list glyph-bitmap-width glyph-bitmap-rows)
+                                            :element-type '(unsigned-byte 32))
+                          :bearing (make-array 2
+                                               :initial-contents (list
+                                                                  ;; FIXME: #\_ char breaks unless we do abs here
+                                                                  (abs (freetype2::ft-glyphslot-bitmap-left (freetype2::ft-face-glyph font-face)))
+                                                                  (abs (freetype2::ft-glyphslot-bitmap-top (freetype2::ft-face-glyph font-face))))
+                                               :element-type '(unsigned-byte 32))
+                          :advance
+                          (freetype2::ft-vector-x (freetype2::ft-glyphslot-advance (freetype2::ft-face-glyph font-face)))
+                          :src-x x-offset))
+                   (gl:tex-sub-image-2d :texture-2d
+                                        0 x-offset 0
+                                        glyph-bitmap-width glyph-bitmap-rows
+                                        :red :unsigned-byte
+                                        (freetype2::ft-bitmap-buffer (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face))))
+                   (incf x-offset glyph-bitmap-width)))
+
+            (with-slots ((atlas-texture-id texture-id) texture-src-width texture-src-height (atlas-glyph-info glyph-info)) atlas
+              (setf atlas-texture-id texture-id
+                    texture-src-width atlas-width
+                    texture-src-height atlas-height
+                    atlas-glyph-info glyph-info))))))))
+
+(defmethod release-resources ((atlas text-atlas))
+  (call-next-method atlas)
+  (setf (slot-value atlas 'glyph-info) #()))
 
 (defvar *atlas* nil)
 
 (on-engine-start ('atlas-init)
-  (let ((atlas (%create-text-atlas
-                (or (getconfig 'default-font *config*)
-                    (error "No default font specified in ~A" *config*))
-                72
-                *gl-context*
+  (let ((atlas (make-instance 'text-atlas
+                :path-to-font (or (getconfig 'default-font *config*)
+                                  (error "No default font specified in ~A" *config*))
+                :font-size 72
                 :char-code-beginning 0
                 :char-code-end 128)))
-    (unless (= 0 (text-atlas-texture-id atlas))
-      (setf *atlas* atlas))))
+    (load-resources atlas *gl-context*)
+    (setf *atlas* atlas)))
 
 (on-engine-stop ('atlas-destroy)
   (when *atlas*
-    (gl:delete-texture (text-atlas-texture-id *atlas*))
+    (release-resources *atlas*)
     (setf *atlas* nil)))
 
 (defun %text-atlas-info-for-char (atlas char)
   (declare (optimize (speed 3))
            (text-atlas atlas)
            (character char))
-  (let ((char-index (- (the fixnum (char-code char)) (the fixnum (text-atlas-beginning atlas)))))
-    (when (>= char-index (length (text-atlas-glyph-info atlas)))
-      (error "~A not in text-atlas ~A" char atlas))
-    (elt (text-atlas-glyph-info atlas)
-         char-index)))
+  (with-slots (glyph-info char-code-beginning char-code-end) atlas
+    (declare (fixnum char-code-beginning char-code-end)
+             ((simple-array glyph-info) glyph-info))
+    (let ((char-index (the fixnum (- (char-code char) char-code-beginning))))
+      (when (>= char-index (length glyph-info))
+        (error "~A not in text-atlas ~A" char atlas))
+      (elt glyph-info char-index))))
 
+(defun %compute-text-width-for-atlas (atlas text)
+  (declare (optimize (speed 3))
+           (string text)
+           (text-atlas atlas))
+  (loop :with width = 0
+     :for char :across text :do
+       (let* ((glyph (%text-atlas-info-for-char atlas char)))
+         (declare (fixnum width))
+         ;; Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+         (setf width (+ width (ash (the fixnum (glyph-info-advance glyph)) -6))))
+     :finally (return width)))
+
+#+nil
 (defun %create-text-atlas (path-to-font font-size gl-context &key (char-code-beginning 0) (char-code-end 128))
-  "Create a texture atlas with chars beginning from CHAR-CODE-BEGINNING below CHAR-CODE-END. Returns GL id to texture."
+  "Create a texture atlas with chars beginning from CHAR-CODE-BEGINNING below CHAR-CODE-END."
   (declare (gl-context gl-context)
            (integer char-code-beginning char-code-end))
   (assert (< char-code-beginning char-code-end))
@@ -195,7 +293,7 @@
         (loop
            :with scale = (min 1.0
                               (/ iw (%compute-text-width-for-atlas *atlas* (text font-drawable)))
-                              (/ ih (text-atlas-height *atlas*)))
+                              (/ ih (texture-src-height *atlas*)))
            :and x = ix
            :and y = iy
            :with i = 0
@@ -208,16 +306,16 @@
                       (glyph-size-x (elt (glyph-info-size glyph-info) 0))
                       (glyph-size-y (elt (glyph-info-size glyph-info) 1))
                       (xpos (+ x (the single-float (* glyph-bearing-x scale))))
-                      (ypos (+ y (the single-float (* (- (the fixnum (text-atlas-height *atlas*)) (the fixnum glyph-bearing-y)) scale))))
+                      (ypos (+ y (the single-float (* (- (the fixnum (texture-src-height *atlas*)) (the fixnum glyph-bearing-y)) scale))))
                       (w  (* glyph-size-x scale))
                       (h (* glyph-size-y scale))
                       (src-x (/ (float (the fixnum (glyph-info-src-x glyph-info)))
-                                (float (the fixnum (text-atlas-width *atlas*)))))
+                                (float (the fixnum (texture-src-width *atlas*)))))
                       (src-y 0.0)
                       (src-w (/ (float (the fixnum glyph-size-x))
-                                (float (the fixnum (text-atlas-width *atlas*)))))
+                                (float (the fixnum (texture-src-width *atlas*)))))
                       (src-h (/ (float (the fixnum glyph-size-y))
-                                (float (the fixnum (text-atlas-height *atlas*))))))
+                                (float (the fixnum (texture-src-height *atlas*))))))
                  (macrolet ((set-vertices-data (&rest data)
                               `(progn
                                  ,@(loop :for val :in data :collect
@@ -272,27 +370,11 @@
 
         (when *atlas*
           (gl-use-vao renderer vao)
-
-          (n-active-texture :texture0)
-          (gl-bind-texture renderer nil)
-          (n-bind-texture :texture-2d (text-atlas-texture-id *atlas*))
-
+          (gl-bind-texture renderer *atlas*)
           (when (slot-value font-drawable 'dirty-p)
             (local-to-world-matrix font-drawable)
             (%set-font-vbo-contents font-drawable renderer))
           (n-draw-arrays :triangles 0 (* 6 (length (the vector text)))))))))
-
-(defun %compute-text-width-for-atlas (atlas text)
-  (declare (optimize (speed 3))
-           (string text)
-           (text-atlas atlas))
-  (loop :with width = 0
-     :for char :across text :do
-       (let* ((glyph (%text-atlas-info-for-char atlas char)))
-         (declare (fixnum width))
-         ;; Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
-         (setf width (+ width (ash (the fixnum (glyph-info-advance glyph)) -6))))
-     :finally (return width)))
 
 (defun %create-font-shader ()
   (make-instance 'shader

@@ -281,7 +281,7 @@ For example, the "
   (with-slots (path-to-texture texture-id texture-src-width)
       texture
     (when (= 0 texture-id)
-      (error "texture ~A is not loaded" path-to-texture))
+      (error "texture ~A is not loaded" texture))
     texture-src-width))
 
 (defun texture-src-height (texture)
@@ -289,7 +289,7 @@ For example, the "
   (with-slots (path-to-texture texture-id texture-src-height)
       texture
     (when (= 0 texture-id)
-      (error "texture ~A is not loaded" path-to-texture))
+      (error "texture ~A is not loaded" texture))
     texture-src-height))
 
 (defmethod load-resources ((texture texture) (renderer gl-context))
