@@ -2,6 +2,7 @@
 
 ;;;; Menus
 
+(export '(select-down-sfx select-up-sfx run-action-sfx))
 (defclass menu (scene input-handler)
   ((node :initarg :root
          :initform (error ":root must be specified")
@@ -28,13 +29,23 @@
    (music :initarg :music
           :initform nil
           :documentation "Music to play while the menu is active")
+   (select-down-sfx :initarg :select-down-sfx
+                    :initform nil
+                    :documentation "Sound effect to play when selecting down")
+   (select-up-sfx :initarg :select-up-sfx
+                  :initform nil
+                  :documentation "Sound effect to play when selecting up")
+   (run-action-sfx :initarg :run-aciton-sfx
+                   :initform nil
+                   :documentation "Sound effect to play when selecting an action")
    (background :initarg :background
                :initform nil))
   (:documentation "A game menu"))
 
 (defmethod initialize-instance :after ((menu menu) &rest args)
   (declare (ignore args))
-  (setf (node menu) (node menu))
+  (when (node menu)
+    (setf (node menu) (node menu)))
   (add-subscriber (camera menu) menu camera-screen-resized))
 
 (defun %set-menu-position-and-color (menu)
@@ -126,7 +137,8 @@
   (%set-menu-position-and-color menu))
 
 (defclass menu-node (font-drawable obb)
-  ((node-name :initarg :node-name
+  ((menu :initarg :menu :initform (error ":menu required"))
+   (node-name :initarg :node-name
               :initform (error ":node-name must be specified")
               :documentation "Name of this menu node")
    (text :initform nil)))
@@ -144,15 +156,21 @@
 (defgeneric select-down (parent-node)
   (:documentation "Select the item below the current selection.")
   (:method ((parent-node parent-node))
-    (with-slots (children selected-child-index) parent-node
+    (with-slots (children selected-child-index menu) parent-node
       (unless (= selected-child-index (1- (length children)))
+        (with-slots (select-up-sfx) menu
+          (when (and select-up-sfx *audio*)
+            (play-sound-effect *audio* select-up-sfx)))
         (incf selected-child-index)))))
 
 (defgeneric select-up (parent-node)
   (:documentation "Select the item above the current selection.")
   (:method ((parent-node parent-node))
-    (with-slots (selected-child-index) parent-node
+    (with-slots (selected-child-index menu) parent-node
       (unless (= selected-child-index 0)
+        (with-slots (select-down-sfx) menu
+          (when (and select-down-sfx *audio*)
+            (play-sound-effect *audio* select-down-sfx)))
         (decf selected-child-index)))))
 
 (defclass action-node (menu-node)
@@ -168,6 +186,9 @@
           (activate menu (elt children selected-child-index) device-id))
         (setf (slot-value menu 'node) parent-node)))
   (:method ((menu menu) (action-node action-node) &optional device-id)
+    (with-slots (run-action-sfx) menu
+      (when (and run-action-sfx *audio*)
+        (play-sound-effect *audio* run-action-sfx)))
     (funcall (slot-value action-node 'action) device-id)))
 
 (defmethod update ((menu menu) (delta-t-ms real) (null null))
@@ -209,7 +230,7 @@
 
 ;; Menu Builder DSL
 
-(defun %menu-list-to-tree (menu-list)
+(defun %menu-list-to-tree (menu menu-list)
   "Convert a menu list into a menu tree."
   (let ((menu-name (first menu-list))
         (options (rest menu-list)))
@@ -217,6 +238,7 @@
                  (> (length options) 0)
                  (every #'listp options)))
     (make-instance 'parent-node
+                   :menu menu
                    :width 1
                    :height 1
                    :node-name menu-name
@@ -226,13 +248,14 @@
                         (push
                          (if (and (= (length option) 2) (functionp (second option)))
                              (make-instance 'action-node
+                                            :menu menu
                                             :width 1
                                             :height 1
                                             :node-name (first option)
                                             :action (second option))
                              (progn
                                (assert (>= (length option) 2))
-                               (%menu-list-to-tree option)))
+                               (%menu-list-to-tree menu option)))
                          children)
                       finally (return (reverse children))))))
 
@@ -271,6 +294,10 @@
    option      := (option-name run-action) | menu-dsl
    option-name := string
    run-action  := (run-action lisp-form*)"
-  `(make-instance ',menu-class
-                  ,@menu-options
-                  :root (%menu-list-to-tree (%menu-dsl-to-list ,@menu-dsl))))
+  (alexandria:with-gensyms (menu)
+    `(let ((,menu (make-instance ',menu-class
+                                 ,@menu-options
+                                 :root nil)))
+       (setf (slot-value ,menu 'node)
+             (%menu-list-to-tree ,menu (%menu-dsl-to-list ,@menu-dsl)))
+       ,menu)))
