@@ -22,8 +22,8 @@
    (camera :initarg :camera
            :accessor camera
            :initform (make-instance 'camera
-                                    :width 320
-                                    :height 180))
+                                    :width (first (getconfig 'game-resolution *config*))
+                                    :height (second (getconfig 'game-resolution *config*))))
    ;; TODO play music
    (music :initarg :music
           :initform nil
