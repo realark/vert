@@ -13,6 +13,15 @@
                                        (gl:delete-vertex-arrays (list cached-vao))
                                        (gl:delete-buffers (list cached-vbo)))))))
 
+(defvar %text-atlas-cache%
+  (getcache-default "text-atlas-cache"
+                    *engine-caches*
+                    (make-instance 'counting-cache
+                                   :on-evict
+                                   (lambda (path-to-font font-sizes-cache)
+                                     (declare (ignore path-to-font))
+                                     (clear-cache font-sizes-cache)))))
+
 (defstruct glyph-info
   (size (error ":size required") :type kit.math:ivec2)
   ;; Offset from baseline to left/top of glyph
@@ -115,23 +124,6 @@
 (defmethod release-resources ((atlas text-atlas))
   (call-next-method atlas)
   (setf (slot-value atlas 'glyph-info) #()))
-
-(defvar *atlas* nil)
-
-(on-engine-start ('atlas-init)
-  (let ((atlas (make-instance 'text-atlas
-                :path-to-font (or (getconfig 'default-font *config*)
-                                  (error "No default font specified in ~A" *config*))
-                :font-size 72
-                :char-code-beginning 0
-                :char-code-end 128)))
-    (load-resources atlas *gl-context*)
-    (setf *atlas* atlas)))
-
-(on-engine-stop ('atlas-destroy)
-  (when *atlas*
-    (release-resources *atlas*)
-    (setf *atlas* nil)))
 
 (defun %text-atlas-info-for-char (atlas char)
   (declare (optimize (speed 3))
@@ -240,6 +232,7 @@
   (defclass gl-font (draw-component)
     ((font-drawable :initarg :font-drawable
                     :initform (error ":font-drawable required"))
+     (text-atlas :initform nil)
      (shader :initform nil :reader shader)
      (vao :initform 0 :reader vao)
      (vbo :initform 0)
@@ -249,9 +242,28 @@
   (export '(text)))
 
 (defmethod load-resources ((gl-font gl-font) (renderer gl-context))
-  (with-slots (font-drawable shader vao vbo vertices vertices-byte-size vertices-pointer-offset)
+  (with-slots (font-drawable text-atlas shader vao vbo vertices vertices-byte-size vertices-pointer-offset)
       gl-font
     (when (= 0 vao)
+      (with-slots (path-to-font font-size) font-drawable
+        (setf text-atlas
+              ;; cache by FONT -> FONT-SIZE -> text-atlas
+              (getcache-default font-size
+                                (getcache-default path-to-font
+                                                  %text-atlas-cache%
+                                                  (make-instance 'counting-cache
+                                                                 :on-evict
+                                                                 (lambda (font-size text-atlas)
+                                                                   (declare (ignore font-size))
+                                                                   (release-resources text-atlas))))
+                                (let ((atlas (make-instance 'text-atlas
+                                                            :path-to-font path-to-font
+                                                            :font-size font-size
+                                                            :char-code-beginning 0
+                                                            :char-code-end 128)))
+                                  (load-resources atlas renderer)
+                                  atlas))))
+
       (setf shader
             (getcache-default %font-key%
                               *shader-cache*
@@ -271,7 +283,7 @@
       (%set-font-vbo-contents font-drawable renderer))))
 
 (defmethod release-resources ((gl-font gl-font))
-  (with-slots (font-drawable shader vao vbo vertices)
+  (with-slots (font-drawable shader vao vbo vertices text-atlas)
       gl-font
     (unless (= 0 vao)
       (remcache %font-key% *shader-cache*)
@@ -280,7 +292,10 @@
       (setf shader nil
             vao 0
             vbo 0
-            vertices nil))))
+            vertices nil)
+      (with-slots (path-to-font font-size) font-drawable
+        (remcache font-size (getcache path-to-font %text-atlas-cache%))
+        (setf text-atlas nil)))))
 
 (defun %set-font-vbo-contents (font-drawable renderer)
   (declare (optimize (speed 3)))
@@ -289,33 +304,33 @@
     (declare (ignore iz)
              (single-float ix iy iw ih))
     (with-slots ((gl-font font-draw-component)) font-drawable
-      (with-slots (vao vbo vertices vertices-byte-size vertices-pointer-offset) gl-font
+      (with-slots (vao vbo vertices vertices-byte-size vertices-pointer-offset text-atlas) gl-font
         (loop
            :with scale = (min 1.0
-                              (/ iw (%compute-text-width-for-atlas *atlas* (text font-drawable)))
-                              (/ ih (texture-src-height *atlas*)))
+                              (/ iw (%compute-text-width-for-atlas text-atlas (text font-drawable)))
+                              (/ ih (texture-src-height text-atlas)))
            :and x = ix
            :and y = iy
            :with i = 0
            :for char :across (text font-drawable) :do
              (locally (declare (single-float x y scale)
                                (fixnum i))
-               (let* ((glyph-info (%text-atlas-info-for-char *atlas* char))
+               (let* ((glyph-info (%text-atlas-info-for-char text-atlas char))
                       (glyph-bearing-x (the fixnum (elt (glyph-info-bearing glyph-info) 0)))
                       (glyph-bearing-y (elt (glyph-info-bearing glyph-info) 1))
                       (glyph-size-x (elt (glyph-info-size glyph-info) 0))
                       (glyph-size-y (elt (glyph-info-size glyph-info) 1))
                       (xpos (+ x (the single-float (* glyph-bearing-x scale))))
-                      (ypos (+ y (the single-float (* (- (the fixnum (texture-src-height *atlas*)) (the fixnum glyph-bearing-y)) scale))))
+                      (ypos (+ y (the single-float (* (- (the fixnum (texture-src-height text-atlas)) (the fixnum glyph-bearing-y)) scale))))
                       (w  (* glyph-size-x scale))
                       (h (* glyph-size-y scale))
                       (src-x (/ (float (the fixnum (glyph-info-src-x glyph-info)))
-                                (float (the fixnum (texture-src-width *atlas*)))))
+                                (float (the fixnum (texture-src-width text-atlas)))))
                       (src-y 0.0)
                       (src-w (/ (float (the fixnum glyph-size-x))
-                                (float (the fixnum (texture-src-width *atlas*)))))
+                                (float (the fixnum (texture-src-width text-atlas)))))
                       (src-h (/ (float (the fixnum glyph-size-y))
-                                (float (the fixnum (texture-src-height *atlas*))))))
+                                (float (the fixnum (texture-src-height text-atlas))))))
                  (macrolet ((set-vertices-data (&rest data)
                               `(progn
                                  ,@(loop :for val :in data :collect
@@ -348,33 +363,31 @@
 
 (defmethod render ((gl-font gl-font) update-percent (camera simple-camera) (renderer gl-context))
   (declare (optimize (speed 3)))
-  (when *atlas*
-    (with-slots (font-drawable shader vao vbo vertices vertices-byte-size vertices-pointer-offset)
-        gl-font
-      (with-accessors ((color color) (text text))
-          font-drawable
-        (gl-use-shader renderer shader)
+  (with-slots (font-drawable shader vao vbo vertices vertices-byte-size vertices-pointer-offset text-atlas)
+      gl-font
+    (with-accessors ((color color) (text text))
+        font-drawable
+      (gl-use-shader renderer shader)
 
-        (set-uniform-matrix-4fv shader "projection"
-                                (interpolated-world-projection-matrix camera update-percent)
-                                nil)
+      (set-uniform-matrix-4fv shader "projection"
+                              (interpolated-world-projection-matrix camera update-percent)
+                              nil)
 
-        (if color
-            (set-uniformf shader "textColor"
-                          (r color)
-                          (g color)
-                          (b color)
-                          (a color))
-            (set-uniformf shader "textColor"
-                          1.0 1.0 1.0 1.0))
+      (if color
+          (set-uniformf shader "textColor"
+                        (r color)
+                        (g color)
+                        (b color)
+                        (a color))
+          (set-uniformf shader "textColor"
+                        1.0 1.0 1.0 1.0))
 
-        (when *atlas*
-          (gl-use-vao renderer vao)
-          (gl-bind-texture renderer *atlas*)
-          (when (slot-value font-drawable 'dirty-p)
-            (local-to-world-matrix font-drawable)
-            (%set-font-vbo-contents font-drawable renderer))
-          (n-draw-arrays :triangles 0 (* 6 (length (the vector text)))))))))
+      (gl-use-vao renderer vao)
+      (gl-bind-texture renderer text-atlas)
+      (when (slot-value font-drawable 'dirty-p)
+        (local-to-world-matrix font-drawable)
+        (%set-font-vbo-contents font-drawable renderer))
+      (n-draw-arrays :triangles 0 (* 6 (length (the vector text)))))))
 
 (defun %create-font-shader ()
   (make-instance 'shader
@@ -424,7 +437,7 @@
       (unless (equal old-text (text font-drawable))
         (when *gl-context*
           (with-slots (font-draw-component) font-drawable
-            (with-slots (vertices vertices-byte-size vertices-pointer-offset) font-draw-component
+            (with-slots (vertices vertices-byte-size vertices-pointer-offset text-atlas) font-draw-component
               (when (or (null vertices)
                         (> (* 6 4 (length (text font-drawable))) (gl::gl-array-size vertices)))
                 (when vertices
@@ -433,7 +446,7 @@
                 (setf vertices (gl:alloc-gl-array :float (* 6 4 (length (text font-drawable))))
                       vertices-byte-size (gl::gl-array-byte-size vertices)
                       vertices-pointer-offset (gl::gl-array-pointer-offset vertices 0)))
-              (when (and *atlas* *gl-context*)
+              (when text-atlas
                 (%set-font-vbo-contents font-drawable *gl-context*)))))))))
 
 (defmethod initialize-instance :after ((font-drawable font-drawable) &rest args)
@@ -457,7 +470,8 @@
 (defun font-dimensions (font-drawable)
   (declare (font-drawable font-drawable))
   (with-slots ((gl-font font-draw-component)) font-drawable
-    (if *atlas*
-        (values (%compute-text-width-for-atlas *atlas* (text font-drawable))
-                (%text-atlas-info-for-char *atlas* #\y))
-        (values 100 10))))
+    (with-slots (text-atlas) gl-font
+      (if text-atlas
+          (values (%compute-text-width-for-atlas text-atlas (text font-drawable))
+                  (%text-atlas-info-for-char text-atlas #\y))
+          (values 100 10)))))
