@@ -2,7 +2,7 @@
 
 ;;;; Menus
 
-(export '(select-down-sfx select-up-sfx run-action-sfx))
+(export '(select-down-sfx select-up-sfx run-action-sfx initialized-sfx))
 (defclass menu (scene input-handler)
   ((node :initarg :root
          :initform (error ":root must be specified")
@@ -38,6 +38,10 @@
    (run-action-sfx :initarg :run-aciton-sfx
                    :initform nil
                    :documentation "Sound effect to play when selecting an action")
+   (initialized-p :initform nil)
+   (initialized-sfx :initarg :initialized-sfx
+                    :initform nil
+                    :documentation "Sound effect to play when menu is initialized.")
    (background :initarg :background
                :initform nil))
   (:documentation "A game menu"))
@@ -194,6 +198,10 @@
 (defmethod update ((menu menu) (delta-t-ms real) (null null))
   (pre-update menu)
   (pre-update (camera menu))
+  (with-slots (initialized-p initialized-sfx) menu
+    (unless (or (null initialized-sfx) initialized-p (null *audio*))
+      (setf initialized-p t)
+      (play-sound-effect *audio* initialized-sfx)))
   ;; update input
   (update menu delta-t-ms menu)
   (update (camera menu) delta-t-ms menu))
