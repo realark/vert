@@ -204,9 +204,6 @@
                             (%create-font-buffers))
         (setf vao cached-vao
               vbo cached-vbo))
-      (setf vertices (gl:alloc-gl-array :float (* 6 4 (length (text font-drawable))))
-            vertices-byte-size (gl::gl-array-byte-size vertices)
-            vertices-pointer-offset (gl::gl-array-pointer-offset vertices 0))
       (%set-font-vbo-contents font-drawable renderer))))
 
 (defmethod release-resources ((gl-font gl-font))
@@ -226,71 +223,92 @@
 
 (defun %set-font-vbo-contents (font-drawable renderer)
   (declare (optimize (speed 3)))
-  (multiple-value-bind (ix iy iz iw ih)
-      (world-dimensions font-drawable)
-    (declare (ignore iz)
-             (single-float ix iy iw ih))
-    (with-slots ((gl-font font-draw-component)) font-drawable
-      (with-slots (vao vbo vertices vertices-byte-size vertices-pointer-offset text-atlas) gl-font
-        (loop
-           :with scale = (min 1.0
-                              (/ iw (%compute-text-width-for-atlas text-atlas (text font-drawable)))
-                              (/ ih (texture-src-height text-atlas)))
-           :and x = ix
-           :and y = iy
-           :with i = 0
-           :for char :across (text font-drawable) :do
-             (locally (declare (single-float x y scale)
-                               (fixnum i))
-               (let* ((glyph-info (%text-atlas-info-for-char text-atlas char))
-                      (glyph-bearing-x (the fixnum (elt (glyph-info-bearing glyph-info) 0)))
-                      (glyph-bearing-y (elt (glyph-info-bearing glyph-info) 1))
-                      (glyph-size-x (elt (glyph-info-size glyph-info) 0))
-                      (glyph-size-y (elt (glyph-info-size glyph-info) 1))
-                      (xpos (+ x (the single-float (* glyph-bearing-x scale))))
-                      (ypos (+ y (/ ih 2.0)
-                               (the single-float (* (- (the fixnum (texture-src-height text-atlas))
-                                                       (the fixnum glyph-bearing-y)
-                                                       (/ (texture-src-height text-atlas) 2.0))
-                                                    scale))))
-                      (w  (* glyph-size-x scale))
-                      (h (* glyph-size-y scale))
-                      (src-x (/ (float (the fixnum (glyph-info-src-x glyph-info)))
-                                (float (the fixnum (texture-src-width text-atlas)))))
-                      (src-y 0.0)
-                      (src-w (/ (float (the fixnum glyph-size-x))
-                                (float (the fixnum (texture-src-width text-atlas)))))
-                      (src-h (/ (float (the fixnum glyph-size-y))
-                                (float (the fixnum (texture-src-height text-atlas))))))
-                 (macrolet ((set-vertices-data (&rest data)
-                              `(progn
-                                 ,@(loop :for val :in data :collect
-                                        `(setf (cffi:mem-aref (gl::gl-array-pointer vertices) :float i)
-                                               ,val
-                                               i (+ i 1))))))
-                   (set-vertices-data
-                    ;; -- second triangle
-                    ;; top left
-                    xpos         ypos        src-x  src-y
-                    ;; bottom left
-                    xpos         (+ ypos h)  src-x  (+ src-y src-h)
-                    ;; bottom right
-                    (+ xpos w)   (+ ypos h)  (+ src-x src-w)  (+ src-y src-h)
-                    ;; -- first triangle
-                    ;; bottom right
-                    (+ xpos w)   (+ ypos h)  (+ src-x src-w)  (+ src-y src-h)
-                    ;; top right
-                    (+ xpos w)   ypos        (+ src-x src-w) src-y
-                    ;; top left
-                    xpos         ypos        src-x  src-y))
+  (labels ((scale-vertices-array (font-drawable)
+             (with-slots ((gl-font font-draw-component)) font-drawable
+               (with-slots (vertices vertices-byte-size vertices-pointer-offset) gl-font
+                 (when (or (null vertices) ; ensure vertices array is large enough for the text
+                           (> (the fixnum (* 6 4 (the fixnum (length (the vector (text font-drawable))))))
+                              (the fixnum (gl::gl-array-size vertices))))
+                   (when vertices
+                     (gl:free-gl-array vertices)
+                     (setf vertices nil))
+                   (setf vertices (gl:alloc-gl-array :float (* 6 4 (length (text font-drawable))))
+                         vertices-byte-size (gl::gl-array-byte-size vertices)
+                         vertices-pointer-offset (gl::gl-array-pointer-offset vertices 0))))))
+           (get-or-compute-text-scale (font-drawable text-atlas iw ih)
+             (with-slots ((font-scale scale)) font-drawable
+               (or font-scale
+                   (min 1.0
+                        (/ iw (%compute-text-width-for-atlas text-atlas (text font-drawable)))
+                        (/ ih (texture-src-height text-atlas))))))
+           (send-vertices-to-gl (font-drawable)
+             (multiple-value-bind (ix iy iz iw ih)
+                 (world-dimensions font-drawable)
+               (declare (ignore iz)
+                        (single-float ix iy iw ih))
+               (with-slots ((gl-font font-draw-component)) font-drawable
+                 (with-slots (vao vbo vertices vertices-byte-size text-atlas) gl-font
+                   (loop
+                      :with scale = (get-or-compute-text-scale font-drawable text-atlas iw ih)
+                      :and x = ix
+                      :and y = iy
+                      :and i = 0
+                      :for char :across (text font-drawable) :do
+                        (locally (declare (single-float x y scale)
+                                          (fixnum i))
+                          (let* ((glyph-info (%text-atlas-info-for-char text-atlas char))
+                                 (glyph-bearing-x (the fixnum (elt (glyph-info-bearing glyph-info) 0)))
+                                 (glyph-bearing-y (elt (glyph-info-bearing glyph-info) 1))
+                                 (glyph-size-x (elt (glyph-info-size glyph-info) 0))
+                                 (glyph-size-y (elt (glyph-info-size glyph-info) 1))
+                                 (xpos (+ x (the single-float (* glyph-bearing-x scale))))
+                                 (ypos (+ y (/ ih 2.0)
+                                          (the single-float (* (- (the fixnum (texture-src-height text-atlas))
+                                                                  (the fixnum glyph-bearing-y)
+                                                                  (/ (texture-src-height text-atlas) 2.0))
+                                                               scale))))
+                                 (w  (* glyph-size-x scale))
+                                 (h (* glyph-size-y scale))
+                                 (src-x (/ (float (the fixnum (glyph-info-src-x glyph-info)))
+                                           (float (the fixnum (texture-src-width text-atlas)))))
+                                 (src-y 0.0)
+                                 (src-w (/ (float (the fixnum glyph-size-x))
+                                           (float (the fixnum (texture-src-width text-atlas)))))
+                                 (src-h (/ (float (the fixnum glyph-size-y))
+                                           (float (the fixnum (texture-src-height text-atlas))))))
+                            (macrolet ((set-vertices-data (&rest data)
+                                         `(progn
+                                            ,@(loop :for val :in data :collect
+                                                   `(setf (cffi:mem-aref (gl::gl-array-pointer vertices) :float i)
+                                                          ,val
+                                                          i (+ i 1))))))
+                              (set-vertices-data
+                               ;; -- second triangle
+                               ;; top left
+                               xpos         ypos        src-x  src-y
+                               ;; bottom left
+                               xpos         (+ ypos h)  src-x  (+ src-y src-h)
+                               ;; bottom right
+                               (+ xpos w)   (+ ypos h)  (+ src-x src-w)  (+ src-y src-h)
+                               ;; -- first triangle
+                               ;; bottom right
+                               (+ xpos w)   (+ ypos h)  (+ src-x src-w)  (+ src-y src-h)
+                               ;; top right
+                               (+ xpos w)   ypos        (+ src-x src-w) src-y
+                               ;; top left
+                               xpos         ypos        src-x  src-y))
 
-                 ;; Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
-                 ;; Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
-                 (incf x (* (ash (the fixnum (glyph-info-advance glyph-info)) -6) scale)))))
-        (unless (= 0 (the fixnum vao))
-          (gl-use-vao renderer vao)
-          (n-bind-buffer :array-buffer vbo)
-          (n-buffer-data :array-buffer vertices-byte-size (gl::gl-array-pointer vertices) :dynamic-draw))))))
+                            ;; Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+                            ;; Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+                            (incf x (* (ash (the fixnum (glyph-info-advance glyph-info)) -6) scale)))))
+                   (unless (= 0 (the fixnum vao))
+                     (gl-use-vao renderer vao)
+                     (n-bind-buffer :array-buffer vbo)
+                     (n-buffer-data :array-buffer vertices-byte-size (gl::gl-array-pointer vertices) :dynamic-draw)))))))
+    (declare (inline scale-vertices-array send-vertices-to-gl))
+    (when (and renderer (slot-value (slot-value font-drawable 'font-draw-component) 'text-atlas))
+      (scale-vertices-array font-drawable)
+      (send-vertices-to-gl font-drawable))))
 
 (defmethod render ((gl-font gl-font) update-percent (camera simple-camera) (renderer gl-context))
   (declare (optimize (speed 3)))
@@ -359,26 +377,24 @@
    (font-size :initform 72
               :initarg :font-size
               :reader font-size
-              :documentation "Pixel depth of the font."))
+              :documentation "Pixel depth of the font.")
+   (scale :initarg :scale
+          :initform nil
+          :accessor font-scale
+          :documentation "How to scale font within its rectangle. May be nil to have font auto-scale to rectangle boundary."))
   (:documentation "A drawable which loads pixels from a font and user-defined text"))
 
 (defmethod (setf text) :around (new-text (font-drawable font-drawable))
   (let ((old-text (text font-drawable)))
     (prog1 (call-next-method new-text font-drawable)
       (unless (equal old-text (text font-drawable))
-        (when *gl-context*
-          (with-slots (font-draw-component) font-drawable
-            (with-slots (vertices vertices-byte-size vertices-pointer-offset text-atlas) font-draw-component
-              (when (or (null vertices)
-                        (> (* 6 4 (length (text font-drawable))) (gl::gl-array-size vertices)))
-                (when vertices
-                  (gl:free-gl-array vertices)
-                  (setf vertices nil))
-                (setf vertices (gl:alloc-gl-array :float (* 6 4 (length (text font-drawable))))
-                      vertices-byte-size (gl::gl-array-byte-size vertices)
-                      vertices-pointer-offset (gl::gl-array-pointer-offset vertices 0)))
-              (when text-atlas
-                (%set-font-vbo-contents font-drawable *gl-context*)))))))))
+        (%set-font-vbo-contents font-drawable *gl-context*)))))
+
+(defmethod (setf scale) :around (new-scale (font-drawable font-drawable))
+  (let ((old-scale (font-scale font-drawable)))
+    (prog1 (call-next-method new-scale font-drawable)
+      (unless (equalp old-scale new-scale)
+        (%set-font-vbo-contents font-drawable *gl-context*)))))
 
 (defmethod initialize-instance :after ((font-drawable font-drawable) &rest args)
   (declare (ignore args))
