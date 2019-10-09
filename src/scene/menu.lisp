@@ -2,7 +2,7 @@
 
 ;;;; Menus
 
-(export '(select-down-sfx select-up-sfx run-action-sfx initialized-sfx))
+(export '(select-down-sfx select-up-sfx run-action-sfx initialized-sfx title-scale item-scale))
 (defclass menu (scene input-handler)
   ((node :initarg :root
          :initform (error ":root must be specified")
@@ -43,6 +43,10 @@
                     :initform nil
                     :documentation "Sound effect to play when menu is initialized.")
    (background :initarg :background
+               :initform nil)
+   (title-scale :initarg :title-scale
+                :initform nil)
+   (item-scale :initarg :item-scale
                :initform nil))
   (:documentation "A game menu"))
 
@@ -246,6 +250,7 @@
                  (> (length options) 0)
                  (every #'listp options)))
     (make-instance 'parent-node
+                   :scale (slot-value menu 'title-scale)
                    :menu menu
                    :width 1
                    :height 1
@@ -256,6 +261,7 @@
                         (push
                          (if (and (= (length option) 2) (functionp (second option)))
                              (make-instance 'action-node
+                                            :scale (slot-value menu 'item-scale)
                                             :menu menu
                                             :width 1
                                             :height 1
