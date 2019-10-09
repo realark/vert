@@ -1,5 +1,7 @@
 (in-package :recurse.vert)
 
+;;;; buffers
+
 (defvar %font-key% 'gl-font)
 
 (defvar %font-buffer-cache%
@@ -22,6 +24,8 @@
                                      (declare (ignore path-to-font))
                                      (clear-cache font-sizes-cache)))))
 
+;;;; text-atlas
+
 (defstruct glyph-info
   (size (error ":size required") :type kit.math:ivec2)
   ;; Offset from baseline to left/top of glyph
@@ -36,7 +40,7 @@
    (path-to-font :initarg :path-to-font
                  :initform (error ":path-to-font required"))
    (font-size :initarg :font-size
-              :initform 72)
+              :initform (error ":font-size required"))
    (char-code-beginning :initarg :char-code-beginning :initform 0)
    (char-code-end :initarg :char-code-end :initform 128)
    (texture-parameters :initarg :texture-parameters
@@ -149,84 +153,7 @@
          (setf width (+ width (ash (the fixnum (glyph-info-advance glyph)) -6))))
      :finally (return width)))
 
-#+nil
-(defun %create-text-atlas (path-to-font font-size gl-context &key (char-code-beginning 0) (char-code-end 128))
-  "Create a texture atlas with chars beginning from CHAR-CODE-BEGINNING below CHAR-CODE-END."
-  (declare (gl-context gl-context)
-           (integer char-code-beginning char-code-end))
-  (assert (< char-code-beginning char-code-end))
-  (labels ((create-font-face (path-to-font font-size)
-             "Create a freetype font-face for the given font and font-size."
-             (let ((font-face (freetype2:new-face (resource-path path-to-font))))
-               (freetype2:set-pixel-sizes font-face 0 font-size)
-               font-face))
-           (load-freetype-glyphs (font-face char-code-beginning char-code-end)
-             "Initialize freetype for specified chars and return (sum-of-all-char-width max-char-height)"
-             (loop :with total-width = 0 :and max-height = 0
-                :for c :from char-code-beginning :below char-code-end :do
-                  (freetype2:load-char font-face c :render)
-                  (setf total-width
-                        (+ total-width (freetype2::ft-bitmap-width (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face))))
-                        max-height (max max-height (freetype2::ft-bitmap-rows (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face)))))
-                :finally
-                  (return (values total-width max-height))))
-           (create-empty-texture (width height)
-             "Create an empty opengl texture WIDTHxHEIGHT. Return gl id to texture."
-             (gl:active-texture :texture0)
-             (let ((texture-id (gl:gen-texture)))
-               (gl:bind-texture :texture-2d texture-id)
-               (gl:pixel-store :unpack-alignment 1)
-               (gl:tex-image-2d :texture-2d 0 :red width height 0 :red :unsigned-byte nil)
-               (gl:tex-parameter :texture-2d :texture-wrap-s :clamp-to-edge)
-               (gl:tex-parameter :texture-2d :texture-wrap-t :clamp-to-edge)
-               ;; Note: If you change :nearest to :linear you will get artifacts
-               ;; due to sampling neighboring glyphs. To avid this you will have to add padding.
-               (gl:tex-parameter :texture-2d :texture-min-filter :nearest)
-               (gl:tex-parameter :texture-2d :texture-mag-filter :nearest)
-               texture-id)))
-    (let ((font-face (create-font-face path-to-font font-size)))
-      (multiple-value-bind (atlas-width atlas-height)
-          (load-freetype-glyphs font-face char-code-beginning char-code-end)
-        (let ((texture-id (create-empty-texture atlas-width atlas-height))
-              (glyph-info (make-array (- char-code-end char-code-beginning)
-                                      :element-type 'glyph-info)))
-          (declare (simple-array glyph-info glyph-info))
-          ;; iterate freetype chars, capture glyph info, and write pixels to the texture
-          ;; texture is a single-row of all chars in order
-          (loop :with x-offset = 0
-             :for i :from 0
-             :for c :from char-code-beginning :below char-code-end :do
-               (freetype2:load-char font-face c :render)
-               (let ((glyph-bitmap-width (freetype2::ft-bitmap-width (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face))))
-                     (glyph-bitmap-rows (freetype2::ft-bitmap-rows (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face)))))
-                 (setf (elt glyph-info i)
-                       (make-glyph-info
-                        :size (make-array 2
-                                          :initial-contents (list glyph-bitmap-width glyph-bitmap-rows)
-                                          :element-type '(unsigned-byte 32))
-                        :bearing (make-array 2
-                                             :initial-contents (list
-                                                                ;; FIXME: #\_ char breaks unless we do abs here
-                                                                (abs (freetype2::ft-glyphslot-bitmap-left (freetype2::ft-face-glyph font-face)))
-                                                                (abs (freetype2::ft-glyphslot-bitmap-top (freetype2::ft-face-glyph font-face))))
-                                             :element-type '(unsigned-byte 32))
-                        :advance
-                        (freetype2::ft-vector-x (freetype2::ft-glyphslot-advance (freetype2::ft-face-glyph font-face)))
-                        :src-x x-offset))
-                 (gl:tex-sub-image-2d :texture-2d
-                                      0 x-offset 0
-                                      glyph-bitmap-width glyph-bitmap-rows
-                                      :red :unsigned-byte
-                                      (freetype2::ft-bitmap-buffer (freetype2::ft-glyphslot-bitmap (freetype2::ft-face-glyph font-face))))
-                 (incf x-offset glyph-bitmap-width)))
-
-          (make-text-atlas
-           :path-to-font path-to-font
-           :font-size font-size
-           :texture-id texture-id
-           :width atlas-width
-           :height atlas-height
-           :glyph-info glyph-info))))))
+;;;; gl-font Draw component
 
 (progn
   (defclass gl-font (draw-component)
