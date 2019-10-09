@@ -118,6 +118,8 @@
             (loop for i from 0 below (sdl2:joystick-count) do
                  (initialize-sdl-controller engine-manager i))
 
+            (gl:clear :color-buffer-bit)
+            (sdl2:gl-swap-window (sdl-window (application-window engine-manager)))
             (call-next-method)))))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
