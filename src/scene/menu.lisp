@@ -2,7 +2,7 @@
 
 ;;;; Menus
 
-(export '(select-down-sfx select-up-sfx run-action-sfx initialized-sfx title-scale item-scale))
+(export '(select-down-sfx select-up-sfx run-action-sfx initialized-sfx title-scale item-scale menu-alignment))
 (defclass menu (scene input-handler)
   ((node :initarg :root
          :initform (error ":root must be specified")
@@ -47,7 +47,10 @@
    (title-scale :initarg :title-scale
                 :initform nil)
    (item-scale :initarg :item-scale
-               :initform nil))
+               :initform nil)
+   (selection-marker :initform
+                     (make-instance 'font-drawable
+                                    :text ">")))
   (:documentation "A game menu"))
 
 (defmethod initialize-instance :after ((menu menu) &rest args)
@@ -59,11 +62,12 @@
 (defun %set-menu-position-and-color (menu)
   (with-slots (node
                camera
+               selection-marker
                item-color selected-item-color
                title-color)
       menu
     (let ((current-y 5.0)
-          (y-space-between-items (+ (height node) 5.0)))
+          (y-space-between-items (+ (height node) 1.0)))
       (multiple-value-bind (title-width title-height)
           (font-dimensions node)
         (setf title-width 100.0
@@ -73,15 +77,15 @@
               (height node) title-height
               (x node) (+ (x camera)
                           (/ (width camera) 2.0)
-                          (- (/ (width node) 2.0)))
+                          (- (* (width node) 3/4)))
               (y node) current-y))
-      (incf current-y y-space-between-items)
+      (incf current-y (* 2 y-space-between-items))
 
-      (loop for i from 0 below (length (slot-value node 'children)) do
-           (let ((child (elt (slot-value node 'children) i))
-                 (child-color (if (= i (slot-value node 'selected-child-index))
-                                  selected-item-color
-                                  item-color)))
+      (setf (color selection-marker) *invisible*)
+      (loop :for i :from 0 :below (length (slot-value node 'children)) :do
+           (let* ((child (elt (slot-value node 'children) i))
+                  (selected-p (= i (slot-value node 'selected-child-index)))
+                  (child-color (if selected-p selected-item-color item-color)))
              (multiple-value-bind (item-width item-height)
                  (font-dimensions node)
                (setf item-width 100.0
@@ -91,8 +95,14 @@
                      (height child) item-height
                      (x child) (+ (x camera)
                                   (/ (width camera) 2)
-                                  (- (/ (width child) 2)))
-                     (y child) current-y))
+                                  (- (* (width child) 1/2)))
+                     (y child) current-y)
+               (when selected-p
+                 (setf (color selection-marker) child-color
+                       (width selection-marker) item-width
+                       (height selection-marker) item-height
+                       (x selection-marker) (- (x child) 10)
+                       (y selection-marker) current-y)))
              (incf current-y y-space-between-items)))
       (let ((active-node (nth (slot-value node 'selected-child-index)
                               (slot-value node 'children))))
@@ -219,7 +229,8 @@
         (render background 0.0 camera renderer))
       (render node 0.0 camera renderer)
       (loop for child in (slot-value node 'children) do
-           (render child 0.0 camera renderer)))))
+           (render child 0.0 camera renderer))
+      (render (slot-value menu 'selection-marker) update-percent camera renderer))))
 
 (defmethod load-resources :before ((node parent-node) renderer)
   (loop for child in (slot-value node 'children) do
@@ -230,12 +241,14 @@
        (release-resources child)))
 
 (defmethod load-resources ((menu menu) renderer)
+  (load-resources (slot-value menu 'selection-marker) renderer)
   (when (slot-value menu 'background)
     (load-resources (slot-value menu 'background) renderer))
   (load-resources (slot-value menu 'node) renderer)
   (%set-menu-position-and-color menu))
 
 (defmethod release-resources ((menu menu))
+  (release-resources (slot-value menu 'selection-marker))
   (when (slot-value menu 'background)
     (release-resources (slot-value menu 'background)))
   (release-resources (slot-value menu 'node)))
