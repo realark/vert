@@ -47,6 +47,7 @@
                                      :fill-pointer 1
                                      :adjustable t)
                :reader game-stats)
+   (screen-camera :initform nil)
    (stats-hud :initform nil :accessor stats-hud))
   (:documentation "Starts and stops the game. Manages global engine state and services."))
 (export '(rendering-context))
@@ -170,7 +171,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                 nil
                 renderer)
         (when (get-dev-config 'dev-mode-performance-hud)
-          (render stats-hud 0 (camera *scene*) renderer))
+          (render stats-hud 0 (slot-value engine-manager 'screen-camera) renderer))
         (when (get-dev-config 'dev-mode-performance-hud)
           (loop :for stats :across game-stats :do
                (when (typep stats 'builtin-vert-stats)
@@ -196,6 +197,13 @@ It is invoked after the engine is fully started.")
            (loop :for label :being :the hash-keys :of *engine-start-hooks*
               :using (hash-value hook)
               :do (funcall hook))
+           (with-slots (screen-camera) engine-manager
+             (setf screen-camera
+                   (make-instance 'camera
+                                  :width (first (getconfig 'game-resolution *config*))
+                                  :height (second (getconfig 'game-resolution *config*))))
+             (update screen-camera *timestep* nil)
+             (update screen-camera *timestep* nil))
            (sb-ext:gc :full T) ;; run a full gc before the first window is shown
            ;; run the game loop
            (run-game-loop engine-manager))
