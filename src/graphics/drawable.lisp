@@ -53,6 +53,10 @@
       (interpolator-update interpolator m)))
   (values))
 
+(defmethod recycle ((drawable drawable))
+  ;; drop the previous matrix
+  (pre-update drawable))
+
 (defun interpolated-sprite-matrix (drawable update-percent)
   (declare (optimize (speed 3))
            ((single-float 0.0 1.0) update-percent))
