@@ -13,14 +13,14 @@
     `(simple-array single-float (3)))
 
   @inline
-  (defun vector2 (x y)
+  (defun vector2 (&optional (x 0.0) (y 0.0))
     (declare (single-float x y))
     (make-array 2
                 :element-type 'single-float
                 :initial-contents (list x y)))
 
   @inline
-  (defun vector3 (x y z)
+  (defun vector3 (&optional (x 0.0) (y 0.0) (z 0.0))
     (declare (single-float x y z))
     (make-array 3
                 :element-type 'single-float
