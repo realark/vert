@@ -509,6 +509,9 @@ For example, the "
   (defun n-bind-buffer (target buffer)
     (gl:bind-buffer target buffer))
 
+  (defun n-buffer-data (target size data usage)
+    (%gl:buffer-data target size data usage))
+
   (defun n-draw-arrays (mode first count)
     (gl:draw-arrays mode first count))
 
