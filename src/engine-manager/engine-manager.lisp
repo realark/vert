@@ -18,7 +18,10 @@
 
 (defclass engine-manager (event-publisher)
   ;; global services
-  ((input-manager :initform (make-instance 'input-manager)
+  ((initial-scene-creator-fn :initform nil
+                             :reader initial-scene-creator-fn
+                             :documentation "A zero-arg function which returns the first scene to use for engine.")
+   (input-manager :initform (make-instance 'input-manager)
                   :reader input-manager)
    (application-window :initarg :application-window
                        :initform nil
@@ -193,6 +196,7 @@ It is invoked after the engine is fully started.")
            ;; fire events
            (fire-event engine-manager engine-started)
            ;; set up initial active-scene
+           (setf (slot-value engine-manager 'initial-scene-creator-fn) initial-scene-creator)
            (change-scene engine-manager (funcall initial-scene-creator))
            (loop :for label :being :the hash-keys :of *engine-start-hooks*
               :using (hash-value hook)

@@ -32,9 +32,7 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
     (assert-units)
     (labels ((run-engine ()
                (unwind-protect
-                    (sdl2:make-this-thread-main
-                     (lambda ()
-                       (run-game *engine-manager* scene-creator-function)))
+                    (run-game *engine-manager* scene-creator-function)
                  (setf *engine-manager* nil
                        *config* nil
                        *dev-mode* nil)
