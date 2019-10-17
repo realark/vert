@@ -126,14 +126,23 @@
         (scale-vector delta (/ 1.0 magnitude))))))
 
 @export
-(defun distance-between (point1 point2)
-  "Compute the distance between POINT1 and POINT2 vectors."
-  (declare (optimize (speed 3))
-           (vector3 point1 point2))
-  (with-accessors ((x1 x) (y1 y) (z1 z)) point1
-    (with-accessors ((x2 x) (y2 y) (z2 z)) point2
-      (declare (single-float x1 y1 z1 x2 y2 z2))
-      (the single-float
-           (sqrt (+ (expt (- x1 x2) 2)
-                    (expt (- y1 y2) 2)
-                    (expt (- z1 z2) 2)))))))
+(defun distance-between (vec-a vec-b)
+  "Compute the distance between VEC-A and VEC-B vectors."
+  (declare (optimize (speed 3)))
+  (if (and (typep vec-a 'vector2)
+           (typep vec-b 'vector2))
+      (locally (declare (vector2 vec-a vec-b))
+        (with-accessors ((x1 x) (y1 y)) vec-a
+          (with-accessors ((x2 x) (y2 y)) vec-b
+            (declare (single-float x1 y1 x2 y2))
+            (the single-float
+                 (sqrt (+ (expt (- x1 x2) 2)
+                          (expt (- y1 y2) 2)))))))
+      (locally (declare (vector3 vec-a vec-b))
+        (with-accessors ((x1 x) (y1 y) (z1 z)) vec-a
+          (with-accessors ((x2 x) (y2 y) (z2 z)) vec-b
+            (declare (single-float x1 y1 z1 x2 y2 z2))
+            (the single-float
+                 (sqrt (+ (expt (- x1 x2) 2)
+                          (expt (- y1 y2) 2)
+                          (expt (- z1 z2) 2)))))))))
