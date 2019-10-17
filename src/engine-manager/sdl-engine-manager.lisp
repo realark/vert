@@ -21,108 +21,106 @@
   (values))
 
 (defmethod run-game ((engine-manager sdl-engine-manager) initial-scene-creator)
-  (sdl2:make-this-thread-main
-   (lambda ()
-     (if (getconfig 'use-dummy-audio-output *config*)
-         (sb-posix:setenv "SDL_AUDIODRIVER" "dummy" 1)
-         (sb-posix:unsetenv "SDL_AUDIODRIVER"))
-     (sdl2:with-init (:everything)
-       (progn
-         ;; https://wiki.libsdl.org/SDL_GLattr
-         ;; https://wiki.libsdl.org/SDL_GLprofile
-         (sdl2:gl-set-attr :context-major-version 3)
-         (sdl2:gl-set-attr :context-minor-version 3)
-         (sdl2:gl-set-attr :context-profile-mask
-                           sdl2-ffi:+sdl-gl-context-profile-core+)
-         (sdl2:gl-set-attr :doublebuffer 1)
-         #+darwin
-         (sdl2:gl-set-attr :context-forward-compatible-flag
-                           sdl2-ffi:+sdl-gl-context-forward-compatible-flag+))
+  (if (getconfig 'use-dummy-audio-output *config*)
+      (sb-posix:setenv "SDL_AUDIODRIVER" "dummy" 1)
+      (sb-posix:unsetenv "SDL_AUDIODRIVER"))
+  (sdl2:with-init (:everything)
+    (progn
+      ;; https://wiki.libsdl.org/SDL_GLattr
+      ;; https://wiki.libsdl.org/SDL_GLprofile
+      (sdl2:gl-set-attr :context-major-version 3)
+      (sdl2:gl-set-attr :context-minor-version 3)
+      (sdl2:gl-set-attr :context-profile-mask
+                        sdl2-ffi:+sdl-gl-context-profile-core+)
+      (sdl2:gl-set-attr :doublebuffer 1)
+      #+darwin
+      (sdl2:gl-set-attr :context-forward-compatible-flag
+                        sdl2-ffi:+sdl-gl-context-forward-compatible-flag+))
 
-       (format T "Running on lisp ~A version ~A~%"
-               (lisp-implementation-type)
-               (lisp-implementation-version))
-       (format T "Compiled against SDL Library Version: ~D.~D.~D~%"
-               sdl2-ffi:+sdl-major-version+
-               sdl2-ffi:+sdl-minor-version+
-               sdl2-ffi:+sdl-patchlevel+)
-       (format T "opengl version ~A.~A~%profile mask: ~A~%"
-               (sdl2:gl-get-attr :CONTEXT-MAJOR-VERSION)
-               (sdl2:gl-get-attr :CONTEXT-MINOR-VERSION)
-               (sdl2:gl-get-attr :context-profile-mask))
+    (format T "Running on lisp ~A version ~A~%"
+            (lisp-implementation-type)
+            (lisp-implementation-version))
+    (format T "Compiled against SDL Library Version: ~D.~D.~D~%"
+            sdl2-ffi:+sdl-major-version+
+            sdl2-ffi:+sdl-minor-version+
+            sdl2-ffi:+sdl-patchlevel+)
+    (format T "opengl version ~A.~A~%profile mask: ~A~%"
+            (sdl2:gl-get-attr :CONTEXT-MAJOR-VERSION)
+            (sdl2:gl-get-attr :CONTEXT-MINOR-VERSION)
+            (sdl2:gl-get-attr :context-profile-mask))
 
-       ;; disabling the compositor makes the framerate look a lot smoother
-       ;; but I could eventually add an option to keep the compositor on
-       (when (getconfig 'enable-compositor *config*)
-         (cffi:with-foreign-strings ((hint-name "SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR")
-                                     (hint-val "0"))
-           ;; prevent SDL from disabling the linux compositor
-           (sdl2-ffi.functions:sdl-set-hint hint-name hint-val)))
+    ;; disabling the compositor makes the framerate look a lot smoother
+    ;; but I could eventually add an option to keep the compositor on
+    (when (getconfig 'enable-compositor *config*)
+      (cffi:with-foreign-strings ((hint-name "SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR")
+                                  (hint-val "0"))
+        ;; prevent SDL from disabling the linux compositor
+        (sdl2-ffi.functions:sdl-set-hint hint-name hint-val)))
 
-       (let ((window-flags (remove nil
-                                   (list :opengl
-                                         (when (getconfig 'resizable-window  *config*)
-                                           :resizable)
-                                         (if (getconfig 'hidden-window *config*) :hidden :shown)))))
-         (destructuring-bind (win-w-px win-h-px)
-             (getconfig 'initial-window-size *config*)
-           (sdl2:with-window (win :w win-w-px :h win-h-px
-                                  :flags window-flags
-                                  :title (getconfig 'game-name *config*))
-             (when (getconfig 'window-icon *config*)
-               (let* ((img-path (resource-path (getconfig 'window-icon *config*)))
-                      (soil-image-pointer nil)
-                      (surf nil))
-                 (when img-path
-                   (unwind-protect
-                        (progn
-                          (setf surf (multiple-value-bind
-                                           (img-pointer width height component-count-file component-count-data)
-                                         (cl-soil:load-image img-path :rgba)
-                                       (assert (= 4 component-count-file component-count-data))
-                                       (setf soil-image-pointer img-pointer)
-                                       (sdl2:create-rgb-surface-with-format-from
-                                        img-pointer
-                                        width
-                                        height
-                                        (* component-count-data 8)
-                                        (* component-count-data width)
-                                        :format sdl2:+pixelformat-rgba32+)))
-                          (sdl2-ffi.functions:sdl-set-window-icon win surf))
-                     (when surf (sdl2:free-surface surf))
-                     (when soil-image-pointer (cl-soil:free-image-data soil-image-pointer))))))
-             (sdl2:with-gl-context (sdl-glcontext win)
-               (sdl2:gl-make-current win sdl-glcontext)
-               (gl:viewport 0 0 win-w-px win-h-px)
+    (let ((window-flags (remove nil
+                                (list :opengl
+                                      (when (getconfig 'resizable-window  *config*)
+                                        :resizable)
+                                      (if (getconfig 'hidden-window *config*) :hidden :shown)))))
+      (destructuring-bind (win-w-px win-h-px)
+          (getconfig 'initial-window-size *config*)
+        (sdl2:with-window (win :w win-w-px :h win-h-px
+                               :flags window-flags
+                               :title (getconfig 'game-name *config*))
+          (when (getconfig 'window-icon *config*)
+            (let* ((img-path (resource-path (getconfig 'window-icon *config*)))
+                   (soil-image-pointer nil)
+                   (surf nil))
+              (when img-path
+                (unwind-protect
+                     (progn
+                       (setf surf (multiple-value-bind
+                                        (img-pointer width height component-count-file component-count-data)
+                                      (cl-soil:load-image img-path :rgba)
+                                    (assert (= 4 component-count-file component-count-data))
+                                    (setf soil-image-pointer img-pointer)
+                                    (sdl2:create-rgb-surface-with-format-from
+                                     img-pointer
+                                     width
+                                     height
+                                     (* component-count-data 8)
+                                     (* component-count-data width)
+                                     :format sdl2:+pixelformat-rgba32+)))
+                       (sdl2-ffi.functions:sdl-set-window-icon win surf))
+                  (when surf (sdl2:free-surface surf))
+                  (when soil-image-pointer (cl-soil:free-image-data soil-image-pointer))))))
+          (sdl2:with-gl-context (sdl-glcontext win)
+            (sdl2:gl-make-current win sdl-glcontext)
+            (gl:viewport 0 0 win-w-px win-h-px)
 
-               (progn                   ; set global gl options
-                 (when (getconfig 'enable-vsync *config*)
-                   (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
-                     (sdl2::sdl-gl-set-swap-interval 1)))
-                 (format T "window swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval))
-                 (gl:enable :cull-face)
-                 (gl:enable :blend)
-                 (gl:blend-func :src-alpha :one-minus-src-alpha))
+            (progn                   ; set global gl options
+              (when (getconfig 'enable-vsync *config*)
+                (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
+                  (sdl2::sdl-gl-set-swap-interval 1)))
+              (format T "window swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval))
+              (gl:enable :cull-face)
+              (gl:enable :blend)
+              (gl:blend-func :src-alpha :one-minus-src-alpha))
 
-               ;; Stop using rendered
-               ;; Initialize gl context and pass to engine manager
-               ;; set opengl vars: version, vsync
-               ;; sleep the engine if vsync is disabled
-               (setf (slot-value engine-manager 'application-window)
-                     (make-instance 'sdl-application-window :sdl-window win)
-                     (slot-value engine-manager 'rendering-context)
-                     (make-gl-context :wrapper sdl-glcontext)
-                     *gl-context* (slot-value engine-manager 'rendering-context))
-               (when (getconfig 'fullscreen-p *config*)
-                 (toggle-fullscreen (slot-value engine-manager 'application-window)))
-               (register-input-device (input-manager engine-manager)
-                                      (slot-value engine-manager 'keyboard-input))
-               (loop for i from 0 below (sdl2:joystick-count) do
-                    (initialize-sdl-controller engine-manager i))
+            ;; Stop using rendered
+            ;; Initialize gl context and pass to engine manager
+            ;; set opengl vars: version, vsync
+            ;; sleep the engine if vsync is disabled
+            (setf (slot-value engine-manager 'application-window)
+                  (make-instance 'sdl-application-window :sdl-window win)
+                  (slot-value engine-manager 'rendering-context)
+                  (make-gl-context :wrapper sdl-glcontext)
+                  *gl-context* (slot-value engine-manager 'rendering-context))
+            (when (getconfig 'fullscreen-p *config*)
+              (toggle-fullscreen (slot-value engine-manager 'application-window)))
+            (register-input-device (input-manager engine-manager)
+                                   (slot-value engine-manager 'keyboard-input))
+            (loop for i from 0 below (sdl2:joystick-count) do
+                 (initialize-sdl-controller engine-manager i))
 
-               (gl:clear :color-buffer-bit)
-               (sdl2:gl-swap-window (sdl-window (application-window engine-manager)))
-               (call-next-method)))))))))
+            (gl:clear :color-buffer-bit)
+            (sdl2:gl-swap-window (sdl-window (application-window engine-manager)))
+            (call-next-method)))))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
   (with-slots (sdl-controllers) engine-manager
