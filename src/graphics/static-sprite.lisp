@@ -326,6 +326,10 @@ Nil to render the entire sprite."
                                      :adjustable t)))))
 
 @export
+(defun get-color-maps (static-sprite)
+  (slot-value static-sprite 'color-maps))
+
+@export
 (defun flip (sprite direction)
   "Toggle STATIC-SPRITE in the given DIRECTION.
 A DIRECTION of :NONE will clear all flips"
