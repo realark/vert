@@ -4,7 +4,7 @@
 
 (defclass direction-tracker (agent obb)
   ((facing :initarg :facing
-           :initform '(:EAST)
+           :initform (list :EAST)
            :reader facing)
    (simultanious-directions-p :initarg :simultainous-directions-p
                               :initform t))
