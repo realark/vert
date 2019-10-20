@@ -33,11 +33,15 @@
     (image-source (error ":image-source required"):type string)
     (columns (error ":columns required"):type integer)
     (tile-width (error ":tile-width required"):type integer)
-    (tile-height (error ":tile-height required"):type integer))
+    (tile-height (error ":tile-height required"):type integer)
+    (tile-objects ; hash TILE-ID -> Objects json
+     (make-hash-table :test #'equalp)
+     :type hash-table))
   (export 'tileset-image-source)
   (export 'tileset-columns)
   (export 'tileset-tile-width)
-  (export 'tileset-tile-height))
+  (export 'tileset-tile-height)
+  (export 'tileset-tile-objects))
 
 (progn
   @export
@@ -46,6 +50,7 @@
     (props nil :type list))
   (export 'tiled-object-props)
 
+  @export
   (defun make-tiled-object (&key props)
     (when (assoc :gid props)
       ;; tiled uses a y == up coordinate system for image-objects.
@@ -61,7 +66,7 @@
 
 
 @export
-(defgeneric on-tile-read (tiled-scene layer-json tileset tile-map-col tile-map-row tile-source-col tile-source-row)
+(defgeneric on-tile-read (tiled-scene layer-json tileset tile-number tile-map-col tile-map-row tile-source-col tile-source-row)
   (:documentation "Invoked when a tiled tile is read. Implementers will add the appropriate game-object to TILED-SCENE."))
 
 @export
@@ -83,11 +88,27 @@
                       (json (json:decode-json tileset-stream))
                       (image-path (concatenate 'string
                                                (directory-namestring tileset-path)
-                                               (json-val json :image))))
+                                               (json-val json :image)))
+                      (tile-objects-hash (make-hash-table :test #'equalp)))
+                 (loop :for tile-json :in (json-val json :tiles) :do
+                      (when (and (listp tile-json)
+                                 (json-val (cdr tile-json) :objectgroup)
+                                 (json-val (json-val (cdr tile-json) :objectgroup) :objects))
+                        (loop :with tile-id = (car tile-json)
+                           :for tile-object-json
+                           :in (json-val (json-val (cdr tile-json) :objectgroup) :objects)
+                           :do
+                             (unless (gethash tile-id tile-objects-hash)
+                               (setf (gethash tile-id tile-objects-hash) (make-array 1 :fill-pointer 0 :adjustable t)))
+                             (let ((tile-objects-array (gethash tile-id tile-objects-hash)))
+                               (vector-push-extend
+                                tile-object-json
+                                tile-objects-array)))))
                  (make-tileset :image-source image-path
                                :columns (json-val json :columns)
                                :tile-width (json-val json :tilewidth)
-                               :tile-height (json-val json :tileheight)))))
+                               :tile-height (json-val json :tileheight)
+                               :tile-objects tile-objects-hash))))
            (tileset-for-tile (tile-number tilesets-cache)
              "Returns values TILESET GID of the tileset for TILE-NUMBER"
              (loop :with active-gid = nil
@@ -136,6 +157,7 @@
                          (on-tile-read tiled-scene
                                        layer-json
                                        tileset
+                                       (- tile-number gid)
                                        map-col
                                        map-row
                                        source-col
