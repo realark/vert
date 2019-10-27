@@ -2,8 +2,10 @@
 
 @export-class
 (defclass game-object (event-publisher)
-  ((object-id :initform nil
+  ((object-id :initform (gensym "object-id-")
               :initarg :object-id
+              :documentation "id unique to each game-object instance in a scene.
+User may provide this, but if they do so they are responsible for guaranteeing uniqueness."
               :reader object-id))
   (:documentation "Base class of all game objects."))
 
@@ -72,6 +74,7 @@ UPDATE-USER functionality.")
     ;; default no-op
     (declare (ignore game-object delta-t-ms world-context))))
 
+@export
 (defgeneric update (game-object delta-t-ms world-context)
   (:documentation "Update GAME-OBJECT for an elapsed time of DELTA-T-MS inside of WORLD-CONTEXT.")
   (:method ((game-object game-object) delta-t-ms world-context)
@@ -81,30 +84,36 @@ UPDATE-USER functionality.")
 
 ;; rendering methods to be implemented by graphics component
 
+@export
 (defgeneric render (game-object update-percent camera rendering-context)
   (:documentation "Render GAME-OBJECT into RENDERING-CONTEXT relative to CAMERA.
 UPDATE-PERCENT is percentage [0,1) between calls to the UPDATE method, with 0 being right at the update frame.")
   (:method ((game-object game-object) update-percent camera rendering-context)
     (declare (ignore game-object update-percent camera rendering-context))))
 
+@export
 (defgeneric load-resources (game-object rendering-context)
-  (:documentation "Called once before any rendering takes place.
-Allow GAME-OBJECT load resources with RENDERING-CONTEXT (E.g. load a resource from disk).")
+  (:documentation "Called after the game window has been created, but before GAME-OBJECT has been added to the scene.
+Use this method to load/cache resources (e.g. opengl texture, audio sound effect, etc).")
   (:method ((game-object game-object) rendering-context)
     (declare (ignore game-object rendering-context))))
 
+@export
 (defgeneric release-resources (game-object)
   (:documentation "GAME-OBJECT will no longer be rendered.
 Release any open resources and clean up state.")
   (:method ((game-object game-object))
     (declare (ignore game-object))))
 
+@export
 (defgeneric recycle (game-object)
-  (:documentation "GAME-OBJECT has left the world but will be reused later.
-Useful for components that do their own memory management (e.g. particle manager)")
+  (:documentation "Instruct GAME-OBJECT to reset any internal state.
+Useful in object caching cases where the object was previously in the world and
+needs to be re-used as if it was a fresh object (e.g. cached particle). ")
   (:method ((game-object game-object))
     (declare (ignore game-object))))
 
+@export
 (defgeneric color (game-object)
   (:documentation "Color adjustment of a game-object. Nil or *white* == no adjustment.")
   (:method ((game-object game-object))
