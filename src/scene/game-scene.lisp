@@ -112,6 +112,7 @@ On the next render frame, the objects will be given a chance to load and this li
         (setf scene-overlays (delete overlay scene-overlays))
         (release-resources overlay))))
   (:method ((scene game-scene) (object game-object))
+    (remove-subscriber object scene killed)
     (stop-tracking (spatial-partition scene) object)
     (release-resources object)))
 
