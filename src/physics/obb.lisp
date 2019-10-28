@@ -209,4 +209,5 @@
 (defmethod favored-collision-resolution-axis ((cross cross) stationary-object)
     (with-slots (vertical-rect horizontal-rect) cross
       (cond ((collidep vertical-rect stationary-object) 'x)
-            ((collidep horizontal-rect stationary-object) 'y))))
+            ((collidep horizontal-rect stationary-object) 'y)
+            (t 'x))))

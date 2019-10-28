@@ -75,7 +75,7 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
 (defvar *vert-build-version* nil
   "version control id vert was built against.")
 
-(eval-when (:compile-toplevel :load-toplevel)
+(eval-when (:compile-toplevel)
   (defun git-id ()
     "Return a string describing the current git-tag or commit sha if not on a tag."
     (delete #\newline

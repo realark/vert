@@ -17,7 +17,8 @@
     ;; zero out v and a on collision axis
     (let ((x-axis-collision nil)
           (y-axis-collision nil)
-          (favored-axis (favored-collision-resolution-axis moving-object stationary-object)))
+          (favored-axis (favored-collision-resolution-axis (hit-box moving-object stationary-object)
+                                                           stationary-object)))
       (setf (y moving-object) (y non-colliding-point))
       (unless (collidep moving-object stationary-object)
         (setf y-axis-collision T))
@@ -31,16 +32,13 @@
             (setf x-axis-collision nil)
             (setf y-axis-collision nil)))
       (cond
-        ((and x-axis-collision y-axis-collision)
-         ;; when both x and y collide we can't zero out either axis of collision
-         nil)
         (y-axis-collision
-         (setf (velocity-y moving-object) 0
-               (acceleration-y moving-object) 0
+         (setf (velocity-y moving-object) 0.0
+               (acceleration-y moving-object) 0.0
                (x non-colliding-point) (x colliding-point)))
         (x-axis-collision
-         (setf (velocity-x moving-object) 0
-               (acceleration-x moving-object) 0
+         (setf (velocity-x moving-object) 0.0
+               (acceleration-x moving-object) 0.0
                (y non-colliding-point) (y colliding-point)))
         (T
          ;; neither axis is "responsible" for the collision.
@@ -51,13 +49,13 @@
                (acceleration-x moving-object) 0.0))))
     ;; find closest non-colliding point
     ;; and move object to it
-    (loop while (> (distance-between colliding-point non-colliding-point)
-                   (the world-position *collision-precision*))
-       do (setf
-           ;; move object halfway between the two points
-           (x moving-object) (/ (+ (x non-colliding-point) (x colliding-point)) 2.0)
-           (y moving-object) (/ (+ (y non-colliding-point) (y colliding-point)) 2.0)
-           (z moving-object) (/ (+ (z non-colliding-point) (z colliding-point)) 2.0))
+    (loop :while (> (distance-between colliding-point non-colliding-point)
+                    (the world-position *collision-precision*))
+       :do (setf
+            ;; move object halfway between the two points
+            (x moving-object) (/ (+ (x non-colliding-point) (x colliding-point)) 2.0)
+            (y moving-object) (/ (+ (y non-colliding-point) (y colliding-point)) 2.0)
+            (z moving-object) (/ (+ (z non-colliding-point) (z colliding-point)) 2.0))
          (if (collidep moving-object stationary-object)
              (setf (x colliding-point) (x moving-object)
                    (y colliding-point) (y moving-object)
@@ -65,9 +63,9 @@
              (setf (x non-colliding-point) (x moving-object)
                    (y non-colliding-point) (y moving-object)
                    (z non-colliding-point) (z moving-object)))
-       finally (setf (x moving-object) (x non-colliding-point)
-                     (y moving-object) (y non-colliding-point)
-                     (z moving-object) (z non-colliding-point)))))
+       :finally (setf (x moving-object) (x non-colliding-point)
+                      (y moving-object) (y non-colliding-point)
+                      (z moving-object) (z non-colliding-point)))))
 
 (defmotion linear-motion ((object kinematic-object) delta-t-ms (physics-context physics-context-2d))
   (declare (optimize (speed 3))
