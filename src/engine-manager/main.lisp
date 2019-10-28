@@ -50,7 +50,6 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
   (when *engine-manager*
     (quit-engine *engine-manager*)))
 
-
 (defun %reload-all-shaders ()
   ;; first clear out any existing gl errors
   (gl:get-error)
@@ -71,3 +70,25 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
 (defun reload-all-shaders ()
   (on-game-thread
     (%reload-all-shaders)))
+
+@export
+(defvar *vert-build-version* nil
+  "version control id vert was built against.")
+
+(eval-when (:compile-toplevel :load-toplevel)
+  (defun git-id ()
+    "Return a string describing the current git-tag or commit sha if not on a tag."
+    (delete #\newline
+            (with-output-to-string (cmd-stream)
+              (or (uiop:run-program "git describe --exact-match --tags --abbrev=0"
+                                    :ignore-error-status T
+                                    :output cmd-stream)
+                  (uiop:run-program "git rev-parse --short HEAD" :output cmd-stream)))))
+
+  (let ((orig-dir (sb-posix:getcwd)))
+    (unwind-protect
+         (progn
+           (sb-posix:chdir
+            (asdf:system-source-directory :vert))
+           (setf *vert-build-version* (git-id)))
+      (sb-posix:chdir orig-dir))))
