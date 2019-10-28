@@ -222,7 +222,8 @@
                           (target target))
              camera
            (when target
-             (with-accessors ((target-x x) (target-y y)) target
+             (let ((target-x (x target))
+                   (target-y (y target)))
                (when (<= center-y (- target-y max-offset))
                  (setf center-y (- target-y max-offset)))
                (when (>= center-y (+ target-y max-offset))
@@ -231,10 +232,19 @@
                  (setf center-x (- target-x max-offset)))
                (when (>= center-x (+ target-x max-offset))
                  (setf center-x (+ target-x max-offset))))
-             (setf (x camera) (- center-x
-                                 (/ camera-width 2)))
-             (setf (y camera) (- center-y
-                                 (/ camera-height 2)))))))
+             (let* ((new-camera-x (- center-x
+                                     (/ camera-width 2)))
+                    (new-camera-y (- center-y
+                                     (/ camera-height 2)))
+                    (delta-x (abs (- (x camera) new-camera-x)))
+                    (delta-y (abs (- (y camera) new-camera-y))))
+               (when (or (not (typep target 'kinematic-object))
+                         (> delta-x 5.0)
+                         (> delta-y 5.0)
+                         (> (abs (acceleration-x target)) 0.0)
+                         (> (abs (acceleration-y target)) 0.0))
+                 (setf (x camera) new-camera-x
+                       (y camera) new-camera-y)))))))
 
   (defmethod (setf target) :after (new-target (camera target-tracking-camera))
              (camera-track-target camera))
