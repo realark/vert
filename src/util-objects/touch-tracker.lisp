@@ -99,6 +99,11 @@
         (when (> (length (touching region)) 0)
           (touching region)))))
 
+(defmethod object-moved :after ((touch-tracker touch-tracker))
+  (with-slots (touch-regions) touch-tracker
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+         (object-moved (elt touch-regions (+ i 1))))))
+
 ;; TODO: move :around width/height scaling updates to pinned-objects
 (defmethod (setf width) :around (new-width (touch-tracker touch-tracker))
   (let* ((old-width (width touch-tracker))

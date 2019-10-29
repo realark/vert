@@ -45,3 +45,39 @@
              (is update-count
                  expected-update-count
                  (format nil "Object in boundary ~A should be updated exactly once" obj)))))))
+
+(deftest layered-quadtree
+  (let ((partition (make-instance 'recurse.vert::layered-quadtree
+                                  :width 100
+                                  :height 100))
+        (test-object (make-instance 'obb
+                               :x 10
+                               :y 10
+                               :z 0
+                               :width 10
+                               :height 10)))
+    (start-tracking partition test-object)
+
+    ;; should track object through z layer changes
+    (is
+     (block find-test-object
+       (do-spatial-partition (obj partition :min-z 0.0 :max-z 0.0)
+         (when (eq obj test-object)
+           (return-from find-test-object obj))))
+     test-object)
+
+    (decf (z test-object))
+    (is
+     (block find-test-object
+       (do-spatial-partition (obj partition :min-z -1.0 :max-z -1.0)
+         (when (eq obj test-object)
+           (return-from find-test-object obj))))
+     test-object)
+
+    (incf (z test-object))
+    (is
+     (block find-test-object
+       (do-spatial-partition (obj partition :min-z 0.0 :max-z 0.0)
+         (when (eq obj test-object)
+           (return-from find-test-object obj))))
+     test-object)))
