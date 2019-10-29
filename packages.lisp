@@ -1,5 +1,4 @@
 (in-package :cl-user)
-(require 'sb-concurrency)
 
 (defpackage :recurse.vert
   (:use :cl :bordeaux-threads)
@@ -179,12 +178,6 @@
    :add-touch-region
    :objects-touching
    :obb-touch-tracker
-
-   ;; basic ai plugin
-   :back-and-forth
-   :feet-touching
-   :is-falling
-   :agent-acceleration
 
    ;; global state
    :*engine-manager*
