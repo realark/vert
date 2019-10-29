@@ -37,7 +37,7 @@
 (declaim ((single-float 0f0 1f0 ) *movement-threshold*))
 (defvar *movement-threshold* 0.01
   "Movable objects with movement below this threshold are not considered moving.")
-(defparameter *collision-precision* #.(expt 10.0 -2)
+(defparameter *collision-precision* 1.0
               "Objects will not overlap at or above this number.")
 
 (deftype world-position ()
