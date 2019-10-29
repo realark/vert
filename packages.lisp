@@ -184,10 +184,6 @@
    :back-and-forth
    :feet-touching
    :is-falling
-   :direction-tracker
-   :facing
-   :is-facing
-   :push-direction
    :agent-acceleration
 
    ;; global state
