@@ -2,10 +2,13 @@
 
 ;;;; Region of a touch-tracker
 
-(defclass touch-region (obb)
+(defclass touch-region (obb phantom)
   ((touch-tracker :initarg :touch-tracker
                   :initform (error ":touch-tracker required"))
-   (touching :initform (list)
+   (touching :initform (make-array 0
+                                   :element-type 'game-object
+                                   :fill-pointer 0
+                                   :adjustable t)
              :accessor touching
              :documentation "Unordered list of objects this region is touching."))
   (:documentation "TODO"))
@@ -13,20 +16,21 @@
 (defun %remove-if-not-touching (touch-region object)
   (unless (collidep touch-region object)
     (with-slots (touch-tracker touching) touch-region
-      (setf touching (delete object touching)))))
+      (setf touching (delete object touching))
+      (%refresh-all-objects-touching touch-tracker))))
 
 (defun %add-if-touching (touch-region object)
   (with-slots (touch-tracker touching) touch-region
     (when (and (collidep touch-region object)
                (not (find object touching)))
       (add-subscriber object touch-region object-moved)
-      (push object touching)
+      (vector-push-extend object touching)
       (with-slots (all-objects-touching) touch-tracker
         (unless (find object all-objects-touching)
-          (push object all-objects-touching))))))
+          (vector-push-extend object all-objects-touching))))))
 
 (defmethod object-moved :after ((touch-region touch-region))
-  (loop for touched-object in (touching touch-region) do
+  (loop :for touched-object :across (touching touch-region) do
        (%remove-if-not-touching touch-region touched-object)))
 
 (defevent-callback object-moved ((touched-object obb) (region touch-region))
@@ -36,46 +40,63 @@
 
 (defclass touch-tracker ()
   ((touch-regions
-    ;; defaults to four sides of obb
-    :initform (list)
+    :initform (make-array 0
+                          :fill-pointer 0
+                          :adjustable t)
     :reader touch-regions
-    :documentation "Locations where the touch-tracker is being touched.
-Implemented as alist of :region-name to a TOUCH-REGION
-May be extended or overridden by subclasses.")
-   (all-objects-touching :initform (list)))
+    :documentation "p-vector #(:region1-name touch-region1 region2-name touch-region2 ...)")
+   (all-objects-touching :initform (make-array 0
+                                               :element-type 'game-object
+                                               :fill-pointer 0
+                                               :adjustable t)))
   (:documentation "An object that tracks the objects it is touching."))
+
+(defun %get-touch-region (region-name touch-tracker)
+  (with-slots (touch-regions) touch-tracker
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+         (when (equalp region-name (elt touch-regions i))
+           (return (elt touch-regions (+ i 1)))))))
+
+(defun %refresh-all-objects-touching (touch-tracker)
+  (with-slots (touch-regions all-objects-touching) touch-tracker
+    (setf (fill-pointer all-objects-touching) 0)
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+         (loop :for object :across (touching (elt touch-regions (+ i 1))) :do
+              (unless (find object all-objects-touching)
+                (vector-push-extend object all-objects-touching))))))
 
 @export
 (defun add-touch-region (touch-tracker region-name touch-region &optional override-existing)
   (declare (touch-tracker touch-tracker)
            (symbol region-name)
            (touch-region touch-region))
+  (when (eq :all region-name)
+    (error ":all region-name is reserved"))
   (with-slots (touch-regions) touch-tracker
-    (when (eq :all region-name)
-      (error ":all region-name is reserved"))
-    (when (assoc region-name touch-regions)
-      (if override-existing
-          (setf touch-regions (delete (assoc region-name touch-regions) touch-regions))
-          (error "~A region already exists" region-name)))
-    (push (cons region-name touch-region) touch-regions)
-    touch-tracker))
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+         (when (equalp region-name (elt touch-regions i))
+           (if override-existing
+               (setf (elt touch-regions (+ i 1)) touch-region)
+               (error "~A region already exists" region-name))
+           (return))
+       :finally
+         (vector-push-extend region-name touch-regions)
+         (vector-push-extend touch-region touch-regions)))
+  touch-tracker)
 
-(defgeneric objects-touching (touch-tracker &optional region-name)
-  (:documentation "Get all objects touching the REGION-NAME touch-region.
-Or pass :all to get all objects touching TOUCH-TRACKER")
-  (:method ((touch-tracker touch-tracker) &optional (region-name :all))
-    (declare (optimize (speed 3))
-             (keyword region-name))
-    (if (eq :all region-name)
-        (with-slots (all-objects-touching) touch-tracker
-          (loop :for object :in all-objects-touching :do
-            (loop :for region-cons :in (touch-regions touch-tracker) :do
-              (when (find object (the list (slot-value (cdr region-cons) 'touching))) (return))
-              ;; if we make it here none of the touch regions have the object
-                  :finally (setf all-objects-touching (delete object all-objects-touching))))
-          all-objects-touching)
-        (let ((region (cdr (assoc region-name (touch-regions touch-tracker)))))
-          (unless region (error "No such region: ~A" region-name))
+@export
+(defun objects-touching (touch-tracker &optional (region-name :all))
+  "Get all objects touching the REGION-NAME touch-region. Or pass :all to get all objects touching TOUCH-TRACKER"
+  (declare (optimize (speed 3))
+           (touch-tracker touch-tracker)
+           (keyword region-name))
+  (if (eq :all region-name)
+      (with-slots (all-objects-touching) touch-tracker
+        (when (> (length all-objects-touching) 0)
+          all-objects-touching))
+      (let ((region (%get-touch-region region-name touch-tracker)))
+        (unless region (error "No such region: ~A" region-name))
+        (when (> (length (touching region)) 0)
           (touching region)))))
 
 ;; TODO: move :around width/height scaling updates to pinned-objects
@@ -84,12 +105,14 @@ Or pass :all to get all objects touching TOUCH-TRACKER")
          (result (call-next-method new-width touch-tracker))
          (new-width (width touch-tracker))
          (scaling-factor (/ new-width old-width)))
-    (loop for (ignored . touch-region) in (touch-regions touch-tracker) do
-         (let ((x-displacement (- (x touch-region) (x touch-tracker))))
-           (when (> x-displacement 0)
-             (setf x-displacement (* x-displacement scaling-factor))
-             (setf (x touch-region) (+ (x touch-tracker) x-displacement))))
-         (setf (width touch-region) (* (width touch-region) scaling-factor)))
+    (with-slots (touch-regions) touch-tracker
+      (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+           (let ((touch-region (elt touch-regions (+ i 1))))
+             (let ((x-displacement (- (x touch-region) (x touch-tracker))))
+               (when (> x-displacement 0)
+                 (setf x-displacement (* x-displacement scaling-factor))
+                 (setf (x touch-region) (+ (x touch-tracker) x-displacement))))
+             (setf (width touch-region) (* (width touch-region) scaling-factor)))))
     result))
 
 (defmethod (setf height) :around (new-height (touch-tracker touch-tracker))
@@ -97,27 +120,33 @@ Or pass :all to get all objects touching TOUCH-TRACKER")
          (result (call-next-method new-height touch-tracker))
          (new-height (height touch-tracker))
          (scaling-factor (/ new-height old-height)))
-    (loop for (ignored . touch-region) in (touch-regions touch-tracker) do
-         (let ((y-displacement (- (y touch-region) (y touch-tracker))))
-           (when (> y-displacement 0)
-             (setf y-displacement (* y-displacement scaling-factor))
-             (setf (y touch-region) (+ (y touch-tracker) y-displacement))))
-         (setf (height touch-region) (* (height touch-region) scaling-factor)))
+    (with-slots (touch-regions) touch-tracker
+      (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+           (let ((touch-region (elt touch-regions (+ i 1))))
+             (let ((y-displacement (- (y touch-region) (y touch-tracker))))
+               (when (> y-displacement 0)
+                 (setf y-displacement (* y-displacement scaling-factor))
+                 (setf (y touch-region) (+ (y touch-tracker) y-displacement))))
+             (setf (height touch-region) (* (height touch-region) scaling-factor)))))
     result))
 
 (defmethod collision :after ((touch-tracker touch-tracker) (stationary-object game-object))
-  (loop for (region-name . region) in (touch-regions touch-tracker) do
-       (%add-if-touching region stationary-object)))
+  (with-slots (touch-regions) touch-tracker
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+         (%add-if-touching (elt touch-regions (+ i 1)) stationary-object))))
 
 (defmethod collision :after ((stationary-object game-object) (touch-tracker touch-tracker))
-  (loop for (region-name . region) in (touch-regions touch-tracker) do
-       (%add-if-touching region stationary-object)))
+  (with-slots (touch-regions) touch-tracker
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+         (%add-if-touching (elt touch-regions (+ i 1)) stationary-object))))
 
 (defmethod collision :after ((tracker1 touch-tracker) (tracker2 touch-tracker))
-  (loop for (region-name . region) in (touch-regions tracker1) do
-       (%add-if-touching region tracker2))
-  (loop for (region-name . region) in (touch-regions tracker2) do
-       (%add-if-touching region tracker1)))
+  (with-slots (touch-regions) tracker1
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+         (%add-if-touching (elt touch-regions (+ i 1)) tracker2)))
+  (with-slots (touch-regions) tracker2
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+         (%add-if-touching (elt touch-regions (+ i 1)) tracker1))))
 
 ;;;; OBB touch-tracker
 
