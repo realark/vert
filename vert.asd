@@ -140,7 +140,13 @@
                          (:file "engine-manager")
                          (:file "application-window")
                          (:file "sdl-engine-manager")
-                         (:file "main"))))
+                         (:file "main")))
+               (:module dialog
+                        :pathname "src/plugins"
+                        :depends-on (:scene)
+                        :serial T
+                        :components
+                        ((:file "dialog"))))
   :around-compile "(lambda (compile-fn)
                      (annot:enable-annot-syntax)
                      (funcall compile-fn))"
