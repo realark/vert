@@ -223,6 +223,8 @@
 
 (defun %set-font-vbo-contents (font-drawable renderer)
   (declare (optimize (speed 3)))
+  (unless (on-game-thread-p)
+    (warn "Font changes from outside of the game loop will not update GL Buffers~%"))
   (labels ((scale-vertices-array (font-drawable)
              (with-slots ((gl-font font-draw-component)) font-drawable
                (with-slots (vertices vertices-byte-size vertices-pointer-offset) gl-font

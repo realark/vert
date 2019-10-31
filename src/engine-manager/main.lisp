@@ -1,6 +1,9 @@
 (in-package :recurse.vert)
 
-(defvar +game-loop-thread-name+ "vert-game-loop")
+(defvar *vert-thread* nil)
+
+(defun on-game-thread-p ()
+  (eq *vert-thread* (bt:current-thread)))
 
 (defparameter *engine-manager*
   nil
@@ -34,16 +37,16 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
                (unwind-protect
                     (sdl2:make-this-thread-main
                      (lambda ()
+                       (setf *vert-thread* (bt:current-thread))
                        (run-game *engine-manager* scene-creator-function)))
                  (setf *engine-manager* nil
                        *config* nil
+                       *vert-thread* nil
                        *dev-mode* nil)
                  (sb-ext:gc :full T))))
       (if block
           (run-engine)
-          (make-thread
-           #'run-engine
-           :name +game-loop-thread-name+)))))
+          (make-thread #'run-engine :name "vert-game-loop")))))
 
 (defun quit ()
   "Stop the running game engine."

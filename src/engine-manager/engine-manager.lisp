@@ -237,8 +237,7 @@ It is invoked after the engine is fully started.")
 @export
 (defmacro on-game-thread (&body body)
   "Run BODY on vert's game-thread at the end of the next loop iteration."
-  `(if (equal (bt:thread-name (bt:current-thread))
-              +game-loop-thread-name+)
+  `(if (on-game-thread-p)
        (progn ,@body)
        (unless (eq 'no-action
                    (sb-ext:compare-and-swap (slot-value *engine-manager* 'pending-action)
