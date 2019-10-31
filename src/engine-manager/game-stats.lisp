@@ -202,11 +202,9 @@
 ;;;; dev-mode hud
 
 (defclass stats-hud (overlay)
-  ((line-width :initform 50.0)
-   (line-height :initform 30.0)
-   (game-stats :initarg :game-stats :initform (error ":game-stats required"))
-   (text-color :initform (make-color-rgba :r 255))
-   (font-drawable :initform nil))
+  ((game-stats :initarg :game-stats :initform (error ":game-stats required"))
+   (stats-font-size :initform 4)
+   (text-color :initform (make-color-rgba :r 255)))
   (:documentation ""))
 
 (defun %render-stats-hud (hud rendering-context)
@@ -219,6 +217,7 @@
                  (load-resources
                   (make-instance 'font-drawable
                                  :parent hud
+                                 :font-size (slot-value hud 'stats-font-size)
                                  :width 150
                                  :height 100
                                  :x 0
@@ -232,16 +231,12 @@
                ;; doing the setf conses, which causes GC churn.
                ;; these values don't usually update, so check to see if the
                ;; value has changed before changing it.
-               (unless (= (height drawable) (slot-value hud 'line-height))
-                 (setf (height drawable) (slot-value hud 'line-height)))
-               (unless (= (width drawable) (slot-value hud 'line-width))
-                 (setf (width drawable) (slot-value hud 'line-width)))
+               (unless (eq (text drawable) stat-string)
+                 (setf (text drawable) stat-string))
                (unless (= (y drawable) (* index 10))
                  (setf (y drawable) (* index 10)))
                (unless (= (x drawable) (- (width hud) (width drawable)))
-                 (setf (x drawable) (- (width hud) (width drawable))))
-               (unless (eq (text drawable) stat-string)
-                 (setf (text drawable) stat-string)))
+                 (setf (x drawable) (- (width hud) (width drawable)))))
              (free-excess-drawables ()
                (loop :for i :from index :below (length children) :do
                     (release-resources (elt children i))

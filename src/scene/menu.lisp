@@ -2,7 +2,7 @@
 
 ;;;; Menus
 
-(export '(select-down-sfx select-up-sfx run-action-sfx initialized-sfx title-scale item-scale menu-alignment))
+(export '(select-down-sfx select-up-sfx run-action-sfx initialized-sfx menu-alignment title-font-size item-font-size))
 (defclass menu (scene input-handler)
   ((node :initarg :root
          :initform (error ":root must be specified")
@@ -14,12 +14,6 @@
                         :initform (make-color-rgba :r 255 :g 215))
    (title-color :initarg :title-color
                 :initform (make-color-rgba :r 255 :g 255 :b 255))
-   (title-font-size
-    :initarg :title-font-size
-    :initform 48)
-   (item-font-size
-    :initarg :item-font-size
-    :initform 36)
    (camera :initarg :camera
            :accessor camera
            :initform (make-instance 'camera
@@ -44,10 +38,10 @@
                     :documentation "Sound effect to play when menu is initialized.")
    (background :initarg :background
                :initform nil)
-   (title-scale :initarg :title-scale
-                :initform nil)
-   (item-scale :initarg :item-scale
-               :initform nil)
+   (title-font-size :initarg :title-font-size
+                    :initform 10)
+   (item-font-size :initarg :item-font-size
+               :initform 8)
    (selection-marker :initform
                      (make-instance 'font-drawable
                                     :text ">")))
@@ -68,10 +62,8 @@
       menu
     (let ((current-y 5.0)
           (y-space-between-items (+ (height node) 1.0)))
-      (multiple-value-bind (title-width title-height)
-          (font-dimensions node)
-        (setf title-width 100.0
-              title-height 10.0)
+      (let ((title-width 100.0)
+            (title-height 10.0))
         (setf (color node) title-color
               (width node) title-width
               (height node) title-height
@@ -86,10 +78,8 @@
            (let* ((child (elt (slot-value node 'children) i))
                   (selected-p (= i (slot-value node 'selected-child-index)))
                   (child-color (if selected-p selected-item-color item-color)))
-             (multiple-value-bind (item-width item-height)
-                 (font-dimensions node)
-               (setf item-width 100.0
-                     item-height 10.0)
+             (let ((item-width 100.0)
+                   (item-height 10.0))
                (setf (color child) child-color
                      (width child) item-width
                      (height child) item-height
@@ -263,7 +253,7 @@
                  (> (length options) 0)
                  (every #'listp options)))
     (make-instance 'parent-node
-                   :scale (slot-value menu 'title-scale)
+                   :font-size (slot-value menu 'title-font-size)
                    :menu menu
                    :width 1
                    :height 1
@@ -274,7 +264,7 @@
                         (push
                          (if (and (= (length option) 2) (functionp (second option)))
                              (make-instance 'action-node
-                                            :scale (slot-value menu 'item-scale)
+                                            :font-size (slot-value menu 'item-font-size)
                                             :menu menu
                                             :width 1
                                             :height 1

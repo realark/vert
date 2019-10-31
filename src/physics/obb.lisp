@@ -46,13 +46,15 @@
   (width (slot-value obb 'local-dimensions)))
 (defmethod (setf width) (value (obb obb))
   (prog1 (setf (width (slot-value obb 'local-dimensions)) (coerce value 'single-float))
-    (%set-local-points obb)))
+    (%set-local-points obb)
+    (%mark-dirty obb)))
 
 (defmethod height ((obb obb))
   (height (slot-value obb 'local-dimensions)))
 (defmethod (setf height) (value (obb obb))
   (prog1 (setf (height (slot-value obb 'local-dimensions)) (coerce value 'single-float))
-    (%set-local-points obb)))
+    (%set-local-points obb)
+    (%mark-dirty obb)))
 
 ;; TODO: could optimize further by only computing world points when the transform is dirtied
 (defun world-points (obb)

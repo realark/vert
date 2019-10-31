@@ -39,6 +39,7 @@
   ((path-to-texture :initform nil)
    (path-to-font :initarg :path-to-font
                  :initform (error ":path-to-font required"))
+   ;; TODO: rename to font-dpi to match font-drawable
    (font-size :initarg :font-size
               :initform (error ":font-size required"))
    (char-code-beginning :initarg :char-code-beginning :initform 0)
@@ -172,10 +173,10 @@
   (with-slots (font-drawable text-atlas shader vao vbo vertices vertices-byte-size vertices-pointer-offset)
       gl-font
     (when (= 0 vao)
-      (with-slots (path-to-font font-size) font-drawable
+      (with-slots (path-to-font font-dpi) font-drawable
         (setf text-atlas
-              ;; cache by FONT -> FONT-SIZE -> text-atlas
-              (getcache-default font-size
+              ;; cache by FONT -> FONT-DPI -> text-atlas
+              (getcache-default font-dpi
                                 (getcache-default path-to-font
                                                   %text-atlas-cache%
                                                   (make-instance 'counting-cache
@@ -185,7 +186,7 @@
                                                                    (release-resources text-atlas))))
                                 (let ((atlas (make-instance 'text-atlas
                                                             :path-to-font path-to-font
-                                                            :font-size font-size
+                                                            :font-size font-dpi
                                                             :char-code-beginning 0
                                                             :char-code-end 128)))
                                   (load-resources atlas renderer)
@@ -217,9 +218,18 @@
             vao 0
             vbo 0
             vertices nil)
-      (with-slots (path-to-font font-size) font-drawable
-        (remcache font-size (getcache path-to-font %text-atlas-cache%))
+      (with-slots (path-to-font font-dpi) font-drawable
+        (remcache font-dpi (getcache path-to-font %text-atlas-cache%))
         (setf text-atlas nil)))))
+
+(defun %compute-text-scale (font-drawable text-atlas iw ih)
+  "Return the scaling factor to apply to FONT-DRAWABLE's text glyphs to fit inside its rectangle."
+  (if (font-size font-drawable)
+      (coerce (/ (font-size font-drawable)
+                 (font-dpi font-drawable))
+              'single-float)
+      (min (/ iw (%compute-text-width-for-atlas text-atlas (text font-drawable)))
+           (/ ih (texture-src-height text-atlas)))))
 
 (defun %set-font-vbo-contents (font-drawable renderer)
   (declare (optimize (speed 3)))
@@ -237,12 +247,6 @@
                    (setf vertices (gl:alloc-gl-array :float (* 6 4 (length (text font-drawable))))
                          vertices-byte-size (gl::gl-array-byte-size vertices)
                          vertices-pointer-offset (gl::gl-array-pointer-offset vertices 0))))))
-           (get-or-compute-text-scale (font-drawable text-atlas iw ih)
-             (with-slots ((font-scale scale)) font-drawable
-               (or font-scale
-                   (min 1.0
-                        (/ iw (%compute-text-width-for-atlas text-atlas (text font-drawable)))
-                        (/ ih (texture-src-height text-atlas))))))
            (send-vertices-to-gl (font-drawable)
              (multiple-value-bind (ix iy iz iw ih)
                  (world-dimensions font-drawable)
@@ -251,7 +255,7 @@
                (with-slots ((gl-font font-draw-component)) font-drawable
                  (with-slots (vao vbo vertices vertices-byte-size text-atlas) gl-font
                    (loop
-                      :with scale = (get-or-compute-text-scale font-drawable text-atlas iw ih)
+                      :with scale = (%compute-text-scale font-drawable text-atlas iw ih)
                       :and x = ix
                       :and y = iy
                       :and i = 0
@@ -310,7 +314,9 @@
     (declare (inline scale-vertices-array send-vertices-to-gl))
     (when (and renderer (slot-value (slot-value font-drawable 'font-draw-component) 'text-atlas))
       (scale-vertices-array font-drawable)
-      (send-vertices-to-gl font-drawable))))
+      (send-vertices-to-gl font-drawable)
+
+)))
 
 (defmethod render ((gl-font gl-font) update-percent (camera simple-camera) (renderer gl-context))
   (declare (optimize (speed 3)))
@@ -376,27 +382,15 @@
                                (error "No default font specified in ~A" *config*))
                  :reader path-to-font
                  :documentation "Path to font file.")
-   (font-size :initform 72
+   (font-size :initform nil
               :initarg :font-size
               :reader font-size
-              :documentation "Pixel depth of the font.")
-   (scale :initarg :scale
-          :initform nil
-          :accessor font-scale
-          :documentation "How to scale font within its rectangle. May be nil to have font auto-scale to rectangle boundary."))
+              :documentation "When non-nil, scale the font's bounding rectangle so its text-size is consistent regardless of the text content.")
+   (font-dpi :initform 72
+             :initarg :font-dpi
+             :reader font-dpi
+             :documentation "Pixel depth of the font."))
   (:documentation "A drawable which loads pixels from a font and user-defined text"))
-
-(defmethod (setf text) :around (new-text (font-drawable font-drawable))
-  (let ((old-text (text font-drawable)))
-    (prog1 (call-next-method new-text font-drawable)
-      (unless (equal old-text (text font-drawable))
-        (%set-font-vbo-contents font-drawable *gl-context*)))))
-
-(defmethod (setf scale) :around (new-scale (font-drawable font-drawable))
-  (let ((old-scale (font-scale font-drawable)))
-    (prog1 (call-next-method new-scale font-drawable)
-      (unless (equalp old-scale new-scale)
-        (%set-font-vbo-contents font-drawable *gl-context*)))))
 
 (defmethod initialize-instance :after ((font-drawable font-drawable) &rest args)
   (declare (ignore args))
@@ -405,11 +399,28 @@
                                              :font-drawable font-drawable)
           (draw-component font-drawable) font-draw-component)))
 
+(defmethod (setf text) :around (new-text (font-drawable font-drawable))
+  (let ((old-text (text font-drawable)))
+    (prog1 (call-next-method new-text font-drawable)
+      (unless (equal old-text (text font-drawable))
+        (with-slots ((gl-font font-draw-component) font-size) font-drawable
+          (with-slots (text-atlas) gl-font
+            (when text-atlas
+              (when font-size
+                (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
+                  (setf (width font-drawable) fwidth
+                        (height font-drawable) fheight)))
+              (%set-font-vbo-contents font-drawable *gl-context*))))))))
+
 (defmethod load-resources ((font-drawable font-drawable) rendering-context)
   (with-slots (font-draw-component)
       font-drawable
     (load-resources font-draw-component rendering-context)
-    (load-resources (draw-component font-drawable) rendering-context)))
+    (load-resources (draw-component font-drawable) rendering-context)
+    (when (font-size font-drawable)
+      (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
+        (setf (width font-drawable) fwidth
+              (height font-drawable) fheight)))))
 
 (defmethod release-resources ((font-drawable font-drawable))
   (with-slots (font-draw-component) font-drawable
@@ -421,6 +432,7 @@
   (with-slots ((gl-font font-draw-component)) font-drawable
     (with-slots (text-atlas) gl-font
       (if text-atlas
-          (values (%compute-text-width-for-atlas text-atlas (text font-drawable))
-                  (%text-atlas-info-for-char text-atlas #\y))
+          (let ((scaling-factor (%compute-text-scale font-drawable text-atlas (width font-drawable) (height font-drawable)) ))
+            (values (* scaling-factor (%compute-text-width-for-atlas text-atlas (text font-drawable)))
+                    (* scaling-factor (y (glyph-info-size (%text-atlas-info-for-char text-atlas #\y))))))
           (values 100 10)))))
