@@ -21,20 +21,21 @@
                 :initform 10)
    (border-padding :initarg :border-padding
                    :initform 1)
-   (text :initform nil)
+   (text :initarg :text-color
+         :initform nil)
    (background :initarg :background
                :initform nil)
    (text-color :initform *black*)))
 
 (defmethod initialize-instance :after ((hud dialog-hud) &rest args)
   (declare (ignore args))
-  (with-slots (text background text-width text-height border-padding) hud
+  (with-slots (background border-padding text text-color text-width text-height) hud
     (when background
       ;; add background first so it renders behind the text
       (setf (parent background) hud))
     (setf text
           (make-instance 'font-drawable
-                         :color *blue*
+                         :color text-color
                          :parent hud
                          :x (- (/ (width hud) 2.0)
                                (/ text-width 2.0))
