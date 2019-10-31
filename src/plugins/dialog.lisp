@@ -14,18 +14,36 @@
 ;; (defgeneric dialog-speaker-sfx (dialog-speaker)
 ;;   (:documentation "Sound to play when DIALOG-SPEAKER is speaking. Maybe be nil."))
 
-(defclass dialog-hud (overlay)
-  ((text :initform nil)))
+(defclass dialog-hud (overlay input-handler)
+  ((text-width :initarg :text-width
+               :initform 100)
+   (text-height :initarg :text-height
+                :initform 10)
+   (border-padding :initarg :border-padding
+                   :initform 1)
+   (text :initform nil)
+   (background :initarg :background
+               :initform nil)
+   (text-color :initform *black*)))
 
 (defmethod initialize-instance :after ((hud dialog-hud) &rest args)
   (declare (ignore args))
-  (with-slots (text) hud
+  (with-slots (text background text-width text-height border-padding) hud
+    (when background
+      ;; add background first so it renders behind the text
+      (setf (parent background) hud))
     (setf text
           (make-instance 'font-drawable
-                         :color *green*
+                         :color *blue*
                          :parent hud
-                         :width 100
-                         :height 10
-                         :text "A man, a plan, a canal. Panama!")
-          (x text) (- (/ (width hud) 2.0)
-                      (/ (width text) 2.0)))))
+                         :x (- (/ (width hud) 2.0)
+                               (/ text-width 2.0))
+                         :y 0
+                         :width text-width
+                         :height text-height
+                         :text "A man, a plan, a canal. Panama!"))
+    (when background
+      (setf (width background) (+ (width text) border-padding)
+            (height background) (+ (height text) border-padding)
+            (x background) (- (x text) border-padding)
+            (y background) (- (y text) border-padding)))))
