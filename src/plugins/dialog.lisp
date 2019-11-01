@@ -93,16 +93,17 @@
           (text (copy-seq text)))
       (load-resources font-draw *gl-context*)
       (unwind-protect
-           (labels ((at-word-boundary-p (index)
-                      "t if INDEX is the last char of a word inside text"
-                      (or (= index (- (length text) 1))
-                          (equal (elt text (+ index 1)) #\ )))
-                    (insert-hyphen (index)
-                      "Insert a hyphen into text at INDEX. String size grows by 1 and all values after INDEX are shifted to the right."
+           (labels ((space-p (index)
+                      "t if INDEX points to empty space"
+                      (or (>= index (length text))
+                          (< index 0)
+                          (equal (elt text index) #\ )))
+                    (insert-str (str index)
+                      "Insert STR into text at INDEX. String size grows by 1 and all values after INDEX are shifted to the right."
                       (setf text
                             (concatenate 'string
                                          (subseq text 0 index)
-                                         "-"
+                                         str
                                          (subseq text index (length text)))))
                     (compute-current-line-ending (current-line-beginning dialog-hud)
                       (loop :with line-ending = current-line-beginning
@@ -112,12 +113,24 @@
                            (setf (text font-draw)
                                  (subseq text current-line-beginning line-ending))
                            (when (> (width font-draw) (x (slot-value dialog-hud 'window-size)))
-                             ;; current line has hit the end of the allowed width
-                             ;; insert a hypen if needed, and return the end of the current line
-
-                             (setf line-ending (- line-ending 1))
-                             (unless (at-word-boundary-p line-ending)
-                               (insert-hyphen (- line-ending 1)))
+                             ;; current line-ending has hit the end of the allowed width
+                             (setf line-ending (max (+ current-line-beginning 1)
+                                                    ;; ^^ unlikely, but just in case a single char exceeds boundary
+                                                    (- line-ending 1)))
+                             ;; TODO: improve word-wrapping logic. Looks awkward on large blocks of text.
+                             (let ((last-char-in-line (- line-ending 1))
+                                   (second-last-char-in-line (- line-ending 2))
+                                   (first-char-in-next-line line-ending)
+                                   (second-char-in-next-line (+ line-ending 1)))
+                               (when (and (not (space-p last-char-in-line))
+                                          (not (space-p first-char-in-next-line)))
+                                 (if (space-p second-last-char-in-line)
+                                     (insert-str " " last-char-in-line)
+                                     (insert-str "-" last-char-in-line))))
+                             ;; eat any trailing whitespace
+                             (loop :while (and (< line-ending (length text))
+                                               (space-p line-ending)) :do
+                                  (incf line-ending))
                              (return line-ending))
                          :finally
                          ;; end of the string
@@ -150,7 +163,7 @@
                                     (font-size line) 1
                                     (font-size line) (slot-value dialog-hud 'font-size))))
                           line))))
-             (declare (inline compute-current-line-ending get-or-create-line at-word-boundary-p))
+             (declare (inline compute-current-line-ending get-or-create-line space-p insert-str))
              (loop :with current-line = 0
                 :and current-line-beginning = 0
                 :and current-line-ending = -1
