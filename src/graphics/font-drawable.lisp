@@ -384,7 +384,7 @@
                  :documentation "Path to font file.")
    (font-size :initform nil
               :initarg :font-size
-              :reader font-size
+              :accessor font-size
               :documentation "When non-nil, scale the font's bounding rectangle so its text-size is consistent regardless of the text content.")
    (font-dpi :initform 72
              :initarg :font-dpi
@@ -403,6 +403,19 @@
   (let ((old-text (text font-drawable)))
     (prog1 (call-next-method new-text font-drawable)
       (unless (equal old-text (text font-drawable))
+        (with-slots ((gl-font font-draw-component) font-size) font-drawable
+          (with-slots (text-atlas) gl-font
+            (when text-atlas
+              (when font-size
+                (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
+                  (setf (width font-drawable) fwidth
+                        (height font-drawable) fheight)))
+              (%set-font-vbo-contents font-drawable *gl-context*))))))))
+
+(defmethod (setf font-size) :around (new-font-size (font-drawable font-drawable))
+  (let ((old-font-size (font-size font-drawable)))
+    (prog1 (call-next-method new-font-size font-drawable)
+      (unless (equal old-font-size (font-size font-drawable))
         (with-slots ((gl-font font-draw-component) font-size) font-drawable
           (with-slots (text-atlas) gl-font
             (when text-atlas
