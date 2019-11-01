@@ -20,9 +20,9 @@
                     *engine-caches*
                     (make-instance 'counting-cache
                                    :on-evict
-                                   (lambda (path-to-font font-sizes-cache)
+                                   (lambda (path-to-font font-dpis-cache)
                                      (declare (ignore path-to-font))
-                                     (clear-cache font-sizes-cache)))))
+                                     (clear-cache font-dpis-cache)))))
 
 ;;;; text-atlas
 
@@ -40,8 +40,8 @@
    (path-to-font :initarg :path-to-font
                  :initform (error ":path-to-font required"))
    ;; TODO: rename to font-dpi to match font-drawable
-   (font-size :initarg :font-size
-              :initform (error ":font-size required"))
+   (font-dpi :initarg :font-dpi
+              :initform (error ":font-dpi required"))
    (char-code-beginning :initarg :char-code-beginning :initform 0)
    (char-code-end :initarg :char-code-end :initform 128)
    (texture-parameters :initarg :texture-parameters
@@ -55,11 +55,11 @@
    (glyph-info :initform #())))
 
 (defmethod load-resources ((atlas text-atlas) (gl-context gl-context))
-  (with-slots (path-to-font font-size char-code-beginning char-code-end) atlas
-    (labels ((create-font-face (path-to-font font-size)
-               "Create a freetype font-face for the given font and font-size."
+  (with-slots (path-to-font font-dpi char-code-beginning char-code-end) atlas
+    (labels ((create-font-face (path-to-font font-dpi)
+               "Create a freetype font-face for the given font and font-dpi."
                (let ((font-face (freetype2:new-face (resource-path path-to-font))))
-                 (freetype2:set-pixel-sizes font-face 0 font-size)
+                 (freetype2:set-pixel-sizes font-face 0 font-dpi)
                  font-face))
              (load-freetype-glyphs (font-face char-code-beginning char-code-end)
                "Initialize freetype for specified chars and return (sum-of-all-char-width max-char-height)"
@@ -84,7 +84,7 @@
                                texture-parameters))
                       (gl:tex-parameter :texture-2d gl-texture-param gl-texture-param-val))
                  texture-id)))
-      (let ((font-face (create-font-face path-to-font font-size)))
+      (let ((font-face (create-font-face path-to-font font-dpi)))
         (multiple-value-bind (atlas-width atlas-height)
             (load-freetype-glyphs font-face char-code-beginning char-code-end)
           (let ((texture-id (create-empty-texture atlas-width atlas-height (slot-value atlas 'texture-parameters)))
@@ -181,12 +181,12 @@
                                                   %text-atlas-cache%
                                                   (make-instance 'counting-cache
                                                                  :on-evict
-                                                                 (lambda (font-size text-atlas)
-                                                                   (declare (ignore font-size))
+                                                                 (lambda (font-dpi text-atlas)
+                                                                   (declare (ignore font-dpi))
                                                                    (release-resources text-atlas))))
                                 (let ((atlas (make-instance 'text-atlas
                                                             :path-to-font path-to-font
-                                                            :font-size font-dpi
+                                                            :font-dpi font-dpi
                                                             :char-code-beginning 0
                                                             :char-code-end 128)))
                                   (load-resources atlas renderer)
