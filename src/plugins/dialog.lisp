@@ -38,7 +38,10 @@
                                 :fill-pointer 0
                                 :element-type 'font-drawable))
    (background :initarg :background
-               :initform nil)))
+               :initform nil)
+   (advance-delay :initarg :advance-delay
+                  :initform 500
+                  :documentation "time (ms) before player is allowed to advance the dialog.")))
 
 (defmethod initialize-instance :after ((hud dialog-hud) &rest args)
   (declare (ignore args))
@@ -167,13 +170,19 @@
         (release-resources font-draw)))))
 
 @export
-(defun show-dialog (dialog-hud text &key initiator)
-  (with-slots (show-p (hud-initiator initiator)) dialog-hud
+(defmethod show-dialog ((dialog-hud dialog-hud) text &key initiator)
+  (with-slots (show-p (hud-initiator initiator) advance-delay) dialog-hud
     (when show-p
       (error "dialog already shown"))
-    (when initiator
-      (setf (active-input-device dialog-hud) (active-input-device initiator)
-            (active-input-device initiator) *no-input-id*))
+    (let ((hud-input-id (if initiator
+                             (active-input-device initiator)
+                             *all-input-id*)))
+      (when initiator
+        (setf (active-input-device initiator) *no-input-id*))
+      (schedule *scene*
+                (+ (scene-ticks *scene*) advance-delay)
+                (lambda ()
+                  (setf (active-input-device dialog-hud) hud-input-id))))
     (setf hud-initiator initiator
           (slot-value dialog-hud 'text) text
           show-p t)
