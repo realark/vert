@@ -98,40 +98,36 @@
                       (or (>= index (length text))
                           (< index 0)
                           (equal (elt text index) #\ )))
-                    (insert-str (str index)
-                      "Insert STR into text at INDEX. String size grows by 1 and all values after INDEX are shifted to the right."
-                      (setf text
-                            (concatenate 'string
-                                         (subseq text 0 index)
-                                         str
-                                         (subseq text index (length text)))))
+                    (move-index-to-after-current-word (index)
+                      "Move INDEX to point to one after the current word."
+                      'todo
+                      (loop :while (and (< index (length text))
+                                        (not (space-p index))) :do
+                           (incf index)
+                         :finally
+                           (return index)))
+                    (move-index-to-start-of-next-word (index)
+                      "Move INDEX to point to the first char of the next word (i.e. eat whitespace)."
+                      (loop :while (and (< index (length text))
+                                        (space-p index)) :do
+                           (incf index)
+                         :finally
+                           (return index)))
                     (compute-current-line-ending (current-line-beginning dialog-hud)
                       (loop :with line-ending = current-line-beginning
                          :while (< line-ending (length text))
                          :do
-                           (incf line-ending)
-                           (setf (text font-draw)
-                                 (subseq text current-line-beginning line-ending))
-                           (when (> (width font-draw) (x (slot-value dialog-hud 'window-size)))
-                             ;; current line-ending has hit the end of the allowed width
-                             (setf line-ending (max (+ current-line-beginning 1)
-                                                    ;; ^^ unlikely, but just in case a single char exceeds boundary
-                                                    (- line-ending 1)))
-                             ;; TODO: improve word-wrapping logic. Looks awkward on large blocks of text.
-                             (let ((last-char-in-line (- line-ending 1))
-                                   (second-last-char-in-line (- line-ending 2))
-                                   (first-char-in-next-line line-ending)
-                                   (second-char-in-next-line (+ line-ending 1)))
-                               (when (and (not (space-p last-char-in-line))
-                                          (not (space-p first-char-in-next-line)))
-                                 (if (space-p second-last-char-in-line)
-                                     (insert-str " " last-char-in-line)
-                                     (insert-str "-" last-char-in-line))))
-                             ;; eat any trailing whitespace
-                             (loop :while (and (< line-ending (length text))
-                                               (space-p line-ending)) :do
-                                  (incf line-ending))
-                             (return line-ending))
+                           (let ((previous-word line-ending))
+                             (setf line-ending (move-index-to-start-of-next-word line-ending))
+                             (setf line-ending (move-index-to-after-current-word line-ending))
+                             (setf (text font-draw)
+                                   (subseq text current-line-beginning line-ending))
+                             (when (> (width font-draw) (x (slot-value dialog-hud 'window-size)))
+                               ;; current line-ending has hit the end of the allowed width
+                               (setf line-ending (max (+ current-line-beginning 1)
+                                                      ;; ^^ unlikely, but just in case a single word exceeds boundary
+                                                      previous-word))
+                               (return line-ending)))
                          :finally
                          ;; end of the string
                            (return (- (length text) 1))))
@@ -163,7 +159,7 @@
                                     (font-size line) 1
                                     (font-size line) (slot-value dialog-hud 'font-size))))
                           line))))
-             (declare (inline compute-current-line-ending get-or-create-line space-p insert-str))
+             (declare (inline compute-current-line-ending get-or-create-line space-p move-index-to-after-current-word move-index-to-start-of-next-word))
              (loop :with current-line = 0
                 :and current-line-beginning = 0
                 :and current-line-ending = -1
@@ -172,7 +168,7 @@
                         (compute-current-line-ending current-line-beginning dialog-hud))
                   (get-or-create-line current-line
                                       (subseq text current-line-beginning current-line-ending))
-                  (setf current-line-beginning current-line-ending)
+                  (setf current-line-beginning (move-index-to-start-of-next-word current-line-ending))
                   (incf current-line)
                 :finally
                   (with-slots (lines) dialog-hud
