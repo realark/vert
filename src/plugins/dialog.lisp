@@ -130,7 +130,7 @@
                                (return line-ending)))
                          :finally
                          ;; end of the string
-                           (return (- (length text) 1))))
+                           (return line-ending)))
                     (get-or-create-line (line-number content)
                       (with-slots (lines) dialog-hud
                         (when (>= line-number (length lines) )
