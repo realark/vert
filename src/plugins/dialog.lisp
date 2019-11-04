@@ -26,6 +26,7 @@
    (window-padding :initarg :window-padding
                    :initform 1
                    :documentation "Guaranteed amount of space on all sides of the window which will not contain text.")
+   (speaker-name :initform nil)
    (text :initarg :dialog-text
          :type string
          :initform "")
@@ -72,10 +73,11 @@
 
 (defun quit-dialog (dialog-hud)
   (declare (dialog-hud dialog-hud))
-  (with-slots (show-p initiator) dialog-hud
+  (with-slots (show-p initiator speaker-name) dialog-hud
     (when initiator
       (setf (active-input-device initiator) (active-input-device dialog-hud)))
     (setf (active-input-device dialog-hud) *no-input-id*
+          speaker-name nil
           show-p nil)))
 
 (defun %set-dialog-lines (dialog-hud)
@@ -100,7 +102,6 @@
                           (equal (elt text index) #\ )))
                     (move-index-to-after-current-word (index)
                       "Move INDEX to point to one after the current word."
-                      'todo
                       (loop :while (and (< index (length text))
                                         (not (space-p index))) :do
                            (incf index)
@@ -164,6 +165,12 @@
                 :and current-line-beginning = 0
                 :and current-line-ending = -1
                 :while (< current-line-ending (- (length text) 1)) :do
+                  (with-slots (speaker-name background font-size) dialog-hud
+                    ;; create speaker name
+                    (when (and (= 0 current-line) speaker-name)
+                      (let ((speaker-line (get-or-create-line current-line (format nil "~A:" speaker-name))))
+                        (setf (font-size speaker-line) (- font-size 2)))
+                      (incf current-line)))
                   (setf current-line-ending
                         (compute-current-line-ending current-line-beginning dialog-hud))
                   (get-or-create-line current-line
@@ -179,8 +186,8 @@
         (release-resources font-draw)))))
 
 @export
-(defmethod show-dialog ((dialog-hud dialog-hud) text &key initiator)
-  (with-slots (show-p (hud-initiator initiator) advance-delay) dialog-hud
+(defmethod show-dialog ((dialog-hud dialog-hud) text &key initiator speaker-name)
+  (with-slots (show-p (hud-initiator initiator) (hud-speaker-name speaker-name) advance-delay) dialog-hud
     (when show-p
       (error "dialog already shown"))
     (let ((hud-input-id (if initiator
@@ -193,6 +200,7 @@
                 (lambda ()
                   (setf (active-input-device dialog-hud) hud-input-id))))
     (setf hud-initiator initiator
+          hud-speaker-name speaker-name
           (slot-value dialog-hud 'text) text
           show-p t)
     (%set-dialog-lines dialog-hud)))
