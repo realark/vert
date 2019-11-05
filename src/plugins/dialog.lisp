@@ -1,18 +1,12 @@
 (in-package :recurse.vert)
 
+@export
 (defclass dialog-speaker (game-object)
-  ()
+  ((dialog-name :initarg :name
+                :initform (error ":dialog-speaker-name required")
+                :reader dialog-speaker-name))
   (:documentation "A game object which my product dialog."))
-
-;; TODO
-;; (defgeneric dialog-speaker-name (dialog-speaker)
-;;   (:documentation "The name to show when DIALOG-SPEAKER is speaking. Maybe be nil."))
-
-;; (defgeneric dialog-speaker-picture (dialog-speaker)
-;;   (:documentation "Picture to show when DIALOG-SPEAKER is speaking. (values path-to-image sprite-source). Maybe be nil."))
-
-;; (defgeneric dialog-speaker-sfx (dialog-speaker)
-;;   (:documentation "Sound to play when DIALOG-SPEAKER is speaking. Maybe be nil."))
+(export '(dialog-speaker-name))
 
 @export
 (defclass dialog-hud (overlay input-handler)
@@ -26,7 +20,7 @@
    (window-padding :initarg :window-padding
                    :initform 1
                    :documentation "Guaranteed amount of space on all sides of the window which will not contain text.")
-   (speaker-name :initform nil)
+   (speaker :initform nil)
    (text :initarg :dialog-text
          :type string
          :initform "")
@@ -66,18 +60,19 @@
   (when (slot-value hud 'show-p)
     (call-next-method hud update-percent camera rendering-context)))
 
-(defun advance-dialog (dialog-hud)
+@export
+(defmethod advance-dialog (dialog-hud)
   (declare (dialog-hud dialog-hud))
-  ;; TODO: advance to next block of dialog when one exists
   (quit-dialog dialog-hud))
 
-(defun quit-dialog (dialog-hud)
+@export
+(defmethod quit-dialog (dialog-hud)
   (declare (dialog-hud dialog-hud))
-  (with-slots (show-p initiator speaker-name) dialog-hud
+  (with-slots (show-p initiator speaker) dialog-hud
     (when initiator
       (setf (active-input-device initiator) (active-input-device dialog-hud)))
     (setf (active-input-device dialog-hud) *no-input-id*
-          speaker-name nil
+          speaker nil
           show-p nil)))
 
 (defun %set-dialog-lines (dialog-hud)
@@ -165,10 +160,10 @@
                 :and current-line-beginning = 0
                 :and current-line-ending = -1
                 :while (< current-line-ending (- (length text) 1)) :do
-                  (with-slots (speaker-name background font-size) dialog-hud
+                  (with-slots (speaker background font-size) dialog-hud
                     ;; create speaker name
-                    (when (and (= 0 current-line) speaker-name)
-                      (let ((speaker-line (get-or-create-line current-line (format nil "~A:" speaker-name))))
+                    (when (and (= 0 current-line) speaker)
+                      (let ((speaker-line (get-or-create-line current-line (format nil "~A:" (dialog-speaker-name speaker)))))
                         (setf (font-size speaker-line) (- font-size 2)))
                       (incf current-line)))
                   (setf current-line-ending
@@ -186,8 +181,8 @@
         (release-resources font-draw)))))
 
 @export
-(defmethod show-dialog ((dialog-hud dialog-hud) text &key initiator speaker-name)
-  (with-slots (show-p (hud-initiator initiator) (hud-speaker-name speaker-name) advance-delay) dialog-hud
+(defmethod show-dialog ((dialog-hud dialog-hud) text &key initiator speaker)
+  (with-slots (show-p (hud-initiator initiator) (hud-speaker speaker) advance-delay) dialog-hud
     (when show-p
       (error "dialog already shown"))
     (let ((hud-input-id (if initiator
@@ -200,7 +195,7 @@
                 (lambda ()
                   (setf (active-input-device dialog-hud) hud-input-id))))
     (setf hud-initiator initiator
-          hud-speaker-name speaker-name
+          hud-speaker speaker
           (slot-value dialog-hud 'text) text
           show-p t)
     (%set-dialog-lines dialog-hud)))
@@ -216,3 +211,34 @@
  dialog-hud
  (:advance-dialog
   (on-activate (advance-dialog dialog-hud))))
+
+;;;; cutscene enabled dialog
+
+(defclass cutscene-node (game-object)
+  ((zero-arg-fn :initarg :zero-arg-fn
+                :initform (error ":zero-arg-fn required"))
+   (next :initarg :next
+         :initform nil))
+  (:documentation "A single action performed in a custscene. Could change the dialog, move a character, etc."))
+
+(defclass cutscene-dialog-hud (dialog-hud)
+  ((active-node :initarg :active-node
+                :initform nil))
+  (:documentation "A more advanced dialog hud which may run arbitrary actions along with presenting text"))
+
+(defmethod play-cutscene ((hud cutscene-dialog-hud) (node cutscene-node))
+  (with-slots (active-node) hud
+    (setf active-node node)))
+
+(defmacro defcutscene ((&key initiator) &body body)
+  '(quote todo)
+  )
+
+(defcutscene (:initiator 'the-player)
+  (change-speaker 'someone :object-id 'welcome)
+  (move-camera :x (x *player*) :y (y *player*))
+  (show-text "Hello, Human. Welcome to the game")
+  "You can also show text like this."
+  (ask-question "Would you like to know more?" "Yes" "No" "Maybe...")
+  (run-action (format t "debugging"))
+  (pause-ms 500))
