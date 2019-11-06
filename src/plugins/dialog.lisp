@@ -37,7 +37,7 @@
    (background :initarg :background
                :initform nil)
    (advance-delay :initarg :advance-delay
-                  :initform 500
+                  :initform 0
                   :documentation "time (ms) before player is allowed to advance the dialog.")))
 (export '(dialog-hud-initiator dialog-hud-speaker))
 
@@ -287,9 +287,8 @@ May be the same CUTSCENE-NODE to continue the same action, or nil to quit the cu
 @export
 (defmethod advance-cutscene-node ((node cutscene-node) (hud cutscene-hud))
   "Invoked on the active CUTSCENE-NODE when the player advances the cutscene (i.e. presses a button)"
-  ;; set next-node-index to the appropriate index
-  (with-slots (next-node-index) node
-    (setf next-node-index 0)))
+  ;; no-op
+  )
 
 @export
 (defmethod cutscene-node-on-activate ((node cutscene-node) (hud cutscene-hud)))
@@ -370,6 +369,7 @@ The NEXT value of each node defaults to the next line in BODY. "
 
 ;;;; built-in cutscene nodes
 
+;; show dialog
 (defclass cutscene-node-show-dialog (cutscene-node)
   ((text :initarg :text :initform (error ":text required"))))
 
@@ -379,15 +379,38 @@ The NEXT value of each node defaults to the next line in BODY. "
 ;; do nothing while text is active (await player input)
 (defmethod cutscene-node-while-active ((node cutscene-node-show-dialog) (hud cutscene-hud)))
 
+;; only advance dialog nodes when player presses input
+(defmethod advance-cutscene-node ((node cutscene-node-show-dialog) (hud cutscene-hud))
+  ;; set next-node-index to the appropriate index
+  (with-slots (next-node-index) node
+    (setf next-node-index 0)))
+
 @export
 (defun cutscene-show-dialog (text)
   (make-instance 'cutscene-node-show-dialog
                  :text text))
 
-@export
-(defun cutscene-change-speaker (new-speaker)
-  (error "TODO"))
+;; waiting / sleeping
+(defclass cutscene-node-wait (cutscene-node)
+  ((wait-time :initarg :wait-time :initform (error ":wait-time required"))
+   (t0 :initform 0)))
 
+(defmethod cutscene-node-on-activate ((node cutscene-node-wait) (hud cutscene-hud))
+  (with-slots (t0) node
+    (setf t0 (scene-ticks *scene*))))
+
+;; do nothing while text is active (await player input)
+(defmethod cutscene-node-while-active ((node cutscene-node-wait) (hud cutscene-hud))
+    (with-slots (t0 wait-time) node
+      (let ((now (scene-ticks *scene*)))
+        (when (>= now (+ t0 wait-time))
+          (setf (cutscene-node-next-node-index node) 0)))))
+
+@export
+(defun cutscene-wait (ms)
+  (make-instance 'cutscene-node-wait :wait-time ms))
+
+;; arbitrary action
 (defclass cutscene-node-run-action (cutscene-node)
   ((zero-arg-fn :initarg :zero-arg-fn
                 :initform (error ":zero-arg-fn required")))
@@ -402,3 +425,32 @@ The NEXT value of each node defaults to the next line in BODY. "
     (declare ((function ()) zero-arg-fn))
     (when (funcall zero-arg-fn)
       (setf (cutscene-node-next-node-index node) 0))))
+
+;; specific actions on hud
+(defclass cutscene-node-run-action-with-hud (cutscene-node)
+  ((one-arg-fn :initarg :one-arg-fn
+               :initform (error ":one-arg-fn required")))
+  (:documentation "A cutscene node which runs one-arg fn with the cutscene HUD passed."))
+
+(defmethod cutscene-node-while-active ((node cutscene-node-run-action-with-hud) (hud cutscene-hud))
+  (with-slots (one-arg-fn) node
+    (declare ((function (cutscene-hud)) one-arg-fn))
+    (when (funcall one-arg-fn hud)
+      (setf (cutscene-node-next-node-index node) 0))))
+
+(defun cutscene-run-action-with-hud (one-arg-fn)
+  (make-instance 'cutscene-node-run-action-with-hud :one-arg-fn one-arg-fn))
+
+@export
+(defun cutscene-change-speaker (new-speaker)
+  (cutscene-run-action-with-hud
+   (lambda (hud)
+     (setf (dialog-hud-speaker hud) new-speaker))))
+
+;; hid dialog -hud
+@export
+(defun cutscene-hide-dialog-hud ()
+  (cutscene-run-action-with-hud
+   (lambda (hud)
+     (setf (slot-value hud 'show-p) nil)
+     t)))
