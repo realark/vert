@@ -257,6 +257,7 @@ Nil to render the entire sprite."
                  :initarg :wrap-width)
      (wrap-height :initform nil
                   :initarg :wrap-height)
+     ;; TODO: consting vv
      (flip-list :initform (list)
                 :accessor flip-list))
     (:documentation "A game-object which loads pixels from an image resource for rendering."))
@@ -330,7 +331,7 @@ Nil to render the entire sprite."
   (slot-value static-sprite 'color-maps))
 
 @export
-(defun flip (sprite direction)
+(defmethod flip (sprite direction)
   "Toggle STATIC-SPRITE in the given DIRECTION.
 A DIRECTION of :NONE will clear all flips"
   (declare (static-sprite sprite) (keyword direction))

@@ -12,6 +12,7 @@
 (defclass dialog-hud (overlay input-handler)
   ((show-p :initform nil)
    (initiator :initform nil
+              :accessor dialog-hud-initiator
               :documentation "game-object to return input control to once this HUD closes.")
    (window-position :initarg :window-position
                     :initform nil)
@@ -20,7 +21,8 @@
    (window-padding :initarg :window-padding
                    :initform 1
                    :documentation "Guaranteed amount of space on all sides of the window which will not contain text.")
-   (speaker :initform nil)
+   (speaker :initform nil
+            :accessor dialog-hud-speaker)
    (text :initarg :dialog-text
          :type string
          :initform "")
@@ -37,6 +39,7 @@
    (advance-delay :initarg :advance-delay
                   :initform 500
                   :documentation "time (ms) before player is allowed to advance the dialog.")))
+(export '(dialog-hud-initiator dialog-hud-speaker))
 
 (defmethod initialize-instance :after ((hud dialog-hud) &rest args)
   (declare (ignore args))
@@ -61,8 +64,7 @@
     (call-next-method hud update-percent camera rendering-context)))
 
 @export
-(defmethod advance-dialog (dialog-hud)
-  (declare (dialog-hud dialog-hud))
+(defmethod advance-dialog ((dialog-hud dialog-hud))
   (quit-dialog dialog-hud))
 
 @export
@@ -70,7 +72,8 @@
   (declare (dialog-hud dialog-hud))
   (with-slots (show-p initiator speaker) dialog-hud
     (when initiator
-      (setf (active-input-device initiator) (active-input-device dialog-hud)))
+      (setf (active-input-device initiator) (active-input-device dialog-hud)
+            initiator nil))
     (setf (active-input-device dialog-hud) *no-input-id*
           speaker nil
           show-p nil)))
@@ -180,65 +183,181 @@
                        :finally (setf (fill-pointer lines) current-line)))))
         (release-resources font-draw)))))
 
-@export
-(defmethod show-dialog ((dialog-hud dialog-hud) text &key initiator speaker)
-  (with-slots (show-p (hud-initiator initiator) (hud-speaker speaker) advance-delay) dialog-hud
-    (when show-p
-      (error "dialog already shown"))
-    (let ((hud-input-id (if initiator
-                             (active-input-device initiator)
-                             *all-input-id*)))
-      (when initiator
-        (setf (active-input-device initiator) *no-input-id*))
+(defmethod (setf dialog-hud-initiator) :before (new-initiator (hud dialog-hud))
+  (with-slots ((current-initiator initiator) advance-delay) hud
+    (when current-initiator
+      (error "initiator already set: ~A" current-initiator))
+    (let ((hud-input-id (if new-initiator
+                            (active-input-device new-initiator)
+                            *all-input-id*)))
+      (when new-initiator
+        (setf (active-input-device new-initiator) *no-input-id*))
       (schedule *scene*
                 (+ (scene-ticks *scene*) advance-delay)
                 (lambda ()
-                  (setf (active-input-device dialog-hud) hud-input-id))))
-    (setf hud-initiator initiator
-          hud-speaker speaker
-          (slot-value dialog-hud 'text) text
-          show-p t)
+                  (setf (active-input-device hud) hud-input-id))))))
+
+@export
+(defmethod show-dialog ((dialog-hud dialog-hud) text &key initiator speaker)
+  (with-slots (show-p advance-delay) dialog-hud
+    (when (not (dialog-hud-initiator dialog-hud))
+      (setf (dialog-hud-initiator dialog-hud) initiator))
+    (when (not (dialog-hud-speaker dialog-hud))
+      (setf (dialog-hud-speaker dialog-hud) speaker))
+    (unless show-p
+      (setf show-p t))
+    (setf (slot-value dialog-hud 'text) text)
     (%set-dialog-lines dialog-hud)))
 
 (set-default-input-command-map
  dialog-hud
  ("controller"
-  (:0 :advance-dialog))
+  (:2 :advance-dialog))
  ("sdl-keyboard"
-  (:scancode-space :advance-dialog)))
+  (:scancode-t :advance-dialog)))
 
 (set-default-command-action-map
  dialog-hud
  (:advance-dialog
   (on-activate (advance-dialog dialog-hud))))
 
-;;;; cutscene enabled dialog
+;;;; cutscene node base class
 
+@export
 (defclass cutscene-node (game-object)
-  ((zero-arg-fn :initarg :zero-arg-fn
-                :initform (error ":zero-arg-fn required"))
-   (next :initarg :next
-         :initform nil))
+  ((root-node :initarg :root-node
+              :initform nil
+              :documentation "Root node for cutscene graph. Nil iff this node is the root.")
+   (next-nodes :initarg :next-nodes
+               :initform (list)
+               :reader cutscene-node-next-nodes
+               :documentation "list of the next nodes this node may jump to. If nil, the next node will terminate the cutscene")
+   (next-node-index :initform nil
+                    :accessor cutscene-node-next-node-index
+                    :documentation "index pointing to some value in NEXT-NODES list.
+If nil, this node will block the cutscene. If non-nil, this node will be deactivated and the next node activated."))
   (:documentation "A single action performed in a custscene. Could change the dialog, move a character, etc."))
+(export '(cutscene-node-next-nodes cutscene-node-next-node-index))
 
-(defclass cutscene-dialog-hud (dialog-hud)
+;;;; HUD to play cutscenes
+
+@export
+(defclass cutscene-hud (dialog-hud)
   ((active-node :initarg :active-node
                 :initform nil))
   (:documentation "A more advanced dialog hud which may run arbitrary actions along with presenting text"))
 
-(defmethod play-cutscene ((hud cutscene-dialog-hud) (node cutscene-node))
+(defmethod update ((hud cutscene-hud) timestep scene)
   (with-slots (active-node) hud
-    (setf active-node node)))
+    (when active-node
+      (cutscene-node-while-active active-node hud)
+      (let ((next-node (cutscene-node-next-node active-node)))
+        (play-cutscene hud next-node))))
+  (call-next-method hud timestep scene))
 
-(defmacro defcutscene ((&key initiator) &body body)
-  '(quote todo)
-  )
+@export
+(defmethod play-cutscene ((hud cutscene-hud) new-node)
+  (with-slots ((current-node active-node)) hud
+    (unless (eq new-node current-node)
+      (when current-node
+        (cutscene-node-on-deactivate current-node hud))
+      (when new-node
+        (cutscene-node-on-activate new-node hud))
+      (setf current-node new-node)
+      (when (null current-node)
+        (quit-dialog hud)))))
 
-(defcutscene (:initiator 'the-player)
+(defmethod advance-dialog ((hud cutscene-hud))
+    (with-slots (active-node) hud
+      (if active-node
+          (advance-cutscene-node active-node hud)
+          (call-next-method hud))))
+
+;;;; base logic and cutscene-node hooks
+
+(defmethod cutscene-node-next-node ((node cutscene-node))
+  "Get the next node to play in the cutscene.
+May be the same CUTSCENE-NODE to continue the same action, or nil to quit the cutscene."
+  (with-slots (next-nodes next-node-index) node
+    (if next-node-index
+        (when next-nodes ; note: returning nil (i.e. quit cutscene) if no next nodes to jump to
+          (elt next-nodes next-node-index ))
+        ;; no index set. Continue to run with this node
+        node)))
+
+@export
+(defmethod advance-cutscene-node ((node cutscene-node) (hud cutscene-hud))
+  "Invoked on the active CUTSCENE-NODE when the player advances the cutscene (i.e. presses a button)"
+  ;; set next-node-index to the appropriate index
+  (with-slots (next-node-index) node
+    (setf next-node-index 0)))
+
+@export
+(defmethod cutscene-node-on-activate ((node cutscene-node) (hud cutscene-hud)))
+
+@export
+(defmethod cutscene-node-on-deactivate ((node cutscene-node) (hud cutscene-hud)))
+
+@export
+(defmethod cutscene-node-while-active ((node cutscene-node) (hud cutscene-hud))
+  (setf (cutscene-node-next-node-index node) 0))
+
+;;;; Macro to build cutscene tree
+
+(defmacro make-cutscene ((&key initiator (prefix "cutscene-")) &body body)
+  "Macro to to create a dialog tree. Each form in body may either be a function which returns a CUTSCENE-NODE, or a string (which will be turned into a SHOW-DIALOG).
+The NEXT value of each node defaults to the next line in BODY.
+All functions will be resolved to <PREFIX><function-name>, or just <function-name> if the prefix'd symbol is not a function.
+"
+  '(quote todo))
+
+(make-cutscene (:initiator 'the-player)
   (change-speaker 'someone :object-id 'welcome)
   (move-camera :x (x *player*) :y (y *player*))
   (show-text "Hello, Human. Welcome to the game")
   "You can also show text like this."
-  (ask-question "Would you like to know more?" "Yes" "No" "Maybe...")
+
+  (label 'ask-question)
+  (ask-question "I'm a spirit guardian of a long forgotten empire. Would you like to learn the history of my people?"
+                ("Yes" (go-to-node 'answer-yes))
+                ("No" (go-to-node 'answer-no))
+                ("Maybe...?" "I'll say that again."
+                             (go-to-node 'ask-question)))
+  (label 'answer-no)
+  "Oh... I'll just give you the mythical sword of the stone-king then. You won't **really** appreciate it though."
+  (go-to-node 'after-tale)
+  (label 'answer-yes)
+  "Great! I will tell you a grand tale..."
+  (label 'after-tale)
+  (run-action (log "This is arbitrary lisp code")
+              (give-to-player *stone-sword*)
+              (play-sound-effect *audio* *recieve-special-item*))
+  "Good luck on your journey."
+
   (run-action (format t "debugging"))
   (pause-ms 500))
+
+;;;; built-in cutscene nodes
+
+(defclass cutscene-node-show-dialog (cutscene-node)
+  ((text :initarg :text :initform (error ":text required"))))
+
+(defmethod cutscene-node-on-activate ((node cutscene-node-show-dialog) (hud cutscene-hud))
+  (show-dialog hud (slot-value node 'text)))
+
+;; do nothing while text is active (await player input)
+(defmethod cutscene-node-while-active ((node cutscene-node-show-dialog) (hud cutscene-hud)))
+
+@export
+(defun cutscene-show-dialog (text)
+  (make-instance 'cutscene-node-show-dialog
+                 :text text))
+
+@export
+(defun cutscene-change-speaker (new-speaker)
+  (error "TODO"))
+
+@export
+(defun cutscene-quit ()
+  "Terminate the cutscene."
+  (error "TODO"))
