@@ -227,10 +227,7 @@
 
 @export
 (defclass cutscene-node (game-object)
-  ((root-node :initarg :root-node
-              :initform nil
-              :documentation "Root node for cutscene graph. Nil iff this node is the root.")
-   (next-nodes :initarg :next-nodes
+  ((next-nodes :initarg :next-nodes
                :initform (list)
                :accessor cutscene-node-next-nodes
                :documentation "list of the next nodes this node may jump to. If nil, the next node will terminate the cutscene")
@@ -308,31 +305,25 @@ May be the same CUTSCENE-NODE to continue the same action, or nil to quit the cu
 ;;;; Macro to build cutscene tree
 
 @export
-(defmacro make-cutscene ((&key initiator (prefix 'cutscene)) &body body)
+(defmacro make-cutscene (() &body body)
   "Macro to to create a dialog tree. Each form in body may either be a function which returns a CUTSCENE-NODE, or a string (which will be turned into a SHOW-DIALOG).
-The NEXT value of each node defaults to the next line in BODY.
-All functions will be resolved to <PREFIX><function-name>, or just <function-name> if the prefix'd symbol is not a function.
-"
+The NEXT value of each node defaults to the next line in BODY. "
   (alexandria:with-gensyms (id-hash node nodes i next-node-id)
     `(let* ((,id-hash (make-hash-table :test #'equal))
-           (,nodes (list ,@(loop :for node-form :in body
-                              ;; add prefix to node creators where appropriate and convert raw strings
-                              :collect `(let ((,node ,(cond ((typep node-form 'string)
-                                                             `(cutscene-show-dialog ,node-form))
-                                                            ((and (listp node-form) (> (length node-form) 0))
-                                                             (let ((prefixed-name (alexandria:symbolicate prefix (first node-form))))
-                                                               `(if (fboundp ,prefixed-name)
-                                                                    ,(push prefixed-name (rest node-form))
-                                                                    ,node-form)))
-                                                            (t (error "illegal cutscene option: ~A. Must be a function which evals to a cutscene or a raw string."
-                                                                      node-form)))))
-                                          (when (gethash (object-id ,node) ,id-hash)
-                                            (error "Cutscene node with id ~A defined more than once. First: ~A, Second: ~A"
-                                                   (object-id ,node)
-                                                   (gethash (object-id ,node) ,id-hash)
-                                                   ,node))
-                                          (setf (gethash (object-id ,node) ,id-hash) ,node)
-                                          ,node)))))
+            (,nodes (list ,@(loop :for node-form :in body
+                               :collect `(let ((,node ,(cond ((typep node-form 'string)
+                                                              `(cutscene-show-dialog ,node-form))
+                                                             ((and (listp node-form) (> (length node-form) 0))
+                                                              node-form)
+                                                             (t (error "illegal cutscene option: ~A. Must be a function which evals to a cutscene or a raw string."
+                                                                       node-form)))))
+                                           (when (gethash (object-id ,node) ,id-hash)
+                                             (error "Cutscene node with id ~A defined more than once. First: ~A, Second: ~A"
+                                                    (object-id ,node)
+                                                    (gethash (object-id ,node) ,id-hash)
+                                                    ,node))
+                                           (setf (gethash (object-id ,node) ,id-hash) ,node)
+                                           ,node)))))
        (loop :for ,i :from 0 :below (length ,nodes) :do
             (let ((,node (elt ,nodes ,i)))
               (if (cutscene-node-next-nodes ,node)
@@ -351,7 +342,7 @@ All functions will be resolved to <PREFIX><function-name>, or just <function-nam
        (first ,nodes))))
 
 #+nil
-(make-cutscene (:initiator 'the-player)
+(make-cutscene ()
   (change-speaker 'someone :object-id 'welcome)
   (move-camera :x (x *player*) :y (y *player*))
   (show-text "Hello, Human. Welcome to the game")
@@ -397,7 +388,17 @@ All functions will be resolved to <PREFIX><function-name>, or just <function-nam
 (defun cutscene-change-speaker (new-speaker)
   (error "TODO"))
 
+(defclass cutscene-node-run-action (cutscene-node)
+  ((zero-arg-fn :initarg :zero-arg-fn
+                :initform (error ":zero-arg-fn required")))
+  (:documentation "A cutscene node which runs a zero-arg fn. Cutscene advances when the function returns non-nil"))
+
 @export
-(defun cutscene-quit ()
-  "Terminate the cutscene."
-  (error "TODO"))
+(defun cutscene-run-action (zero-arg-fn)
+  (make-instance 'cutscene-node-run-action :zero-arg-fn zero-arg-fn))
+
+(defmethod cutscene-node-while-active ((node cutscene-node-run-action) (hud cutscene-hud))
+  (with-slots (zero-arg-fn) node
+    (declare ((function ()) zero-arg-fn))
+    (when (funcall zero-arg-fn)
+      (setf (cutscene-node-next-node-index node) 0))))
