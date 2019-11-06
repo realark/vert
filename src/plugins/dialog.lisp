@@ -2,11 +2,11 @@
 
 @export
 (defclass dialog-speaker (game-object)
-  ((dialog-name :initarg :name
-                :initform (error ":dialog-speaker-name required")
-                :reader dialog-speaker-name))
+  ((name :initarg :name
+         :initform (error ":name required")
+         :reader name))
   (:documentation "A game object which my product dialog."))
-(export '(dialog-speaker-name))
+(export '(name))
 
 @export
 (defclass dialog-hud (overlay input-handler)
@@ -166,7 +166,7 @@
                   (with-slots (speaker background font-size) dialog-hud
                     ;; create speaker name
                     (when (and (= 0 current-line) speaker)
-                      (let ((speaker-line (get-or-create-line current-line (format nil "~A:" (dialog-speaker-name speaker)))))
+                      (let ((speaker-line (get-or-create-line current-line (format nil "~A:" (name speaker)))))
                         (setf (font-size speaker-line) (- font-size 2)))
                       (incf current-line)))
                   (setf current-line-ending
@@ -230,7 +230,7 @@
               :documentation "Root node for cutscene graph. Nil iff this node is the root.")
    (next-nodes :initarg :next-nodes
                :initform (list)
-               :reader cutscene-node-next-nodes
+               :accessor cutscene-node-next-nodes
                :documentation "list of the next nodes this node may jump to. If nil, the next node will terminate the cutscene")
    (next-node-index :initform nil
                     :accessor cutscene-node-next-node-index
@@ -304,13 +304,50 @@ May be the same CUTSCENE-NODE to continue the same action, or nil to quit the cu
 
 ;;;; Macro to build cutscene tree
 
-(defmacro make-cutscene ((&key initiator (prefix "cutscene-")) &body body)
+@export
+(defmacro make-cutscene ((&key initiator (prefix 'cutscene)) &body body)
   "Macro to to create a dialog tree. Each form in body may either be a function which returns a CUTSCENE-NODE, or a string (which will be turned into a SHOW-DIALOG).
 The NEXT value of each node defaults to the next line in BODY.
 All functions will be resolved to <PREFIX><function-name>, or just <function-name> if the prefix'd symbol is not a function.
 "
-  '(quote todo))
+  (alexandria:with-gensyms (id-hash node nodes i next-node-id)
+    `(let* ((,id-hash (make-hash-table :test #'equal))
+           (,nodes (list ,@(loop :for node-form :in body
+                              ;; add prefix to node creators where appropriate and convert raw strings
+                              :collect `(let ((,node ,(cond ((typep node-form 'string)
+                                                             `(cutscene-show-dialog ,node-form))
+                                                            ((and (listp node-form) (> (length node-form) 0))
+                                                             (let ((prefixed-name (alexandria:symbolicate prefix (first node-form))))
+                                                               `(if (fboundp ,prefixed-name)
+                                                                    ,(push prefixed-name (rest node-form))
+                                                                    ,node-form)))
+                                                            (t (error "illegal cutscene option: ~A. Must be a function which evals to a cutscene or a raw string."
+                                                                      node-form)))))
+                                          (when (gethash (object-id ,node) ,id-hash)
+                                            (error "Cutscene node with id ~A defined more than once. First: ~A, Second: ~A"
+                                                   (object-id ,node)
+                                                   (gethash (object-id ,node) ,id-hash)
+                                                   ,node))
+                                          (setf (gethash (object-id ,node) ,id-hash) ,node)
+                                          ,node)))))
+       (loop :for ,i :from 0 :below (length ,nodes) :do
+            (let ((,node (elt ,nodes ,i)))
+              (if (cutscene-node-next-nodes ,node)
+                  (setf (cutscene-node-next-nodes ,node)
+                        (mapcar (lambda (,next-node-id)
+                                  (or (gethash ,next-node-id ,id-hash)
+                                      (error "~A's next value not found in cutscene: ~A"
+                                             ,node
+                                             ,next-node-id)))
+                                (cutscene-node-next-nodes ,node)))
+                  (when (< ,i (- (length ,nodes) 1))
+                    ;; if node does not define a next node, set to the node which appears on the next line
+                    (setf (cutscene-node-next-nodes ,node)
+                          (list (elt ,nodes (+ ,i 1))))))))
+       ;; return the root node
+       (first ,nodes))))
 
+#+nil
 (make-cutscene (:initiator 'the-player)
   (change-speaker 'someone :object-id 'welcome)
   (move-camera :x (x *player*) :y (y *player*))

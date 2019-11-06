@@ -2,6 +2,7 @@
 
 (defvar *vert-thread* nil)
 
+@export
 (defun on-game-thread-p ()
   (eq *vert-thread* (bt:current-thread)))
 
