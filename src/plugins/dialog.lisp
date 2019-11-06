@@ -298,7 +298,8 @@ May be the same CUTSCENE-NODE to continue the same action, or nil to quit the cu
 (defmethod cutscene-node-on-activate ((node cutscene-node) (hud cutscene-hud)))
 
 @export
-(defmethod cutscene-node-on-deactivate ((node cutscene-node) (hud cutscene-hud)))
+(defmethod cutscene-node-on-deactivate ((node cutscene-node) (hud cutscene-hud))
+  (setf (cutscene-node-next-node-index node) nil))
 
 @export
 (defmethod cutscene-node-while-active ((node cutscene-node) (hud cutscene-hud))
