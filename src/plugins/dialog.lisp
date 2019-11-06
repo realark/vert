@@ -212,8 +212,10 @@
 (set-default-input-command-map
  dialog-hud
  ("controller"
+  (:0 :advance-dialog)
   (:2 :advance-dialog))
  ("sdl-keyboard"
+  (:scancode-space :advance-dialog)
   (:scancode-t :advance-dialog)))
 
 (set-default-command-action-map
