@@ -447,6 +447,14 @@ The NEXT value of each node defaults to the next line in BODY. "
    (lambda (hud)
      (setf (dialog-hud-speaker hud) new-speaker))))
 
+@export
+(defun cutscene-capture-input (initiator)
+  "Stop INITIATOR's input and return it once the cutscene is over."
+  (cutscene-run-action-with-hud
+   (lambda (hud)
+     (setf (dialog-hud-initiator hud) initiator)
+     t)))
+
 ;; hid dialog -hud
 @export
 (defun cutscene-hide-dialog-hud ()
