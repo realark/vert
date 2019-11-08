@@ -371,13 +371,16 @@ The NEXT value of each node defaults to the next line in BODY. "
 
 ;; show dialog
 (defclass cutscene-node-show-dialog (cutscene-node)
-  ((text :initarg :text :initform (error ":text required"))))
+  ((text :initarg :text :initform (error ":text required"))
+   (wait-for-input-p :initarg :wait-for-input-p :initform t)))
 
 (defmethod cutscene-node-on-activate ((node cutscene-node-show-dialog) (hud cutscene-hud))
   (show-dialog hud (slot-value node 'text)))
 
-;; do nothing while text is active (await player input)
-(defmethod cutscene-node-while-active ((node cutscene-node-show-dialog) (hud cutscene-hud)))
+(defmethod cutscene-node-while-active ((node cutscene-node-show-dialog) (hud cutscene-hud))
+  (with-slots (wait-for-input-p next-node-index) node
+    (when (not wait-for-input-p)
+      (setf next-node-index 0))))
 
 ;; only advance dialog nodes when player presses input
 (defmethod advance-cutscene-node ((node cutscene-node-show-dialog) (hud cutscene-hud))
@@ -386,9 +389,11 @@ The NEXT value of each node defaults to the next line in BODY. "
     (setf next-node-index 0)))
 
 @export
-(defun cutscene-show-dialog (text)
+(defun cutscene-show-dialog (text &key (wait-for-input-p t))
+  "Show dialog. When WAIT-FOR-INPUT-P is t, wait for the player to advance the cutscene."
   (make-instance 'cutscene-node-show-dialog
-                 :text text))
+                 :text text
+                 :wait-for-input-p wait-for-input-p))
 
 ;; waiting / sleeping
 (defclass cutscene-node-wait (cutscene-node)

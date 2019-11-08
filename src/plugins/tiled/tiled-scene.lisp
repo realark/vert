@@ -19,8 +19,8 @@
   (read-tiled-file tiled-scene)
   (with-slots (spatial-partition) tiled-scene
     (let ((new-partition (make-instance 'layered-quadtree :max-depth 20
-                                        :width (width tiled-scene)
-                                        :height (height tiled-scene))))
+                                        :width (* 2 (width tiled-scene))
+                                        :height (* 2 (height tiled-scene)))))
       ;; map size likely changed. Easiest to just use a new spatial partition
       (do-spatial-partition (object spatial-partition)
         (start-tracking new-partition object))

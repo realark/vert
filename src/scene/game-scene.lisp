@@ -223,8 +223,7 @@ On the next render frame, the objects will be given a chance to load and this li
 @export
 (defun get-object-by-id (scene id)
   "Return the (presumably) unique game-object identified by ID in SCENE."
-  (declare (game-scene scene)
-           (integer id))
+  (declare (game-scene scene))
   (block find-object
     (do-spatial-partition (game-object (spatial-partition scene))
       (when (equalp (object-id game-object) id)
