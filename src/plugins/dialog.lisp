@@ -2,11 +2,11 @@
 
 @export
 (defclass dialog-speaker (game-object)
-  ((name :initarg :name
-         :initform (error ":name required")
-         :reader name))
+  ((object-name :initarg :object-name
+                :initform (error ":object-name required")
+                :reader object-name
+                :documentation "Override of GAME-OBJECT's name slot to force setting the name."))
   (:documentation "A game object which my product dialog."))
-(export '(name))
 
 @export
 (defclass dialog-hud (overlay input-handler)
@@ -166,7 +166,7 @@
                   (with-slots (speaker background font-size) dialog-hud
                     ;; create speaker name
                     (when (and (= 0 current-line) speaker)
-                      (let ((speaker-line (get-or-create-line current-line (format nil "~A:" (name speaker)))))
+                      (let ((speaker-line (get-or-create-line current-line (format nil "~A:" (object-name speaker)))))
                         (setf (font-size speaker-line) (- font-size 2)))
                       (incf current-line)))
                   (setf current-line-ending

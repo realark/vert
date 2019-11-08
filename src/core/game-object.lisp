@@ -4,9 +4,14 @@
 (defclass game-object (event-publisher)
   ((object-id :initform (gensym "object-id-")
               :initarg :object-id
-              :documentation "id unique to each game-object instance in a scene.
+              :reader object-id
+              :documentation "id unique to each game-object instance in a scene as tested by EQUALP.
 User may provide this, but if they do so they are responsible for guaranteeing uniqueness."
-              :reader object-id))
+              :reader object-id)
+   (object-name :initform nil
+                :initarg :object-name
+                :reader object-name
+                :documentation "Optional, human-readable name for an object."))
   (:documentation "Base class of all game objects."))
 
 ;; object's world position, dimension, and rotation info.
