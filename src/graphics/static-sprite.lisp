@@ -220,7 +220,7 @@
            (gl:vertex-attrib-pointer 0 3 :float 0 (* 5 (cffi:foreign-type-size :float)) (* 0 (cffi:foreign-type-size :float)))
            (gl:enable-vertex-attrib-array 0)
            ;; texture coord
-           (gl:vertex-attrib-pointer 1 3 :float 0 (* 5 (cffi:foreign-type-size :float)) (* 3 (cffi:foreign-type-size :float)))
+           (gl:vertex-attrib-pointer 1 2 :float 0 (* 5 (cffi:foreign-type-size :float)) (* 3 (cffi:foreign-type-size :float)))
            (gl:enable-vertex-attrib-array 1)
 
            ;; note: this is okay because vertex-attrib-pointer binds the vertex shader's input
