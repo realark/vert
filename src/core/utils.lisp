@@ -25,15 +25,24 @@
 
 
 @export
-(defmacro ticks ()
+(defun ticks ()
   "Wallclock millisecond timestamp starting from an arbitrary point in time."
-  `(sdl2:get-ticks))
+  (declare (optimize (speed 3)
+                     (safety 0)))
+  (multiple-value-bind (sec microsec) (sb-ext:get-time-of-day)
+    (declare (fixnum sec microsec))
+    (+ (the fixnum (* sec #.(expt 10 3)))
+       (the fixnum (floor microsec #.(expt 10 3))))))
 
 @export
 (defun ticks-nanos ()
   "Wallclock nanosecond timestamp starting from an arbitrary point in time."
+  (declare (optimize (speed 3)
+                     (safety 0)))
   (multiple-value-bind (sec microsec) (sb-ext:get-time-of-day)
-    (+ (* sec #.(expt 10 9)) (* microsec #.(expt 10 3)))))
+    (declare (fixnum sec microsec))
+    (+ (the fixnum (* sec #.(expt 10 9)))
+       (the fixnum (* microsec #.(expt 10 3))))))
 
 (defun merge-symbols (package &rest symbols)
   "intern a symbol in PACKAGE with the concatenated symbol-name of all SYMBOLS."
