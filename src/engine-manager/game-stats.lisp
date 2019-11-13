@@ -36,8 +36,8 @@
                :documentation "Total frame time (nanoseconds)")
    (num-frames :initform 0
                :documentation "Number of frames seen")
-   (longest-frames :initform (make-array 10 :element-type 'fixnum :adjustable nil :initial-element -1)
-                   :documentation "Longest 10 frames observed in the current measurement period. 0 = largest frame seen so far.")))
+   (longest-frames :initform (make-array 1 :element-type 'fixnum :adjustable nil :initial-element -1)
+                   :documentation "Longest N frames observed in the current measurement period. 0 = largest frame seen so far.")))
 
 (defun frame-timer-start-timer (frame-timer)
   (declare (optimize (speed 3)))
@@ -117,7 +117,7 @@
           (setf (elt stats-array 0) (format nil "~Afps: ~A" prefix (truncate-float fps +default-stats-decimal-places+))
                 (elt stats-array 1) (format nil "~Aavg-ms: ~A" prefix (truncate-float (/ avg-frame-time-ns #.(expt 10.0 6))
                                                                                       +default-stats-decimal-places+))
-                (elt stats-array 2) (format nil "~Awrst-avg-ms: ~A" prefix (truncate-float (/ longest-average-ns #.(expt 10.0 6)) +default-stats-decimal-places+)))
+                (elt stats-array 2) (format nil "~Awrst-ms: ~A" prefix (truncate-float (/ longest-average-ns #.(expt 10.0 6)) +default-stats-decimal-places+)))
           stats-array)
       (frame-timer-reset frame-timer))))
 
