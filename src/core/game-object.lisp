@@ -13,6 +13,21 @@ User may provide this, but if they do so they are responsible for guaranteeing u
                 :documentation "Optional, human-readable name for an object."))
   (:documentation "Base class of all game objects."))
 
+(defmethod initialize-instance :around ((game-object game-object) &rest args)
+  (declare (optimize (speed 3)))
+  ;; Note: Hooking :around so that subclass initializations are complete before we potentially call LOAD-RESOURCES
+  (let ((all-args (append (list game-object) args)))
+    (prog1
+        (apply #'call-next-method all-args)
+      (let ((weak-obj-pointer (tg:make-weak-pointer game-object)))
+        (resource-autoloader-add-object *resource-autoloader* weak-obj-pointer)
+        (tg:finalize game-object
+                     (lambda ()
+                       (resource-autoloader-remove-object *resource-autoloader* weak-obj-pointer)))))))
+
+(defmethod load-resources ((game-object game-object) context))
+(defmethod release-resources ((game-object game-object)))
+
 @export-class
 (defclass static-object ()
   ()

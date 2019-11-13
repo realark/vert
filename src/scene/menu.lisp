@@ -247,7 +247,8 @@
       (play-sound-effect *audio* initialized-sfx)))
   ;; update input
   (update menu delta-t-ms menu)
-  (update (camera menu) delta-t-ms menu))
+  (update (camera menu) delta-t-ms menu)
+  (%set-menu-position-and-color menu))
 
 ;; Render Menu
 
@@ -260,27 +261,6 @@
       (loop for child in (slot-value node 'children) do
            (render child 0.0 camera renderer))
       (render (slot-value menu 'selection-marker) update-percent camera renderer))))
-
-(defmethod load-resources :before ((node parent-node) renderer)
-  (loop for child in (slot-value node 'children) do
-       (load-resources child renderer)))
-
-(defmethod release-resources :before ((node parent-node))
-  (loop for child in (slot-value node 'children) do
-       (release-resources child)))
-
-(defmethod load-resources ((menu menu) renderer)
-  (load-resources (slot-value menu 'selection-marker) renderer)
-  (when (slot-value menu 'background)
-    (load-resources (slot-value menu 'background) renderer))
-  (load-resources (slot-value menu 'node) renderer)
-  (%set-menu-position-and-color menu))
-
-(defmethod release-resources ((menu menu))
-  (release-resources (slot-value menu 'selection-marker))
-  (when (slot-value menu 'background)
-    (release-resources (slot-value menu 'background)))
-  (release-resources (slot-value menu 'node)))
 
 ;; Menu Builder DSL
 

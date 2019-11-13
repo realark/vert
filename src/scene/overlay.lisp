@@ -24,11 +24,3 @@
 (defmethod update :after ((overlay overlay) delta-t-ms world-context)
   (loop :for child :across (transform-children overlay) :do
        (update child delta-t-ms world-context)))
-
-(defmethod load-resources :after ((overlay overlay) rendering-context)
-  (loop :for child :across (transform-children overlay) :do
-       (load-resources child rendering-context)))
-
-(defmethod release-resources :after ((overlay overlay))
-  (loop :for child :across (transform-children overlay) :do
-       (release-resources child)))

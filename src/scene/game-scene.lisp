@@ -57,30 +57,6 @@ On the next render frame, the objects will be given a chance to load and this li
     (setf spatial-partition
           (make-instance 'quadtree))))
 
-(defmethod load-resources ((game-scene game-scene) renderer)
-  (with-accessors ((music scene-music)
-                   (bg scene-background))
-      game-scene
-    (when bg
-      (load-resources bg renderer))
-    (do-spatial-partition (game-object (spatial-partition game-scene) :static-iteration-p t)
-      (load-resources game-object renderer))
-    (loop :for overlay :across (the (vector overlay) (slot-value game-scene 'scene-overlays)) :do
-         (load-resources overlay renderer))
-    (when music
-      ;; Hack to resume music on unpause
-      (if (eq :paused (music-state *audio*))
-          (setf (music-state *audio*) :playing)
-          (play-music *audio* music :num-plays -1)))))
-
-(defmethod release-resources ((game-scene game-scene))
-  (do-spatial-partition (game-object (spatial-partition game-scene) :static-iteration-p t)
-    (release-resources game-object))
-  (when (scene-background game-scene)
-    (release-resources (scene-background game-scene)))
-  (loop :for overlay :across (the (vector overlay) (slot-value game-scene 'scene-overlays)) :do
-       (release-resources overlay)))
-
 @export
 (defgeneric add-to-scene (scene object)
   (:documentation "Add an object to the game scene")
@@ -105,20 +81,17 @@ On the next render frame, the objects will be given a chance to load and this li
   (:method ((scene scene) (overlay overlay))
     (with-slots (scene-overlays) scene
       (when (find overlay scene-overlays)
-        (setf scene-overlays (delete overlay scene-overlays))
-        (release-resources overlay))))
+        (setf scene-overlays (delete overlay scene-overlays)))))
   (:method ((scene game-scene) (overlay overlay))
     (with-slots (scene-overlays) scene
       (when (find overlay scene-overlays)
         (setf scene-overlays (delete overlay scene-overlays))
-        (render-queue-remove (slot-value scene 'render-queue) overlay)
-        (release-resources overlay))))
+        (render-queue-remove (slot-value scene 'render-queue) overlay))))
   (:method ((scene game-scene) (object game-object))
     ;; remove object at the start of the next frame to allow pending actions to finish
     (remove-subscriber object scene killed)
     (stop-tracking (spatial-partition scene) object)
     (render-queue-remove (slot-value scene 'render-queue) object)
-    (release-resources object)
     (vector-push-extend object (slot-value scene 'removed-objects))))
 
 ;; for subclasses to hook object updates

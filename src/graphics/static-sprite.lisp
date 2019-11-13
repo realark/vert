@@ -54,6 +54,17 @@
    (vbo :initform 0))
   (:documentation "A draw component which renders a portion of a sprite to the screen using opengl."))
 
+(defmethod initialize-instance :after ((sprite gl-sprite) &rest args)
+  (declare (ignore args))
+  ;; note: using let instead of with-slots to avoid reference circularity
+  (let ((path-to-sprite (path-to-sprite (slot-value sprite 'static-sprite)))
+        (texture (slot-value sprite 'texture))
+        (vao (slot-value sprite 'vao))
+        (vbo (slot-value sprite 'vbo)))
+    (tg:finalize sprite
+                 (lambda ()
+                   (%release-gl-sprite-resources path-to-sprite texture vao vbo)))))
+
 @inline
 (defun gl-sprite-set-base-sprite-data (gl-sprite static-sprite update-percent camera)
   "Send GL-SPRITE's source and position data to opengl."
@@ -182,12 +193,16 @@
 (defmethod release-resources ((drawable gl-sprite))
   (with-slots (static-sprite shader texture vao vbo)
       drawable
-    (unless (= 0 vao)
-      (stop-using-cached-resource texture (path-to-sprite static-sprite) *texture-cache*)
-      (remcache %sprite-key% *shader-cache*)
-      (remcache %sprite-key% *sprite-buffer-cache*)
-      (setf vao 0
-            vbo 0))))
+    (%release-gl-sprite-resources (path-to-sprite static-sprite) texture vao vbo)
+    (setf vao 0
+          vbo 0)))
+
+(defun %release-gl-sprite-resources (path-to-sprite texture vao vbo)
+  (declare (ignorable vbo))
+  (unless (= 0 vao)
+    (stop-using-cached-resource texture path-to-sprite *texture-cache*)
+    (remcache %sprite-key% *shader-cache*)
+    (remcache %sprite-key% *sprite-buffer-cache*)))
 
 (defun %create-sprite-shader ()
   (make-instance 'shader

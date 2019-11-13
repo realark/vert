@@ -14,8 +14,6 @@
 
 ;;;; GL Polygon Drawer
 
-(defvar %polygon-draw% nil)
-
 (defclass polygon-draw (draw-component)
   ((shader :initform (getcache-default 'polygon-shader
                                        *shader-cache*
@@ -28,6 +26,17 @@
    (vbo :initform 0))
   (:documentation "A draw component which renders a solid color polygon."))
 
+(defmethod initialize-instance :after ((polygon-draw polygon-draw) &rest args)
+  (declare (ignore args))
+  (let ((shader (slot-value polygon-draw 'shader))
+        (vao (slot-value polygon-draw 'vao))
+        (vbo (slot-value polygon-draw 'vbo))
+        (weak-pointer (tg:make-weak-pointer polygon-draw)))
+    (resource-autoloader-add-object *resource-autoloader* weak-pointer)
+    ;; note: using LET instead of WITH-SLOTS to avoid reference to polygon-draw in finalizer
+    (tg:finalize polygon-draw
+                 (lambda ()
+                   (%release-polygon-draw-resources shader vao vbo)))))
 
 (defmethod load-resources ((polygon-draw polygon-draw) context)
   (with-slots (shader vao vbo) polygon-draw
@@ -39,20 +48,17 @@
 
 (defmethod release-resources ((polygon-draw polygon-draw))
     (with-slots (shader vao vbo) polygon-draw
-      (unless (= 0 vao)
-        (release-resources shader)
-        (gl:delete-vertex-arrays (list vao))
-        (gl:delete-buffers (list vbo))
-        (setf vao 0
-              vbo 0))))
+      (%release-polygon-draw-resources shader vao vbo)
+      (setf vao 0
+            vbo 0)))
 
-(on-engine-start ('create-polygon-draw-component)
-  (setf %polygon-draw% (make-instance 'polygon-draw))
-  (load-resources %polygon-draw% t))
+(defun %release-polygon-draw-resources (shader vao vbo)
+  (unless (= 0 vao)
+    (release-resources shader)
+    (gl:delete-vertex-arrays (list vao))
+    (gl:delete-buffers (list vbo))))
 
-(on-engine-stop ('cleanup-polygon-draw-component)
-  (release-resources %polygon-draw%)
-  (setf %polygon-draw% nil))
+(defvar %polygon-draw% (make-instance 'polygon-draw))
 
 (defun %render-polygon (game-object color update-percent camera renderer)
   "Render GAME-OBJECT using the global polygon shader"

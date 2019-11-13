@@ -51,7 +51,7 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
                        *config* nil
                        *vert-thread* nil
                        *dev-mode* nil)
-                 (sb-ext:gc :full T))))
+                 (garbage-collect-hint))))
       (if block
           (run-engine)
           (make-thread #'run-engine :name "vert-game-loop")))))

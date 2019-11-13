@@ -162,12 +162,29 @@
                     :initform (error ":font-drawable required"))
      (text-atlas :initform nil)
      (shader :initform nil :reader shader)
+     (buffer-cache-key :initform (cons nil nil))
      (vao :initform 0 :reader vao)
      (vbo :initform 0)
      (vertices-byte-size :initform 0)
      (vertices-pointer-offset :initform 0)
      (vertices :initform nil)))
   (export '(text)))
+
+(defmethod initialize-instance :after ((gl-font gl-font) &rest args)
+  (declare (ignore args))
+  (with-slots (buffer-cache-key font-drawable) gl-font
+    (setf (car buffer-cache-key) (slot-value font-drawable 'path-to-font)
+          (cdr buffer-cache-key) (slot-value font-drawable 'font-dpi)))
+
+  ;; note: using let instead of with-slots to avoid reference circularity
+  (let ((buffer-cache-key (slot-value gl-font 'buffer-cache-key))
+        (vao (slot-value gl-font 'vao))
+        (vbo (slot-value gl-font 'vbo))
+        (vertices (slot-value gl-font 'vertices))
+        (text-atlas (slot-value gl-font 'text-atlas)))
+    (tg:finalize gl-font
+                 (lambda ()
+                   (%release-gl-font-resources buffer-cache-key vao vbo vertices text-atlas)))))
 
 (defmethod load-resources ((gl-font gl-font) (renderer gl-context))
   (with-slots (font-drawable text-atlas shader vao vbo vertices vertices-byte-size vertices-pointer-offset)
@@ -208,19 +225,24 @@
       (%set-font-vbo-contents font-drawable renderer))))
 
 (defmethod release-resources ((gl-font gl-font))
-  (with-slots (font-drawable shader vao vbo vertices text-atlas)
+  (with-slots (buffer-cache-key shader vao vbo vertices text-atlas)
       gl-font
-    (unless (= 0 vao)
-      (remcache %font-key% *shader-cache*)
-      (remcache gl-font %font-buffer-cache%)
-      (gl:free-gl-array vertices)
-      (setf shader nil
-            vao 0
-            vbo 0
-            vertices nil)
-      (with-slots (path-to-font font-dpi) font-drawable
-        (remcache font-dpi (getcache path-to-font %text-atlas-cache%))
-        (setf text-atlas nil)))))
+    (%release-gl-font-resources buffer-cache-key vao vbo vertices text-atlas)
+    (setf shader nil
+          vao 0
+          vbo 0
+          vertices nil)))
+
+(defun %release-gl-font-resources (buffer-cache-key vao vbo vertices text-atlas)
+  (declare (ignorable vbo))
+  (unless (= 0 vao)
+    (remcache %font-key% *shader-cache*)
+    (remcache buffer-cache-key %font-buffer-cache%)
+    (gl:free-gl-array vertices)
+    (let ((path-to-font (car buffer-cache-key))
+          (font-dpi (cdr buffer-cache-key)))
+      (remcache font-dpi (getcache path-to-font %text-atlas-cache%))
+      (setf text-atlas nil))))
 
 (defun %compute-text-scale (font-drawable text-atlas iw ih)
   "Return the scaling factor to apply to FONT-DRAWABLE's text glyphs to fit inside its rectangle."

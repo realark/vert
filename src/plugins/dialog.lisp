@@ -111,7 +111,6 @@
           ;; we'll likely want to alter text for display purposes (e.g. add a hyphen for line breaks)
           ;; copy the text so the underlying content is unchanged
           (text (copy-seq text)))
-      (load-resources font-draw *gl-context*)
       (unwind-protect
            (labels ((space-p (index)
                       "t if INDEX points to empty space"
@@ -158,8 +157,6 @@
                                                          :height 100
                                                          :parent dialog-hud
                                                          :text content)))
-                            (when *gl-context*
-                              (load-resources new-line *gl-context*))
                             (vector-push-extend new-line lines)))
                         (let ((line (elt lines line-number)))
                           (with-slots (window-position window-size window-padding background font-size)
@@ -216,10 +213,8 @@
                   (with-slots (lines) dialog-hud
                     (loop :for i :from current-line :below (length lines) :do
                          (setf (parent (elt lines i)) nil)
-                         (release-resources (elt lines i))
                        :finally
-                         (setf (fill-pointer lines) current-line)))))
-        (release-resources font-draw)))))
+                         (setf (fill-pointer lines) current-line)))))))))
 
 (defmethod (setf dialog-hud-initiator) :before (new-initiator (hud dialog-hud))
   (with-slots ((current-initiator initiator) advance-delay) hud

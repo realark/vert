@@ -214,17 +214,15 @@
     (declare ((integer 0 1000) index))
     (labels ((get-or-create-next-drawable ()
                (when (>= index (length children))
-                 (load-resources
-                  (make-instance 'font-drawable
-                                 :parent hud
-                                 :font-size (slot-value hud 'stats-font-size)
-                                 :width 150
-                                 :height 100
-                                 :x 0
-                                 :y 0
-                                 :color (slot-value hud 'text-color)
-                                 :text "")
-                  rendering-context)
+                 (make-instance 'font-drawable
+                                :parent hud
+                                :font-size (slot-value hud 'stats-font-size)
+                                :width 150
+                                :height 100
+                                :x 0
+                                :y 0
+                                :color (slot-value hud 'text-color)
+                                :text "")
                  (setf children (transform-children hud)))
                (elt children index))
              (update-drawable-to-match-stat (drawable stat-string)
@@ -239,7 +237,6 @@
                  (setf (x drawable) (- (width hud) (width drawable)))))
              (free-excess-drawables ()
                (loop :for i :from index :below (length children) :do
-                    (release-resources (elt children i))
                     (setf (parent (elt children i)) nil))))
       (loop :for stat :across (slot-value hud 'game-stats) :do
            (loop :for stat-string :across (get-stats-strings stat) :do

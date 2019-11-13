@@ -16,9 +16,9 @@
                         :components
                         ((:file "utils")
                          (:file "config")
-                         (:file "resource")
                          (:file "clos-events")
-                         (:file "game-object")))
+                         (:file "game-object")
+                         (:file "resource")))
                (:module memory
                         :depends-on (:core)
                         :pathname "src/memory"
@@ -158,11 +158,12 @@
                #:cl-opengl
                #:cl-soil
                #:cl-freetype2
-               #:glkit ;; TODO: is this needed?
+               #:glkit
                #:queues.simple-cqueue
                #:cl-annot
                #:log4cl
                #:bordeaux-threads
+               #:trivial-garbage
                #:alexandria))
 
 (defsystem vert/test
