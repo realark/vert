@@ -37,14 +37,14 @@
       (sdl2:gl-set-attr :context-forward-compatible-flag
                         sdl2-ffi:+sdl-gl-context-forward-compatible-flag+))
 
-    (format T "Running on lisp ~A version ~A~%"
+    (log:info "Running on lisp ~A version ~A~%"
             (lisp-implementation-type)
             (lisp-implementation-version))
-    (format T "Compiled against SDL Library Version: ~D.~D.~D~%"
+    (log:info "Compiled against SDL Library Version: ~D.~D.~D~%"
             sdl2-ffi:+sdl-major-version+
             sdl2-ffi:+sdl-minor-version+
             sdl2-ffi:+sdl-patchlevel+)
-    (format T "opengl version ~A.~A~%profile mask: ~A~%"
+    (log:info "opengl version ~A.~A~%profile mask: ~A~%"
             (sdl2:gl-get-attr :CONTEXT-MAJOR-VERSION)
             (sdl2:gl-get-attr :CONTEXT-MINOR-VERSION)
             (sdl2:gl-get-attr :context-profile-mask))
@@ -97,7 +97,7 @@
               (when (getconfig 'enable-vsync *config*)
                 (when (= -1 (sdl2::sdl-gl-set-swap-interval -1))
                   (sdl2::sdl-gl-set-swap-interval 1)))
-              (format T "window swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval))
+              (log:info "window swap interval (vsync): ~A~%" (sdl2:gl-get-swap-interval))
               (gl:enable :cull-face)
               (gl:enable :blend)
               (gl:blend-func :src-alpha :one-minus-src-alpha))
@@ -265,7 +265,7 @@
                                      (initialize-sdl-controller engine-manager device-index))
              (:controllerdeviceremapped (:which id)
                                         ;; TODO: what does this mean and how do I handle it?
-                                        (format T "Controller remapped: ~A~%" id))
+                                        (log:info "Controller remapped: ~A~%" id))
              (:controllerdeviceremoved (:which sdl-joystick-id)
                                        (remove-sdl-controller engine-manager sdl-joystick-id))
              (:controlleraxismotion (:which controller-id :axis axis-id :value value)

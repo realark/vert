@@ -158,6 +158,7 @@
                #:glkit ;; TODO: is this needed?
                #:queues.simple-cqueue
                #:cl-annot
+               #:log4cl
                #:bordeaux-threads
                #:alexandria))
 

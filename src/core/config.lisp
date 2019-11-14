@@ -76,6 +76,10 @@ Example:
  'resizable-window "Allow application window to be resized. Defaults to t.")
 (export-config-key
  'use-dummy-audio-output "When t, audio will be output to a dummy driver.")
+(export-config-key
+ 'log-output "The keyword :stdout, or a string specifying log's file name.")
+(export-config-key
+ 'log-level "A log4CL log level.")
 
 @export
 (defvar *default-config* (make-config ()
@@ -88,7 +92,9 @@ Example:
                                       ('fullscreen-p nil)
                                       ('initial-window-size '(1280 720))
                                       ('resizable-window t)
-                                      ('initial-window-fullscreen-p nil))
+                                      ('initial-window-fullscreen-p nil)
+                                      ('log-output :stdout)
+                                      ('log-level :info))
   "The config used by vert if no config is specified.")
 
 @export

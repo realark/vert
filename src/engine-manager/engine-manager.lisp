@@ -152,7 +152,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
 
         (when (>= lag (* 10 timestep-ns))
           ;; update thread was likely just blocked on debugging. Don't try to catch up.
-          (format T "Update thread very far behind. Resetting to a good state.~%")
+          (log:warn "Update thread very far behind. Resetting to a good state.~%")
           (setf lag timestep-ns))
         (loop :for i :from 0 :while (>= lag timestep-ns) :do
              (decf lag timestep-ns)
@@ -211,7 +211,7 @@ It is invoked after the engine is fully started.")
            (sb-ext:gc :full T) ;; run a full gc before the first window is shown
            ;; run the game loop
            (run-game-loop engine-manager))
-      (format t "Game Complete. Cleaning up Engine.~%")
+      (log:info "Game Complete. Cleaning up Engine.~%")
       (cleanup-engine engine-manager))))
 
 (defgeneric cleanup-engine (engine-manager)

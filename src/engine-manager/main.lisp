@@ -33,9 +33,16 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
           *engine-manager* (make-instance 'sdl-engine-manager)
           *dev-mode* dev-mode
           *audio* audio-player)
-    (assert-units)
     (labels ((run-engine ()
                (unwind-protect
+                    (progn ; set log4cl to a base state
+                      (log:config :sane)
+                      (log:config :remove 1))
+                    (when (getconfig 'log-output *config*)
+                      (if (eq :stdout (getconfig 'log-output *config*))
+                          (log:config :console)
+                          (log:config :daily (getconfig 'log-output *config*) :backup nil)))
+                    (assert-units)
                     (sdl2:make-this-thread-main
                      (lambda ()
                        (setf *vert-thread* (bt:current-thread))
@@ -58,7 +65,7 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
   ;; first clear out any existing gl errors
   (gl:get-error)
   (do-cache (*shader-cache* shader-key shader)
-    (format T "reload: ~A -- ~A~%" shader-key shader)
+    (log:info "reload: ~A -- ~A~%" shader-key shader)
     (loop :with shader-loaded = nil
        :while (not shader-loaded) :do
          (restart-case
