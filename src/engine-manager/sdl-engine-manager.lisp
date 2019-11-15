@@ -134,21 +134,31 @@
   (setf *gl-context* nil))
 
 (defun sdl-key-down (keyboard keysym)
+  (log:trace "SDL keyboard down: ~A" (sdl2:scancode keysym))
   (activate-input keyboard (sdl2:scancode keysym)))
 
 (defun sdl-key-up (keyboard keysym)
+  (log:trace "SDL keyboard up: ~A" (sdl2:scancode keysym))
   (deactivate-input keyboard (sdl2:scancode keysym)))
 
-(defun sdl-controller-button-down (controller-id button-id)
-  (activate-input (gethash controller-id (slot-value *engine-manager*
-                                                     'sdl-to-vert-controllers))
-                  ;; TODO: Is this consing? vv
-                  (alexandria:make-keyword (write-to-string button-id))))
+(let ((button-id-keywords (make-instance 'cache :test #'equal)))
+  ;; write-to-string conses, so we'll save the button-id keywords in a cache
 
-(defun sdl-controller-button-up (controller-id button-id)
-  (deactivate-input (gethash controller-id (slot-value *engine-manager*
+  (defun sdl-controller-button-down (controller-id button-id)
+    (log:trace "SDL button down: " controller-id " -> " button-id)
+    (activate-input (gethash controller-id (slot-value *engine-manager*
                                                        'sdl-to-vert-controllers))
-                    (alexandria:make-keyword (write-to-string button-id))))
+                    (getcache-default button-id
+                                      button-id-keywords
+                                      (alexandria:make-keyword (write-to-string button-id)))))
+
+  (defun sdl-controller-button-up (controller-id button-id)
+    (log:trace "SDL button up: " controller-id " -> " button-id)
+    (deactivate-input (gethash controller-id (slot-value *engine-manager*
+                                                         'sdl-to-vert-controllers))
+                      (getcache-default button-id
+                                        button-id-keywords
+                                        (alexandria:make-keyword (write-to-string button-id))))))
 
 (defparameter %mock-button-state%
   (make-instance 'cache :test #'equalp)
