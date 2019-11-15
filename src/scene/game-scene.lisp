@@ -194,10 +194,20 @@ On the next render frame, the objects will be given a chance to load and this li
 @export
 (defun schedule (game-scene timestamp zero-arg-fn)
   "When the value returned by SCENE-TICKS of GAME-SCENE equals or exceeds TIMESTAMP the ZERO-ARG-FN callback will be invoked."
-  (declare (game-scene game-scene))
-  (with-slots (scheduled-tasks) game-scene
-    (vector-push-extend timestamp scheduled-tasks)
-    (vector-push-extend zero-arg-fn scheduled-tasks)))
+  (declare (game-scene game-scene)
+           (optimize (speed 3))
+           )
+  (with-slots ((tasks scheduled-tasks)) game-scene
+    (declare (vector tasks))
+    (loop :for i :from 0 :below (length tasks) :by 2 :do
+         (unless (elt tasks i)
+           (setf (elt tasks i) timestamp
+                 (elt tasks (+ i 1)) zero-arg-fn)
+           (return))
+       :finally
+         (vector-push-extend timestamp tasks)
+         (vector-push-extend zero-arg-fn tasks))
+    (values)))
 
 @export
 (defun cancel-scheduled-callback (zero-arg-fn &key (error-if-not-scheduled T))
@@ -210,15 +220,16 @@ On the next render frame, the objects will be given a chance to load and this li
   (with-slots ((tasks scheduled-tasks) (now scene-ticks)) game-scene
     (declare (vector tasks))
     (loop :for i :from 0 :below (length tasks) :by 2 :do
-         (let ((time-to-run (elt tasks i))
-               (callback (elt tasks (+ i 1))))
-           (declare ((function ()) callback)
-                    (fixnum time-to-run now))
-           (when (>= now time-to-run)
-             (funcall callback)
-             (setf (elt tasks i) nil
-                   (elt tasks (+ 1 i)) nil))))
-    (setf tasks (delete nil tasks))))
+         (when (elt tasks i)
+           (let ((time-to-run (elt tasks i))
+                 (callback (elt tasks (+ i 1))))
+             (declare ((function ()) callback)
+                      (fixnum time-to-run now))
+             (when (>= now time-to-run)
+               (funcall callback)
+               (setf (elt tasks i) nil
+                     (elt tasks (+ 1 i)) nil)))))
+    (values)))
 
 @export
 (defun get-object-by-id (scene id)
