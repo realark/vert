@@ -245,7 +245,7 @@
            (loop :for stat-string :across (get-stats-strings stat) :do
                 (update-drawable-to-match-stat
                  (get-or-create-next-drawable)
-                 stat-string)
+                 (or stat-string ""))
                 (incf index)))
       (free-excess-drawables))))
 

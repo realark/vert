@@ -149,7 +149,8 @@
        ,@(loop
             for command-mapping in command-mappings do
               (assert (or (= 2 (length command-mapping))
-                          (= 3 (length command-mapping))))
+                          (= 3 (length command-mapping))
+                          (= 4 (length command-mapping))))
               (assert (keywordp (first command-mapping)))
             collect
               `(setf (gethash ,(first command-mapping) command-hash-table)
