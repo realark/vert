@@ -40,11 +40,13 @@
           (path-to-sprite animated-sprite) (animation-spritesheet active-animation))))
 
 (defmethod (setf active-animation-frame-index) :after (new-index (animated-sprite animated-sprite))
+  (declare (optimize (speed 3)))
   (with-slots (active-animation
                next-frame-change-timestamp
                active-animation-frame-index)
       animated-sprite
-    (incf next-frame-change-timestamp (animation-time-between-frames-ms active-animation))
+    (incf (the fixnum next-frame-change-timestamp)
+          (the fixnum (animation-time-between-frames-ms active-animation)))
     (let ((frame (elt (animation-frames active-animation) active-animation-frame-index)))
       (setf (sprite-source animated-sprite) frame))))
 

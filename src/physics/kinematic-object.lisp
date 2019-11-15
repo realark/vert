@@ -22,20 +22,16 @@
   (:documentation "Game-Object with velocity and acceleration."))
 
 (defmethod (setf velocity-x) :around (value (kinematic-object kinematic-object))
-  (declare (real value))
-  (call-next-method (coerce value 'vector-dimension) kinematic-object))
+  (call-next-method (coerce value 'single-float) kinematic-object))
 
 (defmethod (setf velocity-y) :around (value (kinematic-object kinematic-object))
-  (declare (real value))
-  (call-next-method (coerce value 'vector-dimension) kinematic-object))
+  (call-next-method (coerce value 'single-float) kinematic-object))
 
 (defmethod (setf acceleration-x) :around (value (kinematic-object kinematic-object))
-  (declare (real value))
-  (call-next-method (coerce value 'vector-dimension) kinematic-object))
+  (call-next-method (coerce value 'single-float) kinematic-object))
 
 (defmethod (setf acceleration-y) :around (value (kinematic-object kinematic-object))
-  (declare (real value))
-  (call-next-method (coerce value 'vector-dimension) kinematic-object))
+  (call-next-method (coerce value 'single-float) kinematic-object))
 
 (defgeneric apply-vector (kinematic-object vector2)
   (:documentation "Apply a 2d vector to an object's acceleration.")
