@@ -231,7 +231,8 @@
                :initform (list)
                :accessor cutscene-node-next-nodes
                :documentation "list of the next nodes this node may jump to. If nil, the next node will terminate the cutscene")
-   (next-node-index :initform nil
+   (next-node-index :initarg :next-node-index
+                    :initform nil
                     :accessor cutscene-node-next-node-index
                     :documentation "index pointing to some value in NEXT-NODES list.
 If nil, this node will block the cutscene. If non-nil, this node will be deactivated and the next node activated."))
@@ -283,6 +284,12 @@ May be the same CUTSCENE-NODE to continue the same action, or nil to quit the cu
           (elt next-nodes next-node-index ))
         ;; no index set. Continue to run with this node
         node)))
+
+(defgeneric cutscene-node-select-right (node)
+  (:method ((node cutscene-node))))
+
+(defgeneric cutscene-node-select-left (node)
+  (:method ((node cutscene-node))))
 
 @export
 (defmethod advance-cutscene-node ((node cutscene-node) (hud cutscene-hud))
@@ -467,3 +474,140 @@ The NEXT value of each node defaults to the next line in BODY. "
    (lambda (hud)
      (setf (slot-value hud 'show-p) nil)
      t)))
+
+;; labels and gotos
+
+@export
+(defun cutscene-label (label-name)
+  (make-instance 'cutscene-node
+                 :object-id label-name))
+
+@export
+(defun cutscene-goto (node-id)
+  (make-instance 'cutscene-node
+                 :next-nodes (list node-id)
+                 :next-node-index 0))
+
+;; dialog input
+(defclass cutscene-node-ask-question (cutscene-node-show-dialog)
+  ((answers :initarg :answers
+            :initform (error "answers required")
+            :documentation "list of human-readable answer strings")
+   (answer-padding :initarg :answer-padding :initform 100)
+   (answer-indicator :initarg :answer-indicator :initform nil)
+   (selected-answer-index :initform 0)))
+
+(defmethod cutscene-node-on-activate ((node cutscene-node-ask-question) (hud cutscene-hud))
+  (call-next-method node hud)
+  (with-slots ((padding answer-padding)
+               (index selected-answer-index)
+               (indicator answer-indicator)
+               answers)
+      node
+    (when indicator
+      ;; hack: setting here first so indicator renders behind answer
+      (setf (parent indicator) hud))
+    (multiple-value-bind (ans-w ans-h)
+        (loop :with total-width = 0 :and total-height = 0
+           :for answer in (slot-value node 'answers) :do
+             (incf total-width (+ (width answer) padding))
+             (setf total-height (max total-height (height answer)))
+           :finally
+             (decf total-width padding) ; don't pad the last element
+             (return (values total-width total-height)))
+      (with-slots (window-position window-size) hud
+        ;; center answers on the last line of the dialog window
+        (loop :with x = (+ (x window-position) (max 0 (/ (- (width window-size) ans-w) 2.0)))
+           ;; note: hardcoded 5.0 is a hack to make things look nice
+           :with y = (- (+ (y window-position) (height window-size)) ans-h 5.0)
+           :for answer in answers :do
+             (setf (parent answer) hud
+                   (x answer) x
+                   (y answer) y)
+             (incf x (+ (width answer) padding))))
+      (setf index 0)
+      (when indicator
+        (setf (x indicator) (x (elt answers index))
+              (y indicator) (y (elt answers index))
+              (width indicator) (width (elt answers index))
+              (height indicator) (+ (height (elt answers index)) 5))))))
+
+(defmethod cutscene-node-on-deactivate ((node cutscene-node-ask-question) (hud cutscene-hud))
+  (with-slots (answers answer-indicator) node
+    (when answer-indicator
+      (setf (parent answer-indicator) nil))
+    (loop :for answer in answers :do
+         (setf (parent answer) nil)))
+  (call-next-method node hud))
+
+(defmethod advance-cutscene-node ((node cutscene-node-ask-question) (hud cutscene-hud))
+  ;; answers and next-nodes lists correspond to each other
+  (with-slots (answers (answer-index selected-answer-index) (node-index next-node-index)) node
+    (setf node-index answer-index)))
+
+(defmethod cutscene-node-select-right ((node cutscene-node-ask-question))
+  (with-slots (answers (index selected-answer-index) (indicator answer-indicator)) node
+    (setf index (min (+ index 1) (- (length answers) 1)))
+    (when indicator
+      (setf (x indicator) (x (elt answers index))
+            (y indicator) (y (elt answers index))
+            (width indicator) (width (elt answers index))
+            (height indicator) (+ (height (elt answers index)) 5)))))
+
+(defmethod cutscene-node-select-left ((node cutscene-node-ask-question))
+  (with-slots (answers (index selected-answer-index) (indicator answer-indicator)) node
+    (setf index (max (- index 1) 0))
+    (when indicator
+      (setf (x indicator) (x (elt answers index))
+            (y indicator) (y (elt answers index))
+            (width indicator) (width (elt answers index))
+            (height indicator) (+ (height (elt answers index)) 5)))))
+
+@export
+(defun cutscene-ask (prompt answer-indicator &rest answers)
+  (unless (>= (length answers) 2)
+    (error "answers required"))
+  (loop :for answer :in answers :do
+       (unless (and (consp answer)
+                    (typep (car answer) 'game-object)
+                    (symbolp (cdr answer)))
+         (error "each answer must be a (cons game-object symbol)")))
+  ;; show the prompt on screen
+  (make-instance 'cutscene-node-ask-question
+                 :answer-indicator answer-indicator
+                 :text prompt
+                 :next-nodes
+                 (mapcar (lambda (answer)
+                           (cdr answer))
+                         answers)
+                 :answers
+                 (mapcar (lambda (answer)
+                           (car answer))
+                         answers)))
+
+
+(set-default-input-command-map
+ cutscene-hud
+ ("controller"
+  (:0 :advance-dialog)
+  (:2 :advance-dialog))
+ ("sdl-keyboard"
+  (:scancode-space :advance-dialog)
+  (:scancode-t :advance-dialog)
+  (:scancode-right :select-right)
+  (:scancode-l :select-right)
+  (:scancode-left :select-left)
+  (:scancode-h :select-left)))
+
+(set-default-command-action-map
+ cutscene-hud
+ (:advance-dialog
+  (on-activate (advance-dialog cutscene-hud)))
+ (:select-right
+  (on-activate
+   (with-slots (active-node) cutscene-hud
+     (cutscene-node-select-right active-node))))
+ (:select-left
+  (on-activate
+   (with-slots (active-node) cutscene-hud
+     (cutscene-node-select-left active-node)))))
