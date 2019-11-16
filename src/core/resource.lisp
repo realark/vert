@@ -21,10 +21,3 @@
 (defmacro resource-path (resource-relative-path)
   "Given a resource name, returns a path to locate the resource."
   `(%resource-path ,resource-relative-path))
-
-(defun test-resource-path (resource-name)
-  "Given a resource name, returns a path to locate the test resource."
-  (concatenate 'string
-               (namestring
-                (asdf:system-relative-pathname 'vert #p"t/media/"))
-               resource-name))

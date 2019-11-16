@@ -2,37 +2,14 @@
 
 (in-package :recurse.vert)
 
-@export
-(defconstant float-pi (float pi 0f0)
-  "Pi represented as a single slot float")
-
-@export
-(defconstant tau (float (* 2 pi) 0f0)
-  "Tau represented as a single slot float")
-
-@export
-(defun deg->rad (x) (* x (/ float-pi 180)))
-@export
-(defun rad->deg (x) (* x (/ 180 float-pi)))
-
-@export
-(defun float= (real1 real2 &key (precision 5))
-  "Superset of #'=. T if (= real1 real2) or reals are floats within PRECISION."
-  (declare (real real1 real2)
-           (fixnum precision))
-  (or (= real1 real2)
-      (= 0 (truncate (* (expt 10 precision) (- real1 real2))))))
-
+(declaim (ftype (function () (unsigned-byte 64)) ticks-nanos ticks))
 
 @export
 (defun ticks ()
   "Wallclock millisecond timestamp starting from an arbitrary point in time."
   (declare (optimize (speed 3)
                      (safety 0)))
-  (multiple-value-bind (sec microsec) (sb-ext:get-time-of-day)
-    (declare (fixnum sec microsec))
-    (+ (the fixnum (* sec #.(expt 10 3)))
-       (the fixnum (floor microsec #.(expt 10 3))))))
+  (truncate (ticks-nanos) #.(expt 10 6)))
 
 @export
 (defun ticks-nanos ()
@@ -49,14 +26,6 @@
   (intern (apply #'concatenate 'string
                  (mapcar #'symbol-name symbols))
           package))
-
-@export
-(defmacro null-fallback (object fallback-form)
-  "If OBJECT is non-nil, return it. Otherwise eval and return FALLBACK-FORM."
-  (alexandria:once-only (object)
-    `(if (null ,object)
-         ,fallback-form
-         ,object)))
 
 (defmacro runtime-type-assert (form expected-type &optional error-message)
   "Wrap FORM in a type assertion. The result of FORM will be returned if the result is of type EXPECTED-TYPE."
@@ -121,15 +90,6 @@ Assumes ARRAY is initially sorted."
                       (find-insertion-index array object predicate (+ half 1) end))
                      (t half)))))
     (array-insert-at-index array (find-insertion-index array object predicate) object)))
-
-@export
-(defun center-object-xy (object target)
-  "Update OBJECT's X and Y positions to be centered inside of TARGET"
-  (with-accessors ((x1 x) (y1 y) (w1 width) (h1 height)) object
-    (with-accessors ((x2 x) (y2 y) (w2 width) (h2 height)) target
-      (setf x1 (- (+ x2 (/ w2 2)) (/ w1 2))
-            y1 (- (+ y2 (/ h2 2)) (/ h1 2))))))
-
 
 (eval-when (:load-toplevel :execute)
   (defvar *engine-start-hooks*

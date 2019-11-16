@@ -3,6 +3,21 @@
 (in-package :recurse.vert)
 
 @export
+(defconstant float-pi (float pi 0f0)
+  "Pi represented as a single slot float")
+
+@export
+(defconstant tau (float (* 2 pi) 0f0)
+  "Tau represented as a single slot float")
+
+@export
+(defun float= (real1 real2 &key (precision 5))
+  "Superset of #'=. T if (= real1 real2) or reals are floats within PRECISION."
+  (declare (real real1 real2)
+           (fixnum precision))
+  (or (= real1 real2)
+      (= 0 (truncate (* (expt 10 precision) (- real1 real2))))))
+@export
 (defun deg->rad (x)
   (declare (rotation-degrees x))
   (the rotation-radians (* x #.(/ float-pi 180))))

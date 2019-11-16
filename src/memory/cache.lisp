@@ -9,7 +9,6 @@
                 :documentation "A function which will run on a value after it is removed from the cache.")
    (test-fn :initarg :test
             :initform #'equalp
-            :reader test-fn
             :documentation "Function to test for key equality. Takes 2 key arguments.")
    (htable :initform nil
            :documentation "Backing Hash Table. key -> (metadata . value)"))
@@ -17,8 +16,8 @@
 
 (defmethod initialize-instance :after ((cache cache) &rest args)
   (declare (ignore args))
-  (setf (slot-value cache 'htable) (make-hash-table
-                                    :test (test-fn cache))))
+  (with-slots (htable test-fn) cache
+    (setf htable (make-hash-table :test test-fn))))
 
 (defgeneric metadata (cache key meta-key)
   (:documentation "Get the value of META-KEY associated with CACHE's KEY entry.")

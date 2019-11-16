@@ -6,8 +6,7 @@
               :initarg :object-id
               :reader object-id
               :documentation "id unique to each game-object instance in a scene as tested by EQUALP.
-User may provide this, but if they do so they are responsible for guaranteeing uniqueness."
-              :reader object-id)
+User may provide this, but if they do so they are responsible for guaranteeing uniqueness.")
    (object-name :initform nil
                 :initarg :object-name
                 :reader object-name
