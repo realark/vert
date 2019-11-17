@@ -607,10 +607,10 @@ The NEXT value of each node defaults to the next line in BODY. "
 (set-default-input-command-map
  cutscene-hud
  ("controller"
-  (:0 :advance-dialog)
-  (:2 :advance-dialog))
+  (:2 :advance-dialog)
+  (:14 :select-right)
+  (:13 :select-left))
  ("sdl-keyboard"
-  (:scancode-space :advance-dialog)
   (:scancode-t :advance-dialog)
   (:scancode-right :select-right)
   (:scancode-l :select-right)
