@@ -495,6 +495,8 @@ The NEXT value of each node defaults to the next line in BODY. "
             :documentation "list of human-readable answer strings")
    (answer-padding :initarg :answer-padding :initform 100)
    (answer-indicator :initarg :answer-indicator :initform nil)
+   (select-sfx :initarg :select-sfx :initform nil)
+   (selection-made-sfx :initarg :selection-made-sfx :initform nil)
    (selected-answer-index :initform 0)))
 
 (defmethod cutscene-node-on-activate ((node cutscene-node-ask-question) (hud cutscene-hud))
@@ -533,9 +535,11 @@ The NEXT value of each node defaults to the next line in BODY. "
               (height indicator) (+ (height (elt answers index))))))))
 
 (defmethod cutscene-node-on-deactivate ((node cutscene-node-ask-question) (hud cutscene-hud))
-  (with-slots (answers answer-indicator) node
+  (with-slots (answers answer-indicator (sfx selection-made-sfx)) node
     (when answer-indicator
       (setf (parent answer-indicator) nil))
+    (when sfx
+      (play-sound-effect *audio* sfx))
     (loop :for answer in answers :do
          (setf (parent answer) nil)))
   (call-next-method node hud))
@@ -546,8 +550,14 @@ The NEXT value of each node defaults to the next line in BODY. "
     (setf node-index answer-index)))
 
 (defmethod cutscene-node-select-right ((node cutscene-node-ask-question))
-  (with-slots (answers (index selected-answer-index) (indicator answer-indicator)) node
+  (with-slots (answers
+               (index selected-answer-index)
+               (sfx select-sfx)
+               (indicator answer-indicator))
+      node
     (setf index (min (+ index 1) (- (length answers) 1)))
+    (when sfx
+      (play-sound-effect *audio* sfx))
     (when indicator
       (setf (x indicator) (x (elt answers index))
             (y indicator) (y (elt answers index))
@@ -555,8 +565,14 @@ The NEXT value of each node defaults to the next line in BODY. "
             (height indicator) (+ (height (elt answers index)))))))
 
 (defmethod cutscene-node-select-left ((node cutscene-node-ask-question))
-  (with-slots (answers (index selected-answer-index) (indicator answer-indicator)) node
+  (with-slots (answers
+               (index selected-answer-index)
+               (sfx select-sfx)
+               (indicator answer-indicator))
+      node
     (setf index (max (- index 1) 0))
+    (when sfx
+      (play-sound-effect *audio* sfx))
     (when indicator
       (setf (x indicator) (x (elt answers index))
             (y indicator) (y (elt answers index))
@@ -564,7 +580,7 @@ The NEXT value of each node defaults to the next line in BODY. "
             (height indicator) (+ (height (elt answers index)))))))
 
 @export
-(defun cutscene-ask (prompt answer-indicator &rest answers)
+(defun cutscene-ask (prompt answer-indicator select-sfx selection-made-sfx &rest answers)
   (unless (>= (length answers) 2)
     (error "answers required"))
   (loop :for answer :in answers :do
@@ -575,6 +591,8 @@ The NEXT value of each node defaults to the next line in BODY. "
   ;; show the prompt on screen
   (make-instance 'cutscene-node-ask-question
                  :answer-indicator answer-indicator
+                 :select-sfx select-sfx
+                 :selection-made-sfx selection-made-sfx
                  :text prompt
                  :next-nodes
                  (mapcar (lambda (answer)
