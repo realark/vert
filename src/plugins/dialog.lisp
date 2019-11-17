@@ -530,7 +530,7 @@ The NEXT value of each node defaults to the next line in BODY. "
         (setf (x indicator) (x (elt answers index))
               (y indicator) (y (elt answers index))
               (width indicator) (width (elt answers index))
-              (height indicator) (+ (height (elt answers index)) 5))))))
+              (height indicator) (+ (height (elt answers index))))))))
 
 (defmethod cutscene-node-on-deactivate ((node cutscene-node-ask-question) (hud cutscene-hud))
   (with-slots (answers answer-indicator) node
@@ -552,7 +552,7 @@ The NEXT value of each node defaults to the next line in BODY. "
       (setf (x indicator) (x (elt answers index))
             (y indicator) (y (elt answers index))
             (width indicator) (width (elt answers index))
-            (height indicator) (+ (height (elt answers index)) 5)))))
+            (height indicator) (+ (height (elt answers index)))))))
 
 (defmethod cutscene-node-select-left ((node cutscene-node-ask-question))
   (with-slots (answers (index selected-answer-index) (indicator answer-indicator)) node
@@ -561,7 +561,7 @@ The NEXT value of each node defaults to the next line in BODY. "
       (setf (x indicator) (x (elt answers index))
             (y indicator) (y (elt answers index))
             (width indicator) (width (elt answers index))
-            (height indicator) (+ (height (elt answers index)) 5)))))
+            (height indicator) (+ (height (elt answers index)))))))
 
 @export
 (defun cutscene-ask (prompt answer-indicator &rest answers)
