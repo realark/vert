@@ -6,11 +6,9 @@
    (height :initarg :height)
    (max-objects :initarg :max-objects
                 :initform 20
-                :reader max-objects
                 :documentation "Max objects to be added before a split.")
    (max-depth :initarg :max-depth
               :initform 5
-              :reader max-depth
               :documentation "Maximum number of sub quadtrees allowed.")
    (quadtrees :initform (make-array 5 :adjustable T :fill-pointer 0)
               :documentation "array of quadtrees sorted by z-axis (smallest first)"))
@@ -23,8 +21,8 @@
       layered-quadtree
     (declare ((vector quadtree) quadtrees))
     (or (loop :for quadtree :across quadtrees :do
-             (when (= (the single-float (z quadtree))
-                      (the single-float z-layer))
+             (when (float= (the single-float (z quadtree))
+                           (the single-float z-layer))
                (return quadtree)))
         (let ((new-tree (make-instance 'quadtree
                                        :3d-partition layered-quadtree
@@ -33,18 +31,15 @@
                                        :height height
                                        :max-objects max-objects
                                        :max-depth max-depth)))
+          (log:trace "Made new quadtree z layer: ~A : ~A" layered-quadtree (z new-tree))
           (vector-push-extend new-tree quadtrees)
-          (flet ((swap (vec i j)
-                   (declare ((vector quadtree) vec)
-                            ((integer 0 #.most-positive-fixnum) i j))
-                   (rotatef (aref vec i) (aref vec j))))
-            (loop with j = 0
-               for i downfrom (1- (length quadtrees)) to 1 do
-                 (locally (declare ((integer 0 #.most-positive-fixnum) i j))
-                   (setf j (1- i))
-                   (if (< (z new-tree)
-                          (z (elt quadtrees j)))
-                       (swap quadtrees i j)
+          (loop :for i :downfrom (- (length quadtrees) 1) :to 1 :do
+               (locally (declare (fixnum i))
+                 (let ((j (1- i)))
+                   (declare (fixnum j))
+                   (if (< (the single-float (z (elt quadtrees i)))
+                          (the single-float (z (elt quadtrees j))))
+                       (rotatef (aref quadtrees i) (aref quadtrees j))
                        (return)))))
           new-tree))))
 

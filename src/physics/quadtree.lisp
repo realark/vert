@@ -1,30 +1,29 @@
 (in-package :recurse.vert)
 
-;; TOOD: prefix slot names with "quadtree-"
-(defclass quadtree (spatial-partition)
+(defclass quadtree (obb spatial-partition)
   ((max-objects :initarg :max-objects
                 :initform 10
-                :reader max-objects
                 :documentation "Max objects to be added before a split.")
    (max-depth :initarg :max-depth
               :initform 5
-              :reader max-depth
               :documentation "Maximum number of sub quadtrees allowed.")
    (level :initarg :level :initform 0)
-   ;; FIXME: slot name "parent" is overloaded
-   (parent :initarg :parent :initform nil :reader parent)
-   (objects :initform (make-array 10 :fill-pointer 0
+   (quadtree-parent :initarg :quadtree-parent
+                    :initform nil
+                    :reader quadtree-parent)
+   (objects :initform (make-array 10
+                                  :fill-pointer 0
                                   :element-type 'game-object
                                   :adjustable T
                                   :initial-element %dead-object%)
-            :accessor objects
+            :accessor quadtree-objects
             :documentation "Objects at this node in the tree.")
    (iteration-context
     :initform nil
     :documentation "A stack with each element being a list of objects to skip for the current update.")
-   (children :initform nil
-             :accessor children
-             :documentation "Child quadtrees")
+   (quadtree-children :initform nil
+                      :accessor quadtree-children
+                      :documentation "Child quadtrees")
    (3d-partition :initarg :3d-partition
                  :initform nil
                  :documentation "A 3d spatial partition to call into when objects move outside of the quadtree's z-layer."))
@@ -82,25 +81,25 @@
 (defun %quadtree-clear (quadtree)
   (if (%is-iterating quadtree)
       (error "can't clear quadtree during iteration"))
-  (loop for object across (objects quadtree) do
+  (loop for object across (quadtree-objects quadtree) do
        (remove-subscriber object quadtree object-moved)
-     finally (setf (fill-pointer (objects quadtree)) 0))
-  (when (children quadtree)
-    (loop for child across (children quadtree) do
+     finally (setf (fill-pointer (quadtree-objects quadtree)) 0))
+  (when (quadtree-children quadtree)
+    (loop for child across (quadtree-children quadtree) do
          (%quadtree-clear child)
-       finally (setf (slot-value quadtree 'children) nil))))
+       finally (setf (slot-value quadtree 'quadtree-children) nil))))
 
 (defun %quadtree-split (tree)
   "Split the node into four children. This should only be called once on the given node."
-  (with-slots (children level max-depth max-objects width height 3d-partition) tree
-    (unless children
+  (with-slots (quadtree-children level max-depth max-objects width height 3d-partition) tree
+    (unless quadtree-children
       (with-accessors ((width width) (height height) (x x) (y y) (z z)) tree
         (let* ((child-width (/ width 2))
                (child-height (/ height 2))
                (nw (make-instance 'quadtree
                                   :3d-partition 3d-partition
                                   :level (1+ level)
-                                  :parent tree
+                                  :quadtree-parent tree
                                   :max-objects max-objects
                                   :max-depth max-depth
                                   :x x
@@ -111,7 +110,7 @@
                (sw (make-instance 'quadtree
                                   :3d-partition 3d-partition
                                   :level (1+ level)
-                                  :parent tree
+                                  :quadtree-parent tree
                                   :max-objects max-objects
                                   :max-depth max-depth
                                   :x x
@@ -122,7 +121,7 @@
                (se (make-instance 'quadtree
                                   :3d-partition 3d-partition
                                   :level (1+ level)
-                                  :parent tree
+                                  :quadtree-parent tree
                                   :max-objects max-objects
                                   :max-depth max-depth
                                   :x (+ x child-width)
@@ -133,7 +132,7 @@
                (ne (make-instance 'quadtree
                                   :3d-partition 3d-partition
                                   :level (1+ level)
-                                  :parent tree
+                                  :quadtree-parent tree
                                   :max-objects max-objects
                                   :max-depth max-depth
                                   :x (+ x child-width)
@@ -141,7 +140,7 @@
                                   :z z
                                   :width child-width
                                   :height child-height)))
-          (setf children
+          (setf quadtree-children
                 (make-array 4
                             :element-type 'quadtree
                             :initial-contents (list nw ne sw se)
@@ -150,18 +149,18 @@
 @inline
 (defun %quadtree-root (quadtree)
   (declare (optimize (speed 3)))
-  (loop with qt = quadtree
-     while (slot-value qt 'parent) do
-       (setf qt (slot-value qt 'parent))
-     finally (return qt)))
+  (loop :with qt = quadtree
+     :while (slot-value qt 'quadtree-parent) :do
+       (setf qt (slot-value qt 'quadtree-parent))
+     :finally (return qt)))
 
 (defun %quadtree-double-root-area (quadtree)
+  (declare (optimize (speed 3)))
   (when (%is-iterating quadtree)
     (error "FIXME: resize during iteration not implemented"))
   (unless (eq quadtree (%quadtree-root quadtree))
     (error "Attempted to resize non-root quadtree node."))
-  (let ((all-objects '()))
-    (declare (dynamic-extent all-objects))
+  (let ((all-objects (list)))
     (do-spatial-partition (object quadtree)
       (push object all-objects))
     (%quadtree-clear quadtree)
@@ -193,7 +192,7 @@
 
 (defun %node-for-object (object quadtree)
   (declare (optimize (speed 3)))
-  (with-slots (children level) quadtree
+  (with-slots ((children quadtree-children) level) quadtree
     (when (%inside-of object quadtree)
       (or (and children
                (loop :with match = nil
@@ -205,7 +204,7 @@
 @inline
 (defun %rebalance (quadtree)
   (declare (optimize (speed 3)))
-  (with-slots (max-objects max-depth level objects children)
+  (with-slots (max-objects max-depth level objects (children quadtree-children))
       quadtree
     (declare ((vector game-object) objects)
              (fixnum max-objects level max-depth))
@@ -244,8 +243,8 @@
   (declare (optimize (speed 3)))
   (let ((node (%node-for-object object quadtree)))
     (unless node
-      (if (parent quadtree)
-          (return-from start-tracking (start-tracking (parent quadtree) object))
+      (if (quadtree-parent quadtree)
+          (return-from start-tracking (start-tracking (quadtree-parent quadtree) object))
           (progn
             (%quadtree-double-root-area quadtree)
             (return-from start-tracking (start-tracking quadtree object)))))
@@ -259,7 +258,7 @@
 
 (defmethod stop-tracking ((quadtree quadtree) (object game-object))
   (declare (optimize (speed 3)))
-  (with-slots (children objects) quadtree
+  (with-slots ((children quadtree-children) objects) quadtree
     (declare ((vector game-object) objects))
     (or (and children
              (loop :for child :across (the (simple-array quadtree (4)) children) :do
@@ -276,26 +275,14 @@
   (declare (optimize (speed 3)))
   (let ((node (%node-for-object game-object quadtree)))
     (when node
-      (find game-object (the (vector game-object) (objects node)) :test #'eq))))
+      (find game-object (the (vector game-object) (quadtree-objects node)) :test #'eq))))
 
 @inline
 (defun %in-boundary-p (object min-x max-x min-y max-y min-z max-z)
   (declare (optimize (speed 3))
            (transform object)
            ((or null world-position) min-x max-x min-y max-y min-z max-z))
-  (let ((x (x object))
-        (y (y object))
-        (z (z object))
-        (w (width object))
-        (h (height object)))
-    (unless (typep object 'quadtree)
-      ;; TODO: working around bug with quadtree "parent" slot overload
-      (multiple-value-bind (x2 y2 z2 w2 h2) (world-dimensions object)
-        (setf x x2
-              y y2
-              z z2
-              w w2
-              h h2)))
+  (multiple-value-bind (x y z w h) (world-dimensions object)
     (locally (declare (world-position x y z)
                       (world-dimension w h))
       (and (or (null min-x) (>= x min-x) (>= (+ x w) min-x))

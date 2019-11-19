@@ -1,7 +1,7 @@
 ;;;; Generic methods for spatial partitioning. Quadtrees, grids, etc.
 (in-package :recurse.vert)
 
-(defclass spatial-partition (obb)
+(defclass spatial-partition ()
   ()
   (:documentation "A spatial partition organizes and tracks a set of world objects."))
 
@@ -28,7 +28,7 @@ but cannot be removed from the implementation due to iteration.")
                   (dynamic-extent ,quadtrees-to-iterate))
          (loop :while ,quadtrees-to-iterate :do
               (let ((,current-quad (pop ,quadtrees-to-iterate)))
-                (with-slots ((,children children) (,objects objects) (,level level)) ,current-quad
+                (with-slots ((,children quadtree-children) (,objects objects) (,level level)) ,current-quad
                   (declare (fixnum ,level)
                            ((vector game-object) ,objects))
                   (when (%in-boundary-p ,current-quad ,min-x ,max-x ,min-y ,max-y ,min-z ,max-z)
