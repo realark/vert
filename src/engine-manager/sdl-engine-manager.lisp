@@ -240,6 +240,7 @@
 
 (defun initialize-sdl-controller (engine-manager device-index)
   ;; TODO: Send event to input users
+  (log:info "Controller added: ~A~%" device-index)
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
     (when (sdl2:game-controller-p device-index)
       (let* ((controller (sdl2:game-controller-open device-index))
@@ -255,6 +256,7 @@
 
 (defun remove-sdl-controller (engine-manager sdl-joystick-id)
   ;; TODO: Send event to input users
+  (log:info "Controller removed: ~A~%" sdl-joystick-id)
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
     (sdl2:game-controller-close (gethash sdl-joystick-id sdl-controllers))
     (remhash sdl-joystick-id sdl-controllers)

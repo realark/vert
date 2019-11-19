@@ -580,9 +580,9 @@ The NEXT value of each node defaults to the next line in BODY. "
             (height indicator) (+ (height (elt answers index)))))))
 
 @export
-(defun cutscene-ask (prompt answer-indicator select-sfx selection-made-sfx &rest answers)
+(defun cutscene-ask (prompt &key answer-indicator select-sfx selection-made-sfx answers)
   (unless (>= (length answers) 2)
-    (error "answers required"))
+    (error "At least two answers required"))
   (loop :for answer :in answers :do
        (unless (and (consp answer)
                     (typep (car answer) 'game-object)

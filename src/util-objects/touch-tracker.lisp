@@ -164,37 +164,37 @@
   (with-accessors ((x x) (y y) (z z)
                    (w width) (h height) (r rotation))
       touch-tracker
-    (let* ((region-extension *collision-precision*)
+    (let* ((region-extension (* 2.0 *collision-precision*))
            (north (make-instance 'touch-region
                                  :touch-tracker touch-tracker
-                                 :rotation r
-                                 :x x
-                                 :y (- y region-extension)
-                                 :z z
+                                 :parent touch-tracker
+                                 :x 0
+                                 :y (- region-extension)
+                                 :z 0
                                  :width w
                                  :height region-extension))
            (east (make-instance 'touch-region
-                                 :touch-tracker touch-tracker
-                                :rotation r
-                                :x (+ x w)
-                                :y y
-                                :z z
+                                :touch-tracker touch-tracker
+                                :parent touch-tracker
+                                :x w
+                                :y 0
+                                :z 0
                                 :width region-extension
                                 :height h))
            (south (make-instance 'touch-region
                                  :touch-tracker touch-tracker
-                                 :rotation r
-                                 :x x
-                                 :y (+ y h)
-                                 :z z
+                                :parent touch-tracker
+                                 :x 0
+                                 :y h
+                                 :z 0
                                  :width w
                                  :height region-extension))
            (west (make-instance 'touch-region
-                                 :touch-tracker touch-tracker
-                                :rotation r
-                                :x (- x region-extension)
-                                :y y
-                                :z z
+                                :touch-tracker touch-tracker
+                                :parent touch-tracker
+                                :x (- region-extension)
+                                :y 0
+                                :z 0
                                 :width region-extension
                                 :height h)))
       (add-touch-region touch-tracker :north north)
