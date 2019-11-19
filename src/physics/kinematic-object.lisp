@@ -1,60 +1,48 @@
 (in-package :recurse.vert)
 
-;; world objects which can move
-
+@export
 (defclass kinematic-object (game-object)
-  ((velocity-x :initarg :velocity-x
-               :initform 0.0
-               :accessor velocity-x
-               :type vector-dimension)
-   (velocity-y :initarg :velocity-y
-               :initform 0.0
-               :accessor velocity-y
-               :type vector-dimension)
-   (acceleration-x :initarg :acceleration-x
-                   :initform 0.0
-                   :accessor acceleration-x
-                   :type vector-dimension)
-   (acceleration-y :initarg :acceleration-y
-                   :initform 0.0
-                   :accessor acceleration-y
-                   :type vector-dimension))
+  ((velocity :initform (vector2))
+   (acceleration :initform (vector2)))
   (:documentation "Game-Object with velocity and acceleration."))
 
-(defmethod (setf velocity-x) :around (value (kinematic-object kinematic-object))
-  (call-next-method (coerce value 'single-float) kinematic-object))
+@export
+(defmethod velocity-x ((kinematic-object kinematic-object))
+  (x (slot-value kinematic-object 'velocity)))
 
-(defmethod (setf velocity-y) :around (value (kinematic-object kinematic-object))
-  (call-next-method (coerce value 'single-float) kinematic-object))
+(defmethod (setf velocity-x) (value (kinematic-object kinematic-object))
+  (setf (x (slot-value kinematic-object 'velocity)) (coerce value 'single-float)))
 
-(defmethod (setf acceleration-x) :around (value (kinematic-object kinematic-object))
-  (call-next-method (coerce value 'single-float) kinematic-object))
+@export
+(defmethod velocity-y ((kinematic-object kinematic-object))
+  (y (slot-value kinematic-object 'velocity)))
 
-(defmethod (setf acceleration-y) :around (value (kinematic-object kinematic-object))
-  (call-next-method (coerce value 'single-float) kinematic-object))
+(defmethod (setf velocity-y) (value (kinematic-object kinematic-object))
+  (setf (y (slot-value kinematic-object 'velocity)) (coerce value 'single-float)))
 
+@export
+(defmethod acceleration-x ((kinematic-object kinematic-object))
+  (x (slot-value kinematic-object 'acceleration)))
+
+(defmethod (setf acceleration-x) (value (kinematic-object kinematic-object))
+  (setf (x (slot-value kinematic-object 'acceleration)) (coerce value 'single-float)))
+
+@export
+(defmethod acceleration-y ((kinematic-object kinematic-object))
+  (y (slot-value kinematic-object 'acceleration)))
+
+(defmethod (setf acceleration-y) (value (kinematic-object kinematic-object))
+  (setf (y (slot-value kinematic-object 'acceleration)) (coerce value 'single-float)))
+
+@export
 (defgeneric apply-vector (kinematic-object vector2)
   (:documentation "Apply a 2d vector to an object's acceleration.")
   (:method ((object kinematic-object) vector)
     (declare (optimize (speed 3))
              (vector2 vector))
-    (with-accessors ((v-x x) (v-y y)) vector
+    (with-accessors ((vec-x x) (vec-y y)) vector
       (with-accessors ((acc-x acceleration-x) (acc-y acceleration-y)) object
-        (declare (single-float v-x v-y acc-x acc-y))
-        (setf acc-x (+ acc-x v-x)
-              acc-y (+ acc-y v-y))
+        (declare (single-float vec-x vec-y acc-x acc-y))
+        (setf acc-x (+ acc-x vec-x)
+              acc-y (+ acc-y vec-y))
         (values)))))
-
-(defun moving-towards (kinematic-object point-or-object)
-  "T if kinematic-object's velocity will move the object closer to point-or-object"
-  (flet ((distance-between (x1 y1 x2 y2)
-           (sqrt (+ (expt (- x1 x2) 2)
-                    (expt (- y1 y2) 2)))))
-    (< (distance-between (+ (x kinematic-object) (velocity-x kinematic-object))
-                         (+ (y kinematic-object) (velocity-y kinematic-object))
-                         (x point-or-object)
-                         (y point-or-object))
-       (distance-between (x kinematic-object)
-                         (y kinematic-object)
-                         (x point-or-object)
-                         (y point-or-object)))))

@@ -106,10 +106,10 @@
                                             stationary-object
                                             :original-position original-position))))))
   (unless (= 0.0
-             (the vector-dimension (slot-value object 'velocity-x))
-             (the vector-dimension (slot-value object 'velocity-y))
-             (the vector-dimension (slot-value object 'acceleration-x))
-             (the vector-dimension (slot-value object 'acceleration-y)))
+             (the vector-dimension (velocity-x object))
+             (the vector-dimension (velocity-y object))
+             (the vector-dimension (acceleration-x object))
+             (the vector-dimension (acceleration-y object)))
     (with-accessors ((v-x velocity-x) (v-y velocity-y)
                      (a-x acceleration-x) (a-y acceleration-y))
         object

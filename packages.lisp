@@ -85,15 +85,8 @@
    :with-collision-check
    :linear-resolution
    ;; motion
-   :kinematic-object
-   :moving-towards
-   :apply-vector
    :object-moved
    :event-callback-object-moved
-   :velocity-x
-   :velocity-y
-   :acceleration-x
-   :acceleration-y
    ;;physics utils
    :make-acceleration-vector-seconds
    :make-velocity-vector-seconds

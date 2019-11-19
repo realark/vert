@@ -145,6 +145,32 @@
            ;; in the same 2d plane
            (= z1 z2)))))
 
+(defun world-points-collidep (rect1 rect2)
+  "Check if the two unrotated rects collide by using their world-points."
+  (declare (optimize (speed 3)))
+  (convex-poly-collidep rect1 rect2)
+  (let ((points1 (world-points rect1))
+        (points2 (world-points rect2)))
+    (declare ((simple-array vector3 (4)) points1 points2))
+    (let ((left1 (x (elt points1 0)))
+          (right1 (x (elt points1 1)))
+          (top1 (y (elt points1 0)))
+          (bottom1 (y (elt points1 3)))
+          (left2 (x (elt points2 0)))
+          (right2 (x (elt points2 1)))
+          (top2 (y (elt points2 0)))
+          (bottom2 (y (elt points2 3))))
+      (declare (single-float left1 right1 top1 bottom1
+                             left2 right2 top2 bottom2))
+      (and (< left1 right2)
+           (> right1 left2)
+           ;; x1 falls inside rect2-x
+           (< top1 bottom2)
+           (> bottom1 top2)
+           ;; y1 falls inside rect2-y
+           ;; in the same 2d plane
+           (float= (z rect1) (z rect2))))))
+
 (defun convex-poly-collidep (poly1 poly2)
   "Assume POLY1 and POLY2 are convex polys and return t if they collide."
   (declare (optimize (speed 3))
@@ -176,11 +202,13 @@
 
 (defcollision ((rect1 obb) (rect2 obb))
   (declare (optimize (speed 3)))
-  (if (and (= 0f0
-              (the single-float (rotation rect1))
-              (the single-float (rotation rect2)))
-           (eq (parent rect1) (parent rect2)))
-      (aabb-collidep rect1 rect2)
+  (if (and (float= 0f0
+                   (the single-float (rotation rect1)))
+           (float= 0f0
+                   (the single-float (rotation rect2))))
+      (if (eq (parent rect1) (parent rect2))
+          (aabb-collidep rect1 rect2)
+          (world-points-collidep rect1 rect2))
       (convex-poly-collidep rect1 rect2)))
 
 @export-class
