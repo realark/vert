@@ -92,6 +92,7 @@
 (defun %quadtree-split (tree)
   "Split the node into four children. This should only be called once on the given node."
   (with-slots (quadtree-children level max-depth max-objects width height 3d-partition) tree
+    (log:trace "split quadtree ~A -> ~A" tree level)
     (unless quadtree-children
       (with-accessors ((width width) (height height) (x x) (y y) (z z)) tree
         (let* ((child-width (/ width 2))
@@ -169,7 +170,7 @@
       (decf y (/ h 2))
       (setf w (* w 2))
       (setf h (* h 2)))
-    (loop while all-objects do
+    (loop :while all-objects :do
          (start-tracking quadtree (pop all-objects)))))
 
 (defun %inside-of (game-object quadtree)

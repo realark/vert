@@ -5,10 +5,10 @@
   ((width :initarg :width)
    (height :initarg :height)
    (max-objects :initarg :max-objects
-                :initform 20
+                :initform 100
                 :documentation "Max objects to be added before a split.")
    (max-depth :initarg :max-depth
-              :initform 5
+              :initform 7
               :documentation "Maximum number of sub quadtrees allowed.")
    (quadtrees :initform (make-array 5 :adjustable T :fill-pointer 0)
               :documentation "array of quadtrees sorted by z-axis (smallest first)"))
