@@ -33,16 +33,19 @@
             (setf y-axis-collision nil)))
       (cond
         (y-axis-collision
+         (log:trace "killing y-axis movement for ~A" moving-object)
          (setf (velocity-y moving-object) 0.0
                (acceleration-y moving-object) 0.0
                (x non-colliding-point) (x colliding-point)))
         (x-axis-collision
+         (log:trace "killing x-axis movement for ~A" moving-object)
          (setf (velocity-x moving-object) 0.0
                (acceleration-x moving-object) 0.0
                (y non-colliding-point) (y colliding-point)))
         (T
          ;; neither axis is "responsible" for the collision.
          ;; Kill all velocity/acceleration
+         (log:trace "killing movement along x and y axis for ~A" moving-object)
          (setf (velocity-y moving-object) 0.0
                (acceleration-y moving-object) 0.0
                (velocity-x moving-object) 0.0
@@ -98,6 +101,7 @@
               (z original-position) z)
         (with-collision-check (object physics-context)
           (:position-update
+           (log:trace "moving (~A,~A) -> ~A" v-x v-y object)
            ;; for some reason, the compiler complains if I use incf
            (setf x (+ x (* v-x delta-t-ms)))
            (setf y (+ y (* v-y delta-t-ms))))

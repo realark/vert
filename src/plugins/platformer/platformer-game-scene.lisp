@@ -18,6 +18,7 @@
   (:documentation "Apply a 2d gravity vector to an object")
   (:method ((object kinematic-object) vector)
     (declare (vector2 vector))
+    (log:trace "Applying gravity to ~A" object)
     (apply-vector object vector)))
 
 (defmethod found-object-to-update ((scene platformer-game-scene) (game-object kinematic-object))

@@ -17,14 +17,17 @@
   (unless (collidep touch-region object)
     (with-slots (touch-tracker touching) touch-region
       (setf touching (delete object touching))
+      (remove-subscriber object touch-region object-moved)
       (%refresh-all-objects-touching touch-tracker))))
 
 (defun %add-if-touching (touch-region object)
   (with-slots (touch-tracker touching) touch-region
-    (when (and (collidep touch-region object)
-               (not (find object touching)))
-      (add-subscriber object touch-region object-moved)
+    (when (and (not (find object touching))
+               (collidep touch-region object))
+      (unless (typep object 'static-object)
+        (add-subscriber object touch-region object-moved))
       (vector-push-extend object touching)
+      (log:trace "~A : add object ~A" touch-region object)
       (with-slots (all-objects-touching) touch-tracker
         (unless (find object all-objects-touching)
           (vector-push-extend object all-objects-touching))))))
@@ -58,6 +61,8 @@
            (return (elt touch-regions (+ i 1)))))))
 
 (defun %refresh-all-objects-touching (touch-tracker)
+  "Rebuild all-objects-touching array from scratch"
+  (log:trace "~A refresh all objects touching" touch-tracker)
   (with-slots (touch-regions all-objects-touching) touch-tracker
     (setf (fill-pointer all-objects-touching) 0)
     (loop :for i :from 0 :below (length touch-regions) :by 2 :do
@@ -140,10 +145,10 @@
     (loop :for i :from 0 :below (length touch-regions) :by 2 :do
          (%add-if-touching (elt touch-regions (+ i 1)) stationary-object))))
 
-(defmethod collision :after ((stationary-object game-object) (touch-tracker touch-tracker))
+(defmethod collision :after ((other-object game-object) (touch-tracker touch-tracker))
   (with-slots (touch-regions) touch-tracker
     (loop :for i :from 0 :below (length touch-regions) :by 2 :do
-         (%add-if-touching (elt touch-regions (+ i 1)) stationary-object))))
+         (%add-if-touching (elt touch-regions (+ i 1)) other-object))))
 
 (defmethod collision :after ((tracker1 touch-tracker) (tracker2 touch-tracker))
   (with-slots (touch-regions) tracker1
