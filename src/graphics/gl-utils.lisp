@@ -119,7 +119,13 @@ For example, the "
                                         (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'font-shader.frag
                        (merge-pathnames (pathname "src/graphics/font-shader.frag")
-                                        (asdf:system-source-directory :vert)))))
+                                        (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'instanced-sprite-shader.vert
+                               (merge-pathnames (pathname "src/graphics/instanced-sprite-shader.vert")
+                                                (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'instanced-sprite-shader.frag
+                               (merge-pathnames (pathname "src/graphics/instanced-sprite-shader.frag")
+                                                (asdf:system-source-directory :vert)))))
 
 (defclass shader ()
   ((vertex-source
@@ -481,6 +487,12 @@ For example, the "
   (type %gl:enum)
   (indices cl-opengl-bindings::offset-or-pointer))
 
+(%defglfunction ("glDrawArraysInstanced" n-draw-arrays-instanced) :void
+  (mode %gl:enum)
+  (first :int)
+  (count cl-opengl-bindings:sizei)
+  (instance-count cl-opengl-bindings:sizei))
+
 ;; FIXME: defcfun workaround is incomplete for windows. Will need to be re-thought
 #+win32
 (progn
@@ -514,6 +526,9 @@ For example, the "
 
   (defun n-draw-arrays (mode first count)
     (gl:draw-arrays mode first count))
+
+  (defun n-draw-arrays-instanced (mode first count instance-count)
+    (gl:draw-arrays-instanced mode first count instance-count))
 
   (defun n-draw-elements (mode count type indices)
     (gl:draw-elements mode indices :count count)))

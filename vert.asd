@@ -71,6 +71,8 @@
                          (:static-file "sprite-shader.frag")
                          (:static-file "font-shader.vert")
                          (:static-file "font-shader.frag")
+                         (:static-file "instanced-sprite-shader.vert")
+                         (:static-file "instanced-sprite-shader.frag")
                          (:file "draw-component")
                          (:file "drawable")
                          (:file "static-sprite")

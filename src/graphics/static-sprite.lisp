@@ -198,6 +198,7 @@
         (vbo 0)
         ;; render sprites from upper-left coords
         ;; TODO: put coords transform in separate matrix
+        ;; TODO Use a local space which ranges the entire screen centered at 0,0
         (gl-vertices (alloc-gl-array  :float
                                       ;; positions             texture coords
                                       0.0   0.0  0.0          1.0  0.0 ; top right
