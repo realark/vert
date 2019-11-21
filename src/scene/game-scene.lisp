@@ -43,6 +43,7 @@ On the next render frame, the objects will be given a chance to load and this li
            :initform (error ":height required")
            :reader height)
    (update-area :initarg :update-area :initform nil)
+   (render-queue :initform (make-instance 'render-queue))
    (spatial-partition :initform nil
                       :reader spatial-partition))
   (:documentation "A game world."))
@@ -110,11 +111,13 @@ On the next render frame, the objects will be given a chance to load and this li
     (with-slots (scene-overlays) scene
       (when (find overlay scene-overlays)
         (setf scene-overlays (delete overlay scene-overlays))
-        (release-resources overlay))))
+        (release-resources overlay)
+        (render-queue-remove (slot-value scene 'render-queue) overlay))))
   (:method ((scene game-scene) (object game-object))
     (remove-subscriber object scene killed)
     (stop-tracking (spatial-partition scene) object)
-    (release-resources object)))
+    (release-resources object)
+    (render-queue-remove (slot-value scene 'render-queue) object)))
 
 ;; for subclasses to hook object updates
 (defmethod found-object-to-update ((scene game-scene) game-object))
@@ -122,58 +125,86 @@ On the next render frame, the objects will be given a chance to load and this li
 (defmethod update ((game-scene game-scene) delta-t-ms (null null))
   (declare (optimize (speed 3))
            (ignore null))
-  (with-slots (update-area) game-scene
+  (with-slots (update-area
+               (queue render-queue)
+               (bg scene-background)
+               scene-overlays
+               camera)
+      game-scene
     (let* ((x-min (when update-area (active-area-min-x update-area)))
            (x-max (when update-area (active-area-max-x update-area)))
            (y-min (when update-area (active-area-min-y update-area)))
            (y-max (when update-area (active-area-max-y update-area))))
       (declare ((or null single-float) x-min x-max y-min y-max))
-      (flet ((in-update-area-p (game-object)
-               (multiple-value-bind (x y z w h) (world-dimensions game-object)
-                 (declare (ignore z w h)
-                          (single-float x y))
-                 (and (<= (or x-min x) x (or x-max x))
-                      (<= (or y-min y) y (or y-max y))))))
-        (declare (inline in-update-area-p))
-        (with-slots ((bg scene-background) scene-overlays) game-scene
-          (when bg (pre-update bg))
-          (do-spatial-partition (game-object
-                                 (spatial-partition game-scene)
-                                 :min-x x-min :max-x x-max
-                                 :min-y y-min :max-y y-max)
-            (when (and (not (typep game-object 'static-object))
-                       (in-update-area-p game-object))
-              (pre-update game-object)))
-          (loop :for overlay :across (the (vector overlay) scene-overlays) :do
-               (pre-update overlay))
-          (pre-update (camera game-scene))
-          (%run-scheduled-callbacks game-scene)
-          (do-spatial-partition (game-object
-                                 (spatial-partition game-scene)
-                                 :min-x x-min :max-x x-max
-                                 :min-y y-min :max-y y-max)
-            (when (not (typep game-object 'static-object))
-              (found-object-to-update game-scene game-object)
-              (update game-object delta-t-ms game-scene)))
-          ;; update camera first in case overlay or bg to use the camera's position
-          (update (camera game-scene) delta-t-ms game-scene)
-          (loop :for overlay :across (the (vector overlay) scene-overlays) :do
-               (update overlay delta-t-ms game-scene))
-          (when bg (update bg delta-t-ms game-scene))
-          (incf (slot-value game-scene 'scene-ticks) delta-t-ms)
-          (values))))))
+      (with-slots ((bg scene-background) scene-overlays) game-scene
+        ;; reset rendering queue
+        (render-queue-reset queue)
+        ;; pre-update frame to mark positions
+        (pre-update (camera game-scene))
+        (when bg (pre-update bg))
+        (do-spatial-partition (game-object
+                               (spatial-partition game-scene)
+                               :min-x x-min :max-x x-max
+                               :min-y y-min :max-y y-max)
+          (when (not (typep game-object 'static-object))
+            (pre-update game-object)))
+        (loop :for overlay :across (the (vector overlay) scene-overlays) :do
+             (pre-update overlay))
+        ;; run scheduler
+        (%run-scheduled-callbacks game-scene)
+        ;; update frame
+        (when bg
+          (render-queue-add queue bg))
+        (let* ((render-delta 64.0)
+               (render-x-min (- (x camera) render-delta))
+               (render-x-max (+ (x camera) (width camera) render-delta))
+               (render-y-min (- (y camera) render-delta))
+               (render-y-max (+ (y camera) (height camera) render-delta)))
+          (declare (single-float render-x-min render-x-max render-y-min render-y-max))
+          (flet ((in-render-area-p (game-object)
+                   (multiple-value-bind (x y z w h) (world-dimensions game-object)
+                     (declare (ignore z)
+                              (single-float x y w h))
+                     (and (or (<= render-x-min x render-x-max)
+                              (<= render-x-min (+ x w) render-x-max))
+                          (or (<= render-y-min y render-y-max)
+                              (<= render-y-min (+ y h) render-y-max))))))
+            (declare (inline in-render-area-p))
+            (do-spatial-partition (game-object
+                                   (spatial-partition game-scene)
+                                   :min-x x-min :max-x x-max
+                                   :min-y y-min :max-y y-max)
+              (when (not (typep game-object 'static-object))
+                (found-object-to-update game-scene game-object)
+                (update game-object delta-t-ms game-scene))
+              (when (in-render-area-p game-object)
+                (render-queue-add queue game-object)))))
+        (loop :for overlay :across (the (vector overlay) scene-overlays) :do
+             (update overlay delta-t-ms game-scene)
+             (render-queue-add queue overlay))
+        (update (camera game-scene) delta-t-ms game-scene)
+        (when bg
+          (update bg delta-t-ms game-scene))
+        (incf (slot-value game-scene 'scene-ticks) delta-t-ms)
+        (values)))))
 
 (defmethod render ((game-scene game-scene) update-percent (camera simple-camera) renderer)
   (declare (optimize (speed 3)))
   (with-slots ((bg scene-background)
                spatial-partition
                unloaded-game-objects
+               ;; TODO: queue renders during update iteration
+               (queue render-queue)
                scene-overlays)
       game-scene
+    #+nil
     (when bg
+      (render-queue-add queue bg)
+      #+nil
       (render bg update-percent camera renderer))
     (loop :while unloaded-game-objects :do
          (load-resources (pop unloaded-game-objects) renderer))
+    #+nil
     (let* ((delta 64.0)
            (x-min (- (x camera) delta))
            (x-max (+ x-min (width camera) delta delta))
@@ -183,9 +214,15 @@ On the next render frame, the objects will be given a chance to load and this li
                              spatial-partition
                              :min-x x-min :max-x x-max
                              :min-y y-min :max-y y-max)
+        (render-queue-add queue game-object)
+        #+nil
         (render game-object update-percent camera renderer)))
+    #+nil
     (loop :for overlay :across (the (vector overlay) scene-overlays) :do
-         (render overlay update-percent camera renderer)))
+         (render-queue-add queue overlay)
+         #+nil
+         (render overlay update-percent camera renderer))
+    (render queue update-percent camera renderer))
   (values))
 
 (defevent-callback killed ((object obb) (game-scene game-scene))
