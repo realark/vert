@@ -23,10 +23,7 @@
     :documentation "A stack with each element being a list of objects to skip for the current update.")
    (quadtree-children :initform nil
                       :accessor quadtree-children
-                      :documentation "Child quadtrees")
-   (3d-partition :initarg :3d-partition
-                 :initform nil
-                 :documentation "A 3d spatial partition to call into when objects move outside of the quadtree's z-layer."))
+                      :documentation "Child quadtrees"))
   (:documentation "A 2d quadtree"))
 
 (defmethod initialize-instance :after ((quadtree quadtree) &rest args)
@@ -91,14 +88,13 @@
 
 (defun %quadtree-split (tree)
   "Split the node into four children. This should only be called once on the given node."
-  (with-slots (quadtree-children level max-depth max-objects width height 3d-partition) tree
+  (with-slots (quadtree-children level max-depth max-objects width height) tree
     (log:trace "split quadtree ~A -> ~A" tree level)
     (unless quadtree-children
       (with-accessors ((width width) (height height) (x x) (y y) (z z)) tree
         (let* ((child-width (/ width 2))
                (child-height (/ height 2))
                (nw (make-instance 'quadtree
-                                  :3d-partition 3d-partition
                                   :level (1+ level)
                                   :quadtree-parent tree
                                   :max-objects max-objects
@@ -109,7 +105,6 @@
                                   :width child-width
                                   :height child-height))
                (sw (make-instance 'quadtree
-                                  :3d-partition 3d-partition
                                   :level (1+ level)
                                   :quadtree-parent tree
                                   :max-objects max-objects
@@ -120,7 +115,6 @@
                                   :width child-width
                                   :height child-height))
                (se (make-instance 'quadtree
-                                  :3d-partition 3d-partition
                                   :level (1+ level)
                                   :quadtree-parent tree
                                   :max-objects max-objects
@@ -131,7 +125,6 @@
                                   :width child-width
                                   :height child-height))
                (ne (make-instance 'quadtree
-                                  :3d-partition 3d-partition
                                   :level (1+ level)
                                   :quadtree-parent tree
                                   :max-objects max-objects
@@ -224,19 +217,12 @@
 ;; expand/rebalance quadtree when tracked objects move
 (defevent-callback object-moved ((object game-object) (quadtree quadtree))
   (declare (optimize (speed 3)))
-  (if (= (the single-float (z object))
-         (the single-float (z quadtree)))
-      (unless (%inside-of object quadtree)
-        (with-slots (objects) quadtree
-          (stop-tracking quadtree object)
-          (when (%is-iterating quadtree)
-            (%mark-updated object quadtree))
-          (start-tracking quadtree object)))
-      ;; object has moved outside of the quadtree's z-layer
-      (with-slots (objects 3d-partition) quadtree
-        (stop-tracking quadtree object)
-        (when 3d-partition
-          (start-tracking 3d-partition object)))))
+  (unless (%inside-of object quadtree)
+    (with-slots (objects) quadtree
+      (stop-tracking quadtree object)
+      (when (%is-iterating quadtree)
+        (%mark-updated object quadtree))
+      (start-tracking quadtree object))))
 
 ;; implement spatial partition methods
 

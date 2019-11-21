@@ -52,7 +52,7 @@ On the next render frame, the objects will be given a chance to load and this li
   (declare (ignore args))
   (with-slots (spatial-partition) game-scene
     (setf spatial-partition
-          (make-instance 'layered-quadtree :max-depth 20
+          (make-instance 'quadtree :max-depth 20
                          :width (width game-scene)
                          :height (height game-scene)))))
 
