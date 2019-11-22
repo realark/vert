@@ -56,7 +56,7 @@ Useful for debugging and pausing."))
 
 (defmethod render ((pause-scene pause-scene) update-percent camera rendering-context)
   (when (scene pause-scene )
-    (render (slot-value pause-scene 'scene) 0.0 nil rendering-context))
+    (render (slot-value pause-scene 'scene) 1.0 nil rendering-context))
   (call-next-method pause-scene update-percent camera rendering-context))
 
 (defmethod release-resources :after ((pause-scene pause-scene ))

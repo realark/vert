@@ -155,7 +155,7 @@ On the next render frame, the objects will be given a chance to load and this li
         ;; update frame
         (when bg
           (render-queue-add queue bg))
-        (let* ((render-delta 64.0)
+        (let* ((render-delta 16.0) ; TODO this value could be smaller
                (render-x-min (- (x camera) render-delta))
                (render-x-max (+ (x camera) (width camera) render-delta))
                (render-y-min (- (y camera) render-delta))

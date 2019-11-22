@@ -78,7 +78,8 @@
                          (:file "static-sprite")
                          (:file "animated-sprite")
                          (:file "font-drawable")
-                         (:file "render-queue")))
+                         (:file "render-queue")
+                         (:file "instance-renderer")))
                (:module audio
                         :depends-on (:core)
                         :pathname "src/audio"
