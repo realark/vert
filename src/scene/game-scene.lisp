@@ -170,15 +170,20 @@ On the next render frame, the objects will be given a chance to load and this li
                           (or (<= render-y-min y render-y-max)
                               (<= render-y-min (+ y h) render-y-max))))))
             (declare (inline in-render-area-p))
-            (do-spatial-partition (game-object
-                                   (spatial-partition game-scene)
-                                   :min-x x-min :max-x x-max
-                                   :min-y y-min :max-y y-max)
-              (when (not (typep game-object 'static-object))
-                (found-object-to-update game-scene game-object)
-                (update game-object delta-t-ms game-scene))
-              (when (in-render-area-p game-object)
-                (render-queue-add queue game-object)))))
+            (let ((previous nil))
+              (do-spatial-partition (game-object
+                                     (spatial-partition game-scene)
+                                     :min-x x-min :max-x x-max
+                                     :min-y y-min :max-y y-max)
+                (when (eq previous game-object)
+                  (log:warn "object visited twice ~A" previous))
+                (setf previous game-object)
+
+                (when (not (typep game-object 'static-object))
+                  (found-object-to-update game-scene game-object)
+                  (update game-object delta-t-ms game-scene))
+                (when (in-render-area-p game-object)
+                  (render-queue-add queue game-object))))))
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (update overlay delta-t-ms game-scene)
              (render-queue-add queue overlay))
@@ -197,31 +202,8 @@ On the next render frame, the objects will be given a chance to load and this li
                (queue render-queue)
                scene-overlays)
       game-scene
-    #+nil
-    (when bg
-      (render-queue-add queue bg)
-      #+nil
-      (render bg update-percent camera renderer))
     (loop :while unloaded-game-objects :do
          (load-resources (pop unloaded-game-objects) renderer))
-    #+nil
-    (let* ((delta 64.0)
-           (x-min (- (x camera) delta))
-           (x-max (+ x-min (width camera) delta delta))
-           (y-min (- (y camera) delta))
-           (y-max (+ y-min (height camera) delta delta)))
-      (do-spatial-partition (game-object
-                             spatial-partition
-                             :min-x x-min :max-x x-max
-                             :min-y y-min :max-y y-max)
-        (render-queue-add queue game-object)
-        #+nil
-        (render game-object update-percent camera renderer)))
-    #+nil
-    (loop :for overlay :across (the (vector overlay) scene-overlays) :do
-         (render-queue-add queue overlay)
-         #+nil
-         (render overlay update-percent camera renderer))
     (render queue update-percent camera renderer))
   (values))
 

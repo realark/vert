@@ -35,9 +35,12 @@
 (defun %mark-dead (object node)
   "Replace OBJECT with dead-object"
   (with-slots (objects) node
-    (let ((pos (position object objects)))
-      (assert (not (null pos)))
-      (setf (elt objects pos) %dead-object%))))
+    (loop :for i :from 0
+       :for obj :across objects :do
+         (when (eq obj object)
+           (setf (elt objects i) %dead-object%)
+           (return))
+         :finally (log:error "unable to mark ~A dead. Not in node ~A" object node))))
 
 (defun %mark-updated (object node)
   "Mark an object as updated for a single level of an iteration."
@@ -202,7 +205,10 @@
       quadtree
     (declare ((vector game-object) objects)
              (fixnum max-objects level max-depth))
-    (setf objects (delete %dead-object% objects :test #'eq))
+    (when (find %dead-object% objects :test #'eq)
+      (log:trace "-- rebalance objects before ~A" objects)
+      (setf objects (delete %dead-object% objects :test #'eq))
+      (log:trace "-- rebalance objects after ~A" objects))
     (when (and (null children)
                (> (length objects) max-objects)
                (< level max-depth))
@@ -218,6 +224,7 @@
 (defevent-callback object-moved ((object game-object) (quadtree quadtree))
   (declare (optimize (speed 3)))
   (unless (%inside-of object quadtree)
+    (log:trace "Move ~A to different quadtree node" object)
     (with-slots (objects) quadtree
       (stop-tracking quadtree object)
       (when (%is-iterating quadtree)
@@ -245,6 +252,7 @@
 
 (defmethod stop-tracking ((quadtree quadtree) (object game-object))
   (declare (optimize (speed 3)))
+  (log:trace "quadtree stop-tracking: ~A" object)
   (with-slots ((children quadtree-children) objects) quadtree
     (declare ((vector game-object) objects))
     (or (and children
@@ -255,7 +263,10 @@
           (remove-subscriber object quadtree object-moved)
           (if (%is-iterating quadtree)
               (%mark-dead object quadtree)
-              (setf objects (delete object objects :test #'eq)))
+              (progn
+                (log:trace "-- st objects before ~A" objects)
+                (setf objects (delete object objects :test #'eq))
+                (log:trace "-- st objects after ~A" objects)))
           object))))
 
 (defmethod find-spatial-partition (game-object (quadtree quadtree))

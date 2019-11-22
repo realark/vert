@@ -22,7 +22,7 @@ but cannot be removed from the implementation due to iteration.")
   "Optimized implementation of DO-SPATIAL-PARTITION for quadtrees."
   (assert (symbolp game-object-name))
   (alexandria:once-only (quadtree min-x max-x min-y max-y min-z max-z)
-    (alexandria:with-gensyms (quadtrees-to-iterate current-quad children child objects level object)
+    (alexandria:with-gensyms (quadtrees-to-iterate current-quad children child objects level object update-skips)
       `(let ((,quadtrees-to-iterate (list ,quadtree)))
          (declare (optimize (speed 3))
                   (dynamic-extent ,quadtrees-to-iterate))
@@ -34,22 +34,25 @@ but cannot be removed from the implementation due to iteration.")
                   (when (%in-boundary-p ,current-quad ,min-x ,max-x ,min-y ,max-y ,min-z ,max-z)
                     (unwind-protect
                          (progn
-                           (%push-iteration-context ,current-quad)
+                           (%push-iteration-context ,quadtree)
                            (when ,children
                              (loop :for ,child :across (the (simple-array quadtree (4)) ,children) :do
                                   (push ,child ,quadtrees-to-iterate)))
-                           (loop :with update-skips = (%update-skips ,current-quad)
+                           (loop :with ,update-skips = (%update-skips ,current-quad)
                               :for ,object :across (the (vector game-object) ,objects) :do
                                 (locally (declare ((vector T) update-skips)
                                                   (game-object ,object))
                                   (when (and (not (eq %dead-object% ,object))
-                                             (not (find ,object update-skips))
+                                             (not (find ,object ,update-skips))
                                              (%in-boundary-p ,object ,min-x ,max-x ,min-y ,max-y ,min-z ,max-z))
                                     (let ((,game-object-name ,object))
                                       ,@body)))))
-                      (%pop-iteration-context ,current-quad)
+                      (%pop-iteration-context ,quadtree)
                       (unless (%is-iterating ,current-quad)
-                        (%rebalance ,current-quad))
+                        (%rebalance ,current-quad)
+                        #+nil
+                        (loop :for obj-to-add :across ,add-queue :do
+                             (start-tracking ,current-quad obj-to-add)))
                       (values))))))))))
 
 (defmacro do-layred-quadtree ((game-object-name layered-quadtree &key min-x max-x min-y max-y min-z max-z) &body body)

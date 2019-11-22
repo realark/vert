@@ -39,7 +39,7 @@ Object will be rendered the next time RENDER is invoked on the queue.")
                           (elt array (- i 1)))))
              (insert-sorted (game-object objects-to-render array-size)
                (loop :for i :from 0 :below array-size :do
-                  ;; note that GAME-OBJECT should already be at the end of the arrya
+                  ;; note that GAME-OBJECT should already be at the end of the array
                   ;; so we won't do anything if it didn't have a lower priority
                   ;; than the existing elements
                     (when (render< game-object (elt objects-to-render i))
@@ -64,6 +64,7 @@ Object will be rendered the next time RENDER is invoked on the queue.")
     ;; this may not be the most optimal, but it shouldn't be called on a hot codepath
     (with-slots (objects-to-render) queue
       (setf objects-to-render (delete game-object objects-to-render)))
+    (log:trace "QUEUE REMOVE: removed ~A from render queue" game-object)
     (values)))
 
 @export
@@ -76,8 +77,12 @@ Object will be rendered the next time RENDER is invoked on the queue.")
   (with-slots (fill-pointer objects-to-render) queue
     (declare (fixnum fill-pointer)
              ((simple-array game-object (*)) objects-to-render))
-    (loop :for i :from 0 :below fill-pointer
-       :do (render (elt objects-to-render i) update-percent camera gl-context)))
+    (log:trace "~%Rendering ~A objects" fill-pointer)
+    (loop :for i :from 0 :below fill-pointer :do
+         (render (elt objects-to-render i) update-percent camera gl-context)
+         (when (log:trace)
+           (unless (typep (elt objects-to-render i) 'static-object)
+             (log:trace "-- ~A" (elt objects-to-render i))))))
   (values))
 
 ;;;; render-compare api and utils
