@@ -43,9 +43,12 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
                 :documentation "TODO"))
   (:documentation "Image displayed behind a scene."))
 
-(defmethod render-compare-same-z-layer ((background scene-background) object)
-  ;; background should render behind everything else
+;; background should render behind everything else
+(defmethod render-compare ((background scene-background) object)
   -1)
+
+(defmethod render-compare ((object game-object) (background scene-background))
+  1)
 
 (defmethod initialize-instance :after ((background scene-background) &key layers)
   (with-slots (wrap-width orig-wrap-width wrap-height) background
