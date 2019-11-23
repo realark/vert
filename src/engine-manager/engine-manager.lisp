@@ -198,9 +198,12 @@ It is invoked after the engine is fully started.")
            ;; set up initial active-scene
            (setf (slot-value engine-manager 'initial-scene-creator-fn) initial-scene-creator)
            (change-scene engine-manager (funcall initial-scene-creator))
+           (log:info "Running ~A engine start hooks" (hash-table-size *engine-start-hooks*))
            (loop :for label :being :the hash-keys :of *engine-start-hooks*
               :using (hash-value hook)
-              :do (funcall hook))
+              :do
+                (log:info "-- start hook: ~A" label)
+                (funcall hook))
            (with-slots (screen-camera) engine-manager
              (setf screen-camera
                    (make-instance 'camera
@@ -225,9 +228,12 @@ It is invoked after the engine is fully started.")
     ;; stop services
     (stop-audio-system)
     (fire-event engine-manager engine-stopped)
+    (log:info "Running ~A engine stop hooks" (hash-table-size *engine-stop-hooks*))
     (loop :for label :being :the hash-keys :of *engine-stop-hooks*
        :using (hash-value hook)
-       :do (funcall hook))
+       :do
+         (log:info "-- stop hook: ~A" label)
+         (funcall hook))
     (do-cache (*engine-caches* cache-name cache)
       (clear-cache cache))
     (format t "~%~%")))
