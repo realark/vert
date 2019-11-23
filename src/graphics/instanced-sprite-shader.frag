@@ -7,7 +7,7 @@ in VertexData {
 
 // texture sampler
 uniform sampler2D ourTexture;
-// uniform vec4 spriteColorMod;
+uniform vec4 spriteColorMod;
 // uniform vec4 spriteColorMapFrom;
 // uniform vec4 spriteColorMapTo;
 // uniform float spriteColorMapTolerance;
@@ -23,7 +23,5 @@ void main()
   //     colorMappedTexture = spriteColorMapTo * colorMappedTexture;
   //   }
   // }
-  // FragColor = spriteColorMod * colorMappedTexture;
-  FragColor = colorMappedTexture;
-  // FragColor = vec4(0.0, 0.0, 1.0, 1.0);
+  FragColor = spriteColorMod * colorMappedTexture;
 }

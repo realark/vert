@@ -21,6 +21,12 @@
                   :initform nil
                   :reader sprite-source)))
 
+(defmethod color ((drawable instance-rendered-drawable))
+  (color (slot-value drawable 'instance-renderer)))
+
+(defmethod (setf color) (value (drawable instance-rendered-drawable))
+  (setf (color (slot-value drawable 'instance-renderer)) value))
+
 (defmethod load-resources ((drawable instance-rendered-drawable) context))
 (defmethod release-resources ((drawable instance-rendered-drawable)))
 
@@ -68,18 +74,16 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                                             :element-type 'instance-rendered-drawable
                                             :adjustable nil
                                             :initial-element (make-instance 'instance-rendered-drawable
-                                                                            :instance-renderer nil
-                                                                            )))
+                                                                            :instance-renderer nil)))
    (c-transform-array :initform nil)
    (c-sprite-source-array :initform nil)
    (buffers-dirty-p :initform nil
                     :documentation "When t, the c and gl buffers need to be refreshed to match the lisp buffer.")
    (cached-interpolation-value :initform 0.0)
-   ;; TODO
-   ;; (color :initarg :color
-   ;;        :initform nil
-   ;;        :documentation "A color mod blended with the drawable. Nil has the same effect as *white*."
-   ;;        :accessor color)
+   (color :initarg :color
+          :initform nil
+          :documentation "A color mod blended with the drawable. Nil has the same effect as *white*."
+          :accessor color)
    (z :initarg :z
       :reader z
       :initform 0.0
@@ -256,7 +260,7 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
 
 (defmethod render ((renderer sprite-instance-renderer) update-percent camera gl-context)
   (declare (optimize (speed 3)))
-  (with-slots (shader texture vao fill-pointer cached-interpolation-value buffers-dirty-p static-objects-p) renderer
+  (with-slots (shader texture vao fill-pointer cached-interpolation-value color buffers-dirty-p static-objects-p) renderer
     (declare ((integer 0 #.+max-instance-size+) fill-pointer))
     (when (> fill-pointer 0)
       (gl-use-shader gl-context shader)
@@ -264,6 +268,16 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                               "worldProjection"
                               (interpolated-world-projection-matrix camera update-percent)
                               nil)
+      (if color
+          (set-uniformf shader
+                        "spriteColorMod"
+                        (r color)
+                        (g color)
+                        (b color)
+                        (a color))
+          (set-uniformf shader
+                        "spriteColorMod"
+                        1.0 1.0 1.0 1.0))
       (gl-bind-texture gl-context texture)
       (gl-use-vao gl-context vao)
       (unless (or static-objects-p
