@@ -21,8 +21,9 @@
             sprite-source-w
             sprite-source-h)))
 
-(defvar %default-sprite-source%
-  (make-sprite-source 0 0 nil nil))
+(defvar *default-sprite-source*
+  (make-sprite-source 0 0 nil nil)
+  "A sprite-source which shows the entire sprite")
 
 (progn
   (defstruct color-map
@@ -115,7 +116,7 @@
                                 nil)
 
         ;; set sprite source rectangle
-        (let* ((source (or sprite-source %default-sprite-source%))
+        (let* ((source (or sprite-source *default-sprite-source*))
                (flip-x (elt sprite-source-flip-vector 0))
                (flip-y (elt sprite-source-flip-vector 1))
                (x (sprite-source-x source))
@@ -249,10 +250,7 @@
                     :documentation "Rectangle subset of the sprite to render.
 Nil to render the entire sprite."
                     :accessor sprite-source)
-     (sprite-source-flip-vector :initform
-                                (make-array 2
-                                            :initial-contents '(1.0 1.0)
-                                            :element-type 'single-float)
+     (sprite-source-flip-vector :initform (vector2 1.0 1.0)
                                 :reader sprite-source-flip-vector)
      (wrap-width :initform nil
                  :initarg :wrap-width)

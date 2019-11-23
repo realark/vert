@@ -14,7 +14,12 @@
 @export
 (defclass instance-rendered-drawable (game-object)
   ((instance-renderer :initarg :instance-renderer
-                      :initform (error ":instance-renderer required"))))
+                      :initform (error ":instance-renderer required"))
+   (sprite-source-flip-vector :initform (vector2 1.0 1.0)
+                              :reader sprite-source-flip-vector)
+   (sprite-source :initarg :sprite-source
+                  :initform nil
+                  :reader sprite-source)))
 
 (defmethod load-resources ((drawable instance-rendered-drawable) context))
 (defmethod release-resources ((drawable instance-rendered-drawable)))
@@ -64,15 +69,24 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                                             :adjustable nil
                                             :initial-element (make-instance 'instance-rendered-drawable
                                                                             :instance-renderer nil
-                                                                            :object-id 'dummy-array-filler)))
+                                                                            )))
    (c-transform-array :initform nil)
+   (c-sprite-source-array :initform nil)
    (buffers-dirty-p :initform nil
                     :documentation "When t, the c and gl buffers need to be refreshed to match the lisp buffer.")
    (cached-interpolation-value :initform 0.0)
+   ;; TODO
+   ;; (color :initarg :color
+   ;;        :initform nil
+   ;;        :documentation "A color mod blended with the drawable. Nil has the same effect as *white*."
+   ;;        :accessor color)
    (z :initarg :z
       :reader z
       :initform 0.0
-      :documentation "The z-layer this object is rendering to. All objects rendered by this instance-renderer must have the same z-layer"))
+      :documentation "The z-layer this object is rendering to. All objects rendered by this instance-renderer must have the same z-layer")
+   (static-objects-p :initarg :static-objects-p
+                     :initform nil
+                     :documentation "Optimization hint. Inform the renderer it will be rendering static objects."))
   (:documentation "An object which renders a large number of STATIC-SPRITEs using instanced rendering."))
 
 (defun %double-lisp-buffer (simple-array)
@@ -106,7 +120,8 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                transform-vbo
                sprite-source-vbo
                (objects objects-to-render)
-               c-transform-array)
+               c-transform-array
+               c-sprite-source-array)
       renderer
     (unless (/= 0 vao)
       (labels ((create-static-buffers ()
@@ -138,6 +153,7 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                      (gl:free-gl-array c-vertices))))
                (create-instance-buffers (vao)
                  (let ((transform-vbo (gl:gen-buffer)))
+                   ;; define transform buffer
                    (gl-use-vao *gl-context* vao)
                    (gl:bind-buffer :array-buffer transform-vbo)
                    (gl:enable-vertex-attrib-array 2)
@@ -157,7 +173,16 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                    (%gl:vertex-attrib-divisor 3 1)
                    (%gl:vertex-attrib-divisor 4 1)
                    (%gl:vertex-attrib-divisor 5 1)
-                   transform-vbo)))
+
+                   (let ((sprite-source-vbo (gl:gen-buffer)))
+                     ;; define sprite-source buffer
+                     (gl:bind-buffer :array-buffer sprite-source-vbo)
+                     (gl:enable-vertex-attrib-array 6)
+                     (gl:vertex-attrib-pointer 6 4 :float 0 (* 4 (cffi:foreign-type-size :float)) (* 0 4 (cffi:foreign-type-size :float)))
+                     (gl:bind-buffer :array-buffer 0)
+                     (%gl:vertex-attrib-divisor 6 1)
+
+                     (values transform-vbo sprite-source-vbo)))))
         (getcache %instanced-sprite-key% *shader-cache*)
         (load-resources shader gl-context)
         (unless texture
@@ -173,30 +198,37 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
             (create-static-buffers)
           (setf vao new-vao
                 quad-vbo new-quad-vbo))
-        (setf transform-vbo (create-instance-buffers vao))
+        (multiple-value-bind (t-vbo s-vbo) (create-instance-buffers vao)
+          (setf transform-vbo t-vbo
+                sprite-source-vbo s-vbo))
         (setf c-transform-array (gl:alloc-gl-array :float
                                                    (* (array-total-size objects)
                                                       ;; each transform is a 4x4 matrix
-                                                      16))))))
+                                                      16))
+              c-sprite-source-array (gl:alloc-gl-array :int
+                                                       (* (array-total-size objects) 4))))))
   (values))
 
 (defmethod release-resources ((renderer sprite-instance-renderer))
-  (with-slots (path-to-sprite shader texture vao quad-vbo transform-vbo sprite-source-vbo c-transform-array) renderer
+  (with-slots (path-to-sprite shader texture vao quad-vbo transform-vbo sprite-source-vbo c-transform-array c-sprite-source-array) renderer
     (unless (= 0 vao)
       (stop-using-cached-resource texture path-to-sprite *texture-cache*)
       (remcache %instanced-sprite-key% *shader-cache*)
-      (remcache %instanced-sprite-key% *sprite-buffer-cache*)
       (setf vao 0
             quad-vbo 0)
-      (gl:delete-buffers (list transform-vbo))
-      (setf transform-vbo 0)
-      (gl:free-gl-array c-transform-array)))
+      (gl:delete-buffers (list transform-vbo sprite-source-vbo))
+      (setf transform-vbo 0
+            sprite-source-vbo 0)
+      (gl:free-gl-array c-transform-array)
+      (gl:free-gl-array c-sprite-source-array)
+      (setf c-transform-array nil
+            c-sprite-source-array nil)))
   (values))
 
 (defmethod instance-renderer-queue ((renderer sprite-instance-renderer) (drawable instance-rendered-drawable))
   "Tell RENDERER to render DRAWABLE in the next render batch."
   (declare (optimize (speed 3)))
-  (with-slots ((objects objects-to-render) fill-pointer buffers-dirty-p c-transform-array transform-vbo) renderer
+  (with-slots ((objects objects-to-render) fill-pointer buffers-dirty-p c-transform-array c-sprite-source-array transform-vbo) renderer
     ;; (declare ((simple-array instance-rendered-drawable (0 #.+max-instance-size+)) objects))
     (declare ((simple-array instance-rendered-drawable (*)) objects))
     (let ((next-object-index fill-pointer))
@@ -210,7 +242,8 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                        next-object-index
                        (* 2 next-object-index))
              (setf objects (%double-lisp-buffer objects)
-                   c-transform-array (%double-c-buffer c-transform-array))))
+                   c-transform-array (%double-c-buffer c-transform-array)
+                   c-sprite-source-array (%double-c-buffer c-sprite-source-array))))
       (unless (eq (elt objects next-object-index) drawable)
         (setf (elt objects next-object-index) drawable
               buffers-dirty-p t))
@@ -223,7 +256,7 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
 
 (defmethod render ((renderer sprite-instance-renderer) update-percent camera gl-context)
   (declare (optimize (speed 3)))
-  (with-slots (shader texture vao fill-pointer cached-interpolation-value buffers-dirty-p) renderer
+  (with-slots (shader texture vao fill-pointer cached-interpolation-value buffers-dirty-p static-objects-p) renderer
     (declare ((integer 0 #.+max-instance-size+) fill-pointer))
     (when (> fill-pointer 0)
       (gl-use-shader gl-context shader)
@@ -233,28 +266,69 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                               nil)
       (gl-bind-texture gl-context texture)
       (gl-use-vao gl-context vao)
-      (unless (float= update-percent cached-interpolation-value)
+      (unless (or static-objects-p
+                  (float= update-percent cached-interpolation-value))
         (setf buffers-dirty-p t))
       (setf cached-interpolation-value update-percent)
       (when buffers-dirty-p
-        (with-slots ((objects objects-to-render) c-transform-array transform-vbo) renderer
+        (log:trace "~A refresh gl buffers" renderer)
+        (with-slots ((objects objects-to-render) c-transform-array c-sprite-source-array transform-vbo sprite-source-vbo) renderer
           (declare ((simple-array instance-rendered-drawable) objects))
           (loop :for drawable-index :from 0 :below fill-pointer :do
                (locally (declare ((integer 0 #.+max-instance-size+) drawable-index))
-                 (loop :with model-matrix = (interpolated-sprite-matrix (elt objects drawable-index) update-percent)
-                    :for c-index :from (* drawable-index 16)
-                    :for i :from 0 :below 16 :do
-                      (locally (declare (fixnum c-index i)
-                                        (matrix model-matrix))
-                        ;; glaref setf is consing so we'll use the ffi directly
-                        ;; (setf (gl:glaref c-transform-array c-index)
-                        ;;       (elt model-matrix i))
-                        (setf (cffi:mem-aref (gl::gl-array-pointer c-transform-array)
-                                             :float
-                                             c-index)
-                              (elt model-matrix i))))))
-
-          ;;  send c-array to opengl
+                 (let ((drawable (elt objects drawable-index)))
+                   (let* ((source (or (sprite-source drawable)
+                                      *default-sprite-source*))
+                          (flip-vector (the vector2 (sprite-source-flip-vector drawable)))
+                          (flip-x (elt flip-vector 0))
+                          (flip-y (elt flip-vector 1))
+                          (x (sprite-source-x source))
+                          (y (sprite-source-y source))
+                          (total-w (texture-src-width texture))
+                          (total-h (texture-src-height texture))
+                          (w (or (sprite-source-w source) total-w))
+                          (h (or (sprite-source-h source) total-h))
+                          (c-offset (* 4 drawable-index)))
+                     (declare ((single-float -1.0 1.0) flip-x flip-y)
+                              ((integer 0 *) x y w h total-w total-h))
+                     ;; x y width height
+                     (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-source-array)
+                                          :float c-offset)
+                           (if (< flip-x 0)
+                               (/ (float (+ x w)) total-w)
+                               (/ (float x) total-w)))
+                     (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-source-array)
+                                          :float (+ c-offset 1))
+                           (if (< flip-y 0)
+                               (/ (float y) total-h)
+                               ;; add src-h to y coord to render coords from upper-left corner instead of lower-left
+                               (/ (float (+ h y)) total-h)))
+                     (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-source-array)
+                                          :float (+ c-offset 2))
+                           (float (/ (* w flip-x) total-w)))
+                     (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-source-array)
+                                          :float (+ c-offset 3))
+                           (float (/ (* h flip-y) total-h))))
+                   (loop :with model-matrix = (interpolated-sprite-matrix drawable update-percent)
+                      :for c-index :from (* drawable-index 16)
+                      :for i :from 0 :below 16 :do
+                        (locally (declare (fixnum c-index i)
+                                          (matrix model-matrix))
+                          ;; glaref setf is consing so we'll use the ffi directly
+                          ;; (setf (gl:glaref c-transform-array c-index)
+                          ;;       (elt model-matrix i))
+                          (setf (cffi:mem-aref (gl::gl-array-pointer c-transform-array)
+                                               :float
+                                               c-index)
+                                (elt model-matrix i)))))))
+          ;;  send c-arrays to opengl
+          (n-bind-buffer :array-buffer sprite-source-vbo)
+          (n-buffer-data :array-buffer
+                         (* 4
+                            (the (integer 1 256) (cffi:foreign-type-size :float))
+                            (the (integer 1 #.+max-instance-size+) fill-pointer))
+                         (gl::gl-array-pointer c-sprite-source-array)
+                         :dynamic-draw)
           (n-bind-buffer :array-buffer transform-vbo)
           (n-buffer-data :array-buffer
                          (* 16
