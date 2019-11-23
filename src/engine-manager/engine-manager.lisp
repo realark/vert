@@ -197,7 +197,6 @@ It is invoked after the engine is fully started.")
            (fire-event engine-manager engine-started)
            ;; set up initial active-scene
            (setf (slot-value engine-manager 'initial-scene-creator-fn) initial-scene-creator)
-           (change-scene engine-manager (funcall initial-scene-creator))
            (log:info "Running ~A engine start hooks" (hash-table-size *engine-start-hooks*))
            (loop :for label :being :the hash-keys :of *engine-start-hooks*
               :using (hash-value hook)
@@ -211,6 +210,7 @@ It is invoked after the engine is fully started.")
                                   :height (second (getconfig 'game-resolution *config*))))
              (update screen-camera *timestep* nil)
              (update screen-camera *timestep* nil))
+           (change-scene engine-manager (funcall initial-scene-creator))
            (sb-ext:gc :full T) ;; run a full gc before the first window is shown
            ;; run the game loop
            (run-game-loop engine-manager))
