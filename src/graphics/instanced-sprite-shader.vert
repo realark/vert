@@ -10,7 +10,6 @@ out VertexData {
 
 uniform mat4 worldProjection;
 
-// uniform vec4 spriteSrc;
 float roundingPrecision = 10000.0;
 
 void main()
@@ -22,10 +21,9 @@ void main()
   vertexData.textureCoords = vec2(spriteSrcX + (srcCoord.x * spriteWidth),
                                   spriteSrcY + (srcCoord.y * spriteHeight));
 
-  // vec4 rawPosition = worldProjection * worldModel * vec4(localCoord, 1.0);
-  // gl_Position = vec4(round((rawPosition.x * roundingPrecision)) / roundingPrecision,
-  //                    round((rawPosition.y * roundingPrecision)) / roundingPrecision,
-  //                    rawPosition.z,
-  //                    rawPosition.a);
-  gl_Position  = worldProjection * worldModel * vec4(localCoord, 1.0);
+  vec4 rawPosition = worldProjection * worldModel * vec4(localCoord, 1.0);
+  gl_Position = vec4(round((rawPosition.x * roundingPrecision)) / roundingPrecision,
+                     round((rawPosition.y * roundingPrecision)) / roundingPrecision,
+                     rawPosition.z,
+                     rawPosition.a);
 }
