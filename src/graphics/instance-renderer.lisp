@@ -88,6 +88,10 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
       :reader z
       :initform 0.0
       :documentation "The z-layer this object is rendering to. All objects rendered by this instance-renderer must have the same z-layer")
+   (quad-padding :initarg :quad-padding
+                 :initform 0.0
+                 :documentation "Optional padding to add to the rendered quad.
+Currently used to workaround bugs where a temporary gap can appear between adjacent objects due to float rounding")
    (static-objects-p :initarg :static-objects-p
                      :initform nil
                      :documentation "Optimization hint. Inform the renderer it will be rendering static objects."))
@@ -128,16 +132,16 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                c-sprite-source-array)
       renderer
     (unless (/= 0 vao)
-      (labels ((create-static-buffers ()
+      (labels ((create-static-buffers (quad-padding)
                  (log:info "creating gl buffers for instanced sprite rendering")
                  (let ((vao 0)
                        (quad-vbo 0)
                        (c-vertices (alloc-gl-array  :float
                                                     ;; positions             texture coords
-                                                    0.0   0.0  0.0          1.0  0.0 ; top right
-                                                    0.0  -1.0  0.0          1.0 -1.0 ; bottom right
-                                                   -1.0  -1.0  0.0          0.0 -1.0 ; bottom left
-                                                   -1.0   0.0  0.0          0.0  0.0 ; top left
+                                                    (+ 0.0 quad-padding)   (+ 0.0 quad-padding)  0.0          1.0  0.0 ; top right
+                                                    (+ 0.0 quad-padding)   (- -1 quad-padding)  0.0          1.0 -1.0 ; bottom right
+                                                    (- -1 quad-padding)    (- -1 quad-padding)  0.0          0.0 -1.0 ; bottom left
+                                                    (- -1 quad-padding)    (+ 0.0 quad-padding)  0.0          0.0  0.0 ; top left
                                                    )))
                    (unwind-protect
                         (progn
@@ -199,7 +203,7 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                                     (load-resources texture gl-context)
                                     texture))))
         (destructuring-bind (new-vao new-quad-vbo)
-            (create-static-buffers)
+            (create-static-buffers (slot-value renderer 'quad-padding))
           (setf vao new-vao
                 quad-vbo new-quad-vbo))
         (multiple-value-bind (t-vbo s-vbo) (create-instance-buffers vao)
