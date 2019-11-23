@@ -91,7 +91,7 @@ Assumes ARRAY is initially sorted."
                      (t half)))))
     (array-insert-at-index array (find-insertion-index array object predicate) object)))
 
-(eval-when (:load-toplevel :execute)
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (defvar *engine-start-hooks*
     (make-hash-table)
     "zero arg functions to invoke when the engine stops.")
@@ -103,7 +103,7 @@ Assumes ARRAY is initially sorted."
 (defmacro on-engine-start ((label) &body body)
   "Executed BODY once each time the engine starts.
 LABEL must be symbol. Previously bound label code will be replaced if the same label is used twice."
-  `(eval-when (:load-toplevel :execute)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
      (setf (gethash ,label *engine-start-hooks*)
            (lambda ()
              ,@body))))
@@ -111,7 +111,7 @@ LABEL must be symbol. Previously bound label code will be replaced if the same l
 (defmacro on-engine-stop ((label) &body body)
   "Executed BODY once each time the engine stops.
 LABEL must be symbol. Previously bound label code will be replaced if the same label is used twice."
-  `(eval-when (:load-toplevel :execute)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
      (setf (gethash ,label *engine-stop-hooks*)
            (lambda ()
              ,@body))))
