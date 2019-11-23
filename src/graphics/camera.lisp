@@ -238,13 +238,8 @@
                                      (/ camera-height 2)))
                     (delta-x (abs (- (x camera) new-camera-x)))
                     (delta-y (abs (- (y camera) new-camera-y))))
-               (when (or (not (typep target 'kinematic-object))
-                         (> delta-x 5.0)
-                         (> delta-y 5.0)
-                         (> (abs (acceleration-x target)) 0.0)
-                         (> (abs (acceleration-y target)) 0.0))
-                 (setf (x camera) new-camera-x
-                       (y camera) new-camera-y)))))))
+               (setf (x camera) new-camera-x
+                     (y camera) new-camera-y))))))
 
   (defmethod (setf target) :after (new-target (camera target-tracking-camera))
              (camera-track-target camera))
