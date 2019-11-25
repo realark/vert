@@ -70,11 +70,7 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
    (transform-vbo :initform 0)
    (sprite-source-vbo :initform 0)
    (fill-pointer :initform 0)
-   (objects-to-render :initform (make-array 100
-                                            :element-type 'instance-rendered-drawable
-                                            :adjustable nil
-                                            :initial-element (make-instance 'instance-rendered-drawable
-                                                                            :instance-renderer nil)))
+   (objects-to-render :initform nil)
    (c-transform-array :initform nil)
    (c-sprite-source-array :initform nil)
    (buffers-dirty-p :initform nil
@@ -97,29 +93,59 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                      :documentation "Optimization hint. Inform the renderer it will be rendering static objects."))
   (:documentation "An object which renders a large number of STATIC-SPRITEs using instanced rendering."))
 
-(defun %double-lisp-buffer (simple-array)
-  "Return a new simple-array double the original's size containing all the same elements. The new slots will contain some dummy object."
-  (declare ((simple-array instance-rendered-drawable) simple-array))
-  (let ((new (make-array (* (length simple-array) 2)
-                         :element-type 'instance-rendered-drawable
-                         :adjustable nil
-                         :initial-element (make-instance 'instance-rendered-drawable
-                                                         :instance-renderer nil
-                                                         :object-id 'dummy-array-filler))))
-    (loop :for i :from 0 :below (length simple-array) :do
-         (setf (elt new i)
-               (elt simple-array i)))
-    new))
+(defmethod initialize-instance :after ((renderer sprite-instance-renderer) &key (initial-buffer-size 100))
+  (%resize-sprite-instance-buffers renderer initial-buffer-size))
 
-(defun %double-c-buffer (c-buffer)
-  (let* ((old-size (gl::gl-array-size c-buffer))
-         (new (gl:alloc-gl-array (gl::gl-array-type c-buffer)
-                                 (* old-size 2))))
-    (loop :for i :from 0 :below old-size :do
-         (setf (gl:glaref new i)
-               (gl:glaref c-buffer i)))
-    (gl:free-gl-array c-buffer)
-    new))
+(defun %resize-sprite-instance-buffers (sprite-instance-renderer new-size)
+  "Replace SPRITE-INSTANCE-RENDERER's internal buffers with buffers sized to NEW-SIZE. Existing elements will be copied over as long as new-size > old-size."
+  (with-slots ((objects objects-to-render) fill-pointer c-transform-array c-sprite-source-array) sprite-instance-renderer
+    (declare ((or null (simple-array instance-rendered-drawable)) objects))
+    ;; skip resize if new-size == current-size
+    (unless (and objects (= (array-total-size objects) new-size))
+      (let ((new (make-array new-size
+                             :element-type 'instance-rendered-drawable
+                             :adjustable nil
+                             :initial-element (make-instance 'instance-rendered-drawable
+                                                             :instance-renderer nil
+                                                             :object-id 'dummy-array-filler))))
+        (when objects ; copy existing array elements to the new buffer
+          (when (<= new-size fill-pointer)
+            (log:warn "shrinking instance array size: ~A -> ~A" fill-pointer new-size))
+          (loop :for i :from 0 :below (min fill-pointer new-size) :do
+               (setf (elt new i)
+                     (elt objects i))))
+        (setf objects new)
+        (when (or c-transform-array c-sprite-source-array)
+          (%resize-c-buffers sprite-instance-renderer))
+        (values)))))
+
+(defun %resize-c-buffers (sprite-instance-renderer)
+  "Update SPRITE-INSTANCE-RENDERER's c buffers to match the size of the lisp buffer."
+  (labels ((resize (old-c-buffer array-type new-size)
+             (if (and old-c-buffer
+                      (= new-size (gl::gl-array-size old-c-buffer)))
+                 old-c-buffer ; size unchanged, keep the same buffer
+                 (progn
+                   (when old-c-buffer
+                     (gl:free-gl-array old-c-buffer))
+                   (gl:alloc-gl-array array-type new-size)))))
+    (with-slots ((objects objects-to-render)
+                 buffers-dirty-p
+                 c-transform-array
+                 c-sprite-source-array)
+        sprite-instance-renderer
+      (setf c-transform-array
+            (resize c-transform-array
+                    :float
+                    ;; each transform is a 4x4 matrix
+                    (* (array-total-size objects) 16))
+            c-sprite-source-array
+            (resize c-sprite-source-array
+                    :float
+                    ;; each sprite-source is a vec4
+                    (* (array-total-size objects) 4)))
+      (setf buffers-dirty-p t)
+      (values))))
 
 (defmethod load-resources ((renderer sprite-instance-renderer) gl-context)
   (with-slots (path-to-sprite
@@ -209,12 +235,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
         (multiple-value-bind (t-vbo s-vbo) (create-instance-buffers vao)
           (setf transform-vbo t-vbo
                 sprite-source-vbo s-vbo))
-        (setf c-transform-array (gl:alloc-gl-array :float
-                                                   (* (array-total-size objects)
-                                                      ;; each transform is a 4x4 matrix
-                                                      16))
-              c-sprite-source-array (gl:alloc-gl-array :int
-                                                       (* (array-total-size objects) 4))))))
+        (%resize-c-buffers renderer))))
   (values))
 
 (defmethod release-resources ((renderer sprite-instance-renderer))
@@ -249,9 +270,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                        renderer
                        next-object-index
                        (* 2 next-object-index))
-             (setf objects (%double-lisp-buffer objects)
-                   c-transform-array (%double-c-buffer c-transform-array)
-                   c-sprite-source-array (%double-c-buffer c-sprite-source-array))))
+             (%resize-sprite-instance-buffers renderer (* 2 next-object-index))))
       (unless (eq (elt objects next-object-index) drawable)
         (setf (elt objects next-object-index) drawable
               buffers-dirty-p t))
