@@ -80,6 +80,8 @@ Example:
  'log-output "The keyword :stdout, or a string specifying log's file name.")
 (export-config-key
  'log-level "A log4CL log level.")
+(export-config-key
+ 'controller-db "Path to an sdl controller database. See https://wiki.libsdl.org/SDL_GameControllerAddMappingsFromFile")
 
 @export
 (defvar *default-config* (make-config ()
@@ -94,7 +96,8 @@ Example:
                                       ('resizable-window t)
                                       ('initial-window-fullscreen-p nil)
                                       ('log-output :stdout)
-                                      ('log-level :info))
+                                      ('log-level :info)
+                                      ('controller-db nil))
   "The config used by vert if no config is specified.")
 
 @export

@@ -102,10 +102,6 @@
               (gl:enable :blend)
               (gl:blend-func :src-alpha :one-minus-src-alpha))
 
-            ;; Stop using rendered
-            ;; Initialize gl context and pass to engine manager
-            ;; set opengl vars: version, vsync
-            ;; sleep the engine if vsync is disabled
             (setf (slot-value engine-manager 'application-window)
                   (make-instance 'sdl-application-window :sdl-window win)
                   (slot-value engine-manager 'rendering-context)
@@ -113,13 +109,33 @@
                   *gl-context* (slot-value engine-manager 'rendering-context))
             (when (getconfig 'fullscreen-p *config*)
               (toggle-fullscreen (slot-value engine-manager 'application-window)))
+
+            ;; show a black window while everything else loads
+            (gl:clear-color 0.0 0.0 0.0 1.0)
+            (gl:clear :color-buffer-bit)
+            (sdl2:gl-swap-window win)
+
             (register-input-device (input-manager engine-manager)
                                    (slot-value engine-manager 'keyboard-input))
+
+            (flet ((load-sdl-controller-db (path-to-db)
+                     (let ((num-mappings-loaded (sdl2:game-controller-add-mappings-from-file path-to-db)))
+                       (if (< num-mappings-loaded 0)
+                           (progn
+                             (log:error "Error loading controller mappings from ~A. sdl error: ~A"
+                                        path-to-db
+                                        (sdl2-ffi.functions:sdl-get-error))
+                             (sdl2-ffi.functions:sdl-clear-error))
+                           (log:info "Loaded ~A controller mappings: ~A"
+                                     num-mappings-loaded
+                                     path-to-db)))))
+              (if (getconfig 'controller-db *config*)
+                  (load-sdl-controller-db (resource-path (getconfig 'controller-db *config*)))
+                  (log:info "No sdl controller db configured")))
+
             (loop for i from 0 below (sdl2:joystick-count) do
                  (initialize-sdl-controller engine-manager i))
 
-            (gl:clear :color-buffer-bit)
-            (sdl2:gl-swap-window (sdl-window (application-window engine-manager)))
             (call-next-method)))))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
