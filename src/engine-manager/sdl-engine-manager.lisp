@@ -160,17 +160,17 @@
 (let ((button-id-keywords (make-instance 'cache :test #'equal)))
   ;; write-to-string conses, so we'll save the button-id keywords in a cache
 
-  (defun sdl-controller-button-down (controller-id button-id)
-    (log:trace "SDL button down: " controller-id " -> " button-id)
-    (activate-input (gethash controller-id (slot-value *engine-manager*
+  (defun sdl-controller-button-down (sdl-joystick-id button-id)
+    (log:trace "SDL button down: " sdl-joystick-id " -> " button-id)
+    (activate-input (gethash sdl-joystick-id (slot-value *engine-manager*
                                                        'sdl-to-vert-controllers))
                     (getcache-default button-id
                                       button-id-keywords
                                       (alexandria:make-keyword (write-to-string button-id)))))
 
-  (defun sdl-controller-button-up (controller-id button-id)
-    (log:trace "SDL button up: " controller-id " -> " button-id)
-    (deactivate-input (gethash controller-id (slot-value *engine-manager*
+  (defun sdl-controller-button-up (sdl-joystick-id button-id)
+    (log:trace "SDL button up: " sdl-joystick-id " -> " button-id)
+    (deactivate-input (gethash sdl-joystick-id (slot-value *engine-manager*
                                                          'sdl-to-vert-controllers))
                       (getcache-default button-id
                                         button-id-keywords
@@ -256,9 +256,8 @@
 
 (defun initialize-sdl-controller (engine-manager device-index)
   ;; TODO: Send event to input users
-  (log:info "Controller added: ~A~%" device-index)
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
-    (when (sdl2:game-controller-p device-index)
+    (if (sdl2:game-controller-p device-index)
       (let* ((controller (sdl2:game-controller-open device-index))
              (joy (sdl2:game-controller-get-joystick controller))
              (vert-input-device (make-instance 'input-device :input-name "controller")))
@@ -268,16 +267,24 @@
                (input-manager engine-manager)
                vert-input-device))
         (when (active-scene engine-manager)
-          (add-scene-input (active-scene engine-manager) vert-input-device))))))
+          (add-scene-input (active-scene engine-manager) vert-input-device))
+        (log:info "SDL Controller added: ~A~%  --device-index=~A~%  --joystick-id=~A"
+                  (input-name vert-input-device)
+                  device-index
+                  (sdl2:joystick-instance-id joy)))
+      (log:warn "Unknown input. device-index=~A. No controller input created."
+                device-index))))
 
 (defun remove-sdl-controller (engine-manager sdl-joystick-id)
   ;; TODO: Send event to input users
-  (log:info "Controller removed: ~A~%" sdl-joystick-id)
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
     (sdl2:game-controller-close (gethash sdl-joystick-id sdl-controllers))
     (remhash sdl-joystick-id sdl-controllers)
     (let ((vert-input-device (gethash sdl-joystick-id sdl-to-vert-controllers)))
       (remhash sdl-joystick-id sdl-to-vert-controllers)
+      (log:info "SDL Controller removed: ~A~%  --joystick-id=~A"
+                (input-name vert-input-device)
+                sdl-joystick-id)
       (when (active-scene engine-manager)
         (remove-scene-input (active-scene engine-manager) vert-input-device)))))
 
@@ -292,8 +299,10 @@
              (:controllerdeviceadded (:which device-index)
                                      (initialize-sdl-controller engine-manager device-index))
              (:controllerdeviceremapped (:which id)
-                                        ;; TODO: what does this mean and how do I handle it?
-                                        (log:info "Controller remapped: ~A~%" id))
+                                        ;; The mappings string for the controller id have been updated.
+                                        ;; I don't think this will happen in production, just a dev-time things.
+                                        ;; For example, happens when a controller mapping is created before a mappings db is read.
+                                        (log:warn "Unhandled controller remap: ~A" id))
              (:controllerdeviceremoved (:which sdl-joystick-id)
                                        (remove-sdl-controller engine-manager sdl-joystick-id))
              (:controlleraxismotion (:which controller-id :axis axis-id :value value)
