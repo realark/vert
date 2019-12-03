@@ -2,7 +2,9 @@
 
 (defclass sdl-engine-manager (engine-manager)
   ((keyboard-input
-    :initform (make-instance 'input-device :input-name "sdl-keyboard"))
+    :initform (make-instance 'input-device
+                             :input-name :keyboard
+                             :input-type :keyboard))
    ;; TODO: clean up controller storage
    (sdl-to-vert-controllers
     :documentation "Map sdl-id -> vert-id"
@@ -258,22 +260,26 @@
   ;; TODO: Send event to input users
   (with-slots (sdl-controllers sdl-to-vert-controllers) engine-manager
     (if (sdl2:game-controller-p device-index)
-      (let* ((controller (sdl2:game-controller-open device-index))
-             (joy (sdl2:game-controller-get-joystick controller))
-             (vert-input-device (make-instance 'input-device :input-name "controller")))
-        (setf (gethash (sdl2:joystick-instance-id joy) sdl-controllers) controller)
-        (setf (gethash (sdl2:joystick-instance-id joy) sdl-to-vert-controllers)
-              (register-input-device
-               (input-manager engine-manager)
-               vert-input-device))
-        (when (active-scene engine-manager)
-          (add-scene-input (active-scene engine-manager) vert-input-device))
-        (log:info "SDL Controller added: ~A~%  --device-index=~A~%  --joystick-id=~A"
-                  (input-name vert-input-device)
-                  device-index
-                  (sdl2:joystick-instance-id joy)))
-      (log:warn "Unknown input. device-index=~A. No controller input created."
-                device-index))))
+        (let* ((controller (sdl2:game-controller-open device-index))
+               (joy (sdl2:game-controller-get-joystick controller))
+               (vert-input-device (make-instance 'input-device
+                                                 :input-type :controller
+                                                 :input-name
+                                                 (or (sdl2:game-controller-name-for-index device-index)
+                                                     "generic-controller"))))
+          (setf (gethash (sdl2:joystick-instance-id joy) sdl-controllers) controller)
+          (setf (gethash (sdl2:joystick-instance-id joy) sdl-to-vert-controllers)
+                (register-input-device
+                 (input-manager engine-manager)
+                 vert-input-device))
+          (when (active-scene engine-manager)
+            (add-scene-input (active-scene engine-manager) vert-input-device))
+          (log:info "SDL Controller added: ~A~%  --device-index=~A~%  --joystick-id=~A"
+                    (input-name vert-input-device)
+                    device-index
+                    (sdl2:joystick-instance-id joy)))
+        (log:warn "Unknown input. device-index=~A. No controller input created."
+                  device-index))))
 
 (defun remove-sdl-controller (engine-manager sdl-joystick-id)
   ;; TODO: Send event to input users

@@ -25,7 +25,7 @@
       empty-mappings)))
 
 (defun %%handle-input (input-handler input-map command-map input-device input input-type)
-  (let* ((input-plist (gethash (input-name input-device) input-map))
+  (let* ((input-plist (gethash (input-device-type input-device) input-map))
          (command (and input-plist (getf input-plist input)))
          (command-mapping (gethash command command-map))
          (action (and command-mapping
@@ -92,9 +92,9 @@
 (defun %make-input-map (device-mappings)
   "Convert a nested lambda list into an input map hash table"
   (when (> (length device-mappings) 0)
-    (loop with input-map = (make-hash-table :size (length device-mappings)  :test #'equalp)
+    (loop with input-map = (make-hash-table :size (length device-mappings)  :test #'eq)
        for device-mapping in device-mappings do
-         (assert (stringp (first device-mapping)))
+         (assert (keywordp (first device-mapping)))
          (assert (every (lambda (mapping)
                           (and (listp mapping)
                                (= 2 (length mapping))
@@ -145,7 +145,7 @@
                           action-lambdas)
                     (push nil action-lambdas))
                 :finally (return `(make-array 3 :initial-contents (list ,@(nreverse action-lambdas)))))))
-    `(let ((command-hash-table (make-hash-table :size ,(length command-mappings))))
+    `(let ((command-hash-table (make-hash-table :size ,(length command-mappings) :test #'eq)))
        ,@(loop
             for command-mapping in command-mappings do
               (assert (or (= 2 (length command-mapping))

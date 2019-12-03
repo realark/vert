@@ -11,12 +11,44 @@
 
 (defparameter %next-input-id% 0)
 
+(defparameter *generic-human-readable-names*
+  (let ((htable (make-hash-table :test #'eq)))
+    (loop :for button-id :from 0 :below 15 :do
+         (setf (gethash (alexandria:make-keyword (write-to-string button-id))
+                        htable)
+               (sdl2-ffi.functions:sdl-game-controller-get-string-for-button button-id)))
+    htable))
+
+(defparameter *dualshock-human-readable-names*
+  (let ((htable (make-hash-table :test #'eq)))
+    ;; start with generic buttons
+    (loop :for button-id :from 0 :below 15 :do
+         (setf (gethash (alexandria:make-keyword (write-to-string button-id))
+                        htable)
+               (sdl2-ffi.functions:sdl-game-controller-get-string-for-button button-id)))
+    ;; dualshock specific buttons
+    (loop :for (button-id human-readable-name)
+       :on '(0 "X"
+             1 "Circle"
+             2 "Square"
+             3 "Triangle")
+       :by #'cddr :while human-readable-name :do
+         (setf (gethash (alexandria:make-keyword (write-to-string button-id))
+                        htable)
+               human-readable-name))
+    htable))
+
 (defclass input-device (event-publisher)
   ((input-name
     :initarg :input-name
     :initform (error ":input-name must be specified")
     :reader input-name
-    :documentation "Name of the input device. E.g. :keyboard")
+    :documentation "Name of the input device. E.g. \"Dualshock controller\"")
+   (type
+    :initarg :input-type
+    :initform (error ":input-type required")
+    :reader input-device-type
+    :documentation "One of: :controller, :keyboard")
    (device-id
     :initform (incf %next-input-id%)
     :reader device-id
@@ -32,8 +64,24 @@
    (deactivated-inputs
     :initform (make-array 4 :fill-pointer 0 :adjustable T)
     :reader get-deactivated-inputs
-    :documentation "Inputs which were deactivated last update frame."))
+    :documentation "Inputs which were deactivated last update frame.")
+   (human-readable-input-names
+    :initform nil
+    :documentation "Map of :SDL-BUTTON-OR-JOYSTICK-KEYWORD -> human-readable-string"))
   (:documentation "Single source of external input. E.g. keyboard, mouse, controller."))
+
+(defmethod initialize-instance :after ((input-device input-device) &rest args)
+  (declare (ignore args))
+  ;; TODO: generalize human-readable input name mapping and expose config option(s)
+  (flet ((set-human-readable-map (input-device)
+           (with-slots (input-name human-readable-input-names) input-device
+             (setf human-readable-input-names
+                   (cond
+                     ((or (equalp "PS4 Controller" input-name)
+                          (equalp "PS3 Controller" input-name))
+                      *dualshock-human-readable-names*)
+                     (t *generic-human-readable-names*))))))
+    (set-human-readable-map input-device)))
 
 (defgeneric after-input-update (input-device)
   (:documentation "Called at the end of every input update frame.")
@@ -65,3 +113,9 @@
 
 (defevent input-update ((input-device input-device))
     "Fired by each registered input device once per update frame.")
+
+@export
+(defun input-device-get-human-readable-name (input-device button-id)
+  (gethash button-id
+           (slot-value input-device
+                       'human-readable-input-names)))

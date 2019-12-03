@@ -120,13 +120,13 @@
 
 (set-default-input-command-map
  menu
- ("sdl-keyboard" (:scancode-return :menu-activate)
+ (:keyboard (:scancode-return :menu-activate)
                  (:scancode-up :menu-up)
                  (:scancode-k :menu-up)
                  (:scancode-down :menu-down)
                  (:scancode-f11 :fullscreen-toggle)
                  (:scancode-j :menu-down))
- ("controller" (:11 :menu-up)
+ (:controller (:11 :menu-up)
                (:12 :menu-down)
                (:0 :menu-activate)
                (:6 :menu-activate)))

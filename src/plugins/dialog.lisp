@@ -211,10 +211,10 @@
 
 (set-default-input-command-map
  dialog-hud
- ("controller"
+ (:controller
   (:0 :advance-dialog)
   (:2 :advance-dialog))
- ("sdl-keyboard"
+ (:keyboard
   (:scancode-space :advance-dialog)
   (:scancode-t :advance-dialog)))
 
@@ -618,11 +618,11 @@ The NEXT value of each node defaults to the next line in BODY. "
 
 (set-default-input-command-map
  cutscene-hud
- ("controller"
+ (:controller
   (:2 :advance-dialog)
   (:14 :select-right)
   (:13 :select-left))
- ("sdl-keyboard"
+ (:keyboard
   (:scancode-t :advance-dialog)
   (:scancode-right :select-right)
   (:scancode-l :select-right)

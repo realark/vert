@@ -31,11 +31,11 @@
 
 (set-default-input-command-map
  player
- ("controller" (:13 :move-left)
+ (:controller (:13 :move-left)
                (:12 :move-down)
                (:14 :move-right)
                (:11 :move-up))
- ("sdl-keyboard" (:scancode-right :move-right)
+ (:keyboard (:scancode-right :move-right)
                  (:scancode-l :move-right)
                  (:scancode-left :move-left)
                  (:scancode-h :move-left)
@@ -65,7 +65,7 @@
 
 (set-default-input-command-map
  my-scene-input-handler
- ("sdl-keyboard" (:scancode-q :quit)))
+ (:keyboard (:scancode-q :quit)))
 
 (set-default-command-action-map
  my-scene-input-handler
