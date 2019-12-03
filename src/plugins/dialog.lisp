@@ -41,6 +41,10 @@
                                 :element-type 'font-drawable))
    (background :initarg :background
                :initform nil)
+   (auto-resize-background-p
+    :initarg :auto-resize-background-p
+    :initform t
+    :documentation "When T, automatically resize the height of the text window background to the end of the text.")
    (advance-delay :initarg :advance-delay
                   :initform 0
                   :documentation "time (ms) before player is allowed to advance the dialog.")))
@@ -181,11 +185,19 @@
                   (setf current-line-beginning (move-index-to-start-of-next-word current-line-ending))
                   (incf current-line)
                 :finally
+                  (with-slots (background auto-resize-background-p window-padding lines) dialog-hud
+                    (when auto-resize-background-p
+                      (let ((last-line (elt lines (- current-line 1))))
+                        (setf (height background)
+                              (+ (y last-line)
+                                 (height last-line)
+                                 (* 8 window-padding))))))
                   (with-slots (lines) dialog-hud
                     (loop :for i :from current-line :below (length lines) :do
                          (setf (parent (elt lines i)) nil)
                          (release-resources (elt lines i))
-                       :finally (setf (fill-pointer lines) current-line)))))
+                       :finally
+                         (setf (fill-pointer lines) current-line)))))
         (release-resources font-draw)))))
 
 (defmethod (setf dialog-hud-initiator) :before (new-initiator (hud dialog-hud))
@@ -219,7 +231,7 @@
  (:controller
   (:2 :advance-dialog))
  (:keyboard
-  (:scancode-t :advance-dialog)))
+  (:scancode-z :advance-dialog)))
 
 (set-default-command-action-map
  dialog-hud
@@ -626,7 +638,7 @@ The NEXT value of each node defaults to the next line in BODY. "
   (:14 :select-right)
   (:13 :select-left))
  (:keyboard
-  (:scancode-t :advance-dialog)
+  (:scancode-z :advance-dialog)
   (:scancode-right :select-right)
   (:scancode-l :select-right)
   (:scancode-left :select-left)
