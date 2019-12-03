@@ -13,8 +13,14 @@
     :initarg :active-input-device
     :initform nil
     :accessor active-input-device
-    :documentation "The DEVICE-ID of the input device the input handler is hooked up to."))
+    :documentation "The DEVICE-ID of the input device the input handler is hooked up to.")
+   (last-input-device
+    :initform nil
+    :reader input-handler-get-input-device
+    :documentation "The last input-device with an activated input that this handler is hooked up to."))
   (:documentation "Map raw inputs into user-defined commands."))
+
+(export '(input-handler-get-input-device))
 
 (let ((empty-mappings (make-hash-table)))
   (defgeneric %default-input-command-map (input-handler)
@@ -34,7 +40,6 @@
                         (:active (elt command-mapping 1))
                         (:deactivated (elt command-mapping 2))))))
     (when action (funcall action input-handler (device-id input-device)))))
-
 
 (defun %handle-activated-input (input-handler input-device input)
   (%%handle-input input-handler
@@ -72,11 +77,14 @@
     (loop for input-device across (scene-input input-context) do
          (when (or (eql *all-input-id* (active-input-device input-handler))
                    (eql (active-input-device input-handler) (device-id input-device)))
-           (loop for input across (get-activated-inputs input-device) do
+           (loop :for input :across (get-activated-inputs input-device) :do
+                (with-slots (last-input-device) input-handler
+                  (unless (eq input-device last-input-device)
+                    (setf last-input-device input-device)))
                 (%handle-activated-input input-handler input-device input))
-           (loop for input across (get-active-inputs input-device) do
+           (loop :for input :across (get-active-inputs input-device) :do
                 (%handle-active-input input-handler input-device input))
-           (loop for input across (get-deactivated-inputs input-device) do
+           (loop :for input :across (get-deactivated-inputs input-device) :do
                 (%handle-deactivated-input input-handler input-device input))))))
 
 (defmacro set-default-input-command-map (classname &rest input-mappings)

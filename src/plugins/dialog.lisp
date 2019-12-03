@@ -9,6 +9,11 @@
   (:documentation "A game object which my product dialog."))
 
 @export
+(defgeneric dialog-speaker-button-prompt (dialog-speaker)
+  (:documentation "An optional icon to show to prompt dialog advancement.")
+  (:method (dialog-speaker) nil))
+
+@export
 (defclass dialog-hud (overlay input-handler)
   ((show-p :initform nil)
    (initiator :initform nil
@@ -212,10 +217,8 @@
 (set-default-input-command-map
  dialog-hud
  (:controller
-  (:0 :advance-dialog)
   (:2 :advance-dialog))
  (:keyboard
-  (:scancode-space :advance-dialog)
   (:scancode-t :advance-dialog)))
 
 (set-default-command-action-map
