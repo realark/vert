@@ -28,6 +28,7 @@
                    :documentation "Guaranteed amount of space on all sides of the window which will not contain text.")
    (speaker :initform nil
             :accessor dialog-hud-speaker)
+   (advance-prompt :initform nil)
    (text :initarg :dialog-text
          :type string
          :initform "")
@@ -68,6 +69,12 @@
             (x background) (x window-position)
             (y background) (y window-position)))))
 
+(defmethod (setf dialog-hud-initiator) :after (new-initiator (hud dialog-hud))
+  (with-slots (advance-prompt) hud
+    (setf advance-prompt (dialog-speaker-button-prompt (dialog-hud-initiator hud)))
+    (when advance-prompt
+      (setf (parent advance-prompt) hud))))
+
 (defmethod render ((hud dialog-hud) update-percent camera rendering-context)
   (when (slot-value hud 'show-p)
     (call-next-method hud update-percent camera rendering-context)))
@@ -79,12 +86,16 @@
 @export
 (defmethod quit-dialog (dialog-hud)
   (declare (dialog-hud dialog-hud))
-  (with-slots (show-p initiator speaker) dialog-hud
+  (with-slots (show-p initiator speaker advance-prompt) dialog-hud
     (when initiator
       (setf (active-input-device initiator) (active-input-device dialog-hud)
             initiator nil))
+    (when advance-prompt
+      (setf (parent advance-prompt) nil)
+      (recycle advance-prompt))
     (setf (active-input-device dialog-hud) *no-input-id*
           speaker nil
+          advance-prompt nil
           show-p nil)))
 
 (defun %set-dialog-lines (dialog-hud)
@@ -185,13 +196,23 @@
                   (setf current-line-beginning (move-index-to-start-of-next-word current-line-ending))
                   (incf current-line)
                 :finally
-                  (with-slots (background auto-resize-background-p window-padding lines) dialog-hud
-                    (when auto-resize-background-p
-                      (let ((last-line (elt lines (- current-line 1))))
+                  (let ((last-line (elt (slot-value dialog-hud 'lines) (- current-line 1))))
+                    ;; resize bg
+                    (with-slots (background auto-resize-background-p window-padding) dialog-hud
+                      (when auto-resize-background-p
                         (setf (height background)
                               (+ (y last-line)
                                  (height last-line)
-                                 (* 8 window-padding))))))
+                                 (* 8 window-padding)))))
+                    ;; show button prompt
+                    (with-slots (background advance-prompt) dialog-hud
+                      (when advance-prompt
+                        (setf (x advance-prompt) (+ (x background) (width last-line) 4.0)
+                              (y advance-prompt) (+ (y last-line) (/ (height last-line) 2.0))
+                              (z advance-prompt) 1.0
+                              (width advance-prompt) 8.0
+                              (height advance-prompt) 8.0))))
+                ;; release excess lines
                   (with-slots (lines) dialog-hud
                     (loop :for i :from current-line :below (length lines) :do
                          (setf (parent (elt lines i)) nil)
