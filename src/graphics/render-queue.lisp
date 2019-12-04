@@ -9,7 +9,8 @@
    (objects-to-render :initform (make-array 200
                                             :adjustable nil
                                             :element-type 'game-object
-                                            :initial-element (make-instance 'game-object))))
+                                            :initial-element (make-instance 'game-object
+                                                                            :object-id 'render-dummy))))
   (:documentation "A self-sorting queue of objects to render."))
 
 @export
@@ -62,9 +63,20 @@ Object will be rendered the next time RENDER is invoked on the queue.")
   (:documentation "Remove GAME-OBJECT from the queue of objects to render. No effect if GAME-OBJECT is not in the queue.")
   (:method ((queue render-queue) (game-object game-object))
     ;; this may not be the most optimal, but it shouldn't be called on a hot codepath
-    (with-slots (objects-to-render) queue
-      (setf objects-to-render (delete game-object objects-to-render)))
-    (log:trace "QUEUE REMOVE: removed ~A from render queue" game-object)
+    (labels ((left-shift-array (array start-index end-index)
+               "Shift all elements to the left for elements >= START-INDEX and < END-INDEX"
+               (loop :for i :from start-index :below end-index :do
+                    (setf (elt array i)
+                          (elt array (+ i 1))))))
+      (with-slots (objects-to-render fill-pointer) queue
+        (loop :for i :from 0 :below fill-pointer :do
+             (when (eq (elt objects-to-render i)
+                       game-object)
+               (left-shift-array objects-to-render i fill-pointer)
+               (decf fill-pointer)
+               (log:trace "QUEUE REMOVE: removed ~A from render queue" game-object))
+             :finally
+             (log:trace "QUEUE REMOVE: object not found for removal: ~A" game-object))))
     (values)))
 
 @export

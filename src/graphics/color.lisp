@@ -55,6 +55,16 @@
                                               percent-to)))
   output-color)
 
+@export
+(defun color* (color1 color2 &optional (product-color (make-color)))
+  (declare (optimize (speed 3))
+           (color color1 color2 product-color))
+  (setf (r product-color) (* (r color1) (r color2))
+        (g product-color) (* (g color1) (g color2))
+        (b product-color) (* (b color1) (b color2))
+        (a product-color) (* (a color1) (a color2)))
+  product-color)
+
 (macrolet ((def-color-getter-and-setter (c)
              (assert (typep c 'symbol))
              `(progn
