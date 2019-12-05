@@ -44,7 +44,13 @@
                :initform 8)
    (selection-marker :initform
                      (make-instance 'font-drawable
-                                    :text ">")))
+                                    :text ">"))
+   (scroll-begin-timestamp :initform nil
+                           :documentation "When this timestamp is reached or exceeded, begin scrolling and continue to scroll as long as the scroll button is pressed.")
+   (initial-scroll-timer :initform 700
+                         :documentation "Start scrolling if the player holds a button down longer than this threshold.")
+   (next-scroll-timer :initform 100
+                      :documentation "After button down scrolling begins, how long to wait between each scroll"))
   (:documentation "A game menu"))
 
 (defmethod initialize-instance :after ((menu menu) &rest args)
@@ -131,15 +137,44 @@
                (:0 :menu-activate)
                (:6 :menu-activate)))
 
+
 (set-default-command-action-map
  menu
  (:fullscreen-toggle (on-deactivate (toggle-fullscreen
                                      (application-window *engine-manager*))))
  (:menu-activate (on-deactivate (activate menu (node menu) device-id)))
- (:menu-up (on-deactivate (select-up (node menu))
-                          (%set-menu-position-and-color menu)))
- (:menu-down (on-deactivate (select-down (node menu))
-                            (%set-menu-position-and-color menu))))
+ (:menu-up
+  (on-activate
+   (with-slots (scroll-begin-timestamp initial-scroll-timer) menu
+     (setf scroll-begin-timestamp (+ (ticks) initial-scroll-timer))))
+  (while-active
+   (with-slots (scroll-begin-timestamp next-scroll-timer) menu
+     (when (>= (ticks) scroll-begin-timestamp)
+       (incf scroll-begin-timestamp next-scroll-timer)
+       (select-up (node menu))
+       (%set-menu-position-and-color menu))))
+  (on-deactivate
+   (with-slots (scroll-begin-timestamp) menu
+     (unless (>= (ticks) scroll-begin-timestamp)
+       (select-up (node menu))
+       (%set-menu-position-and-color menu))
+     (setf scroll-begin-timestamp nil))))
+ (:menu-down
+  (on-activate
+   (with-slots (scroll-begin-timestamp initial-scroll-timer) menu
+     (setf scroll-begin-timestamp (+ (ticks) initial-scroll-timer))))
+  (while-active
+   (with-slots (scroll-begin-timestamp next-scroll-timer) menu
+     (when (>= (ticks) scroll-begin-timestamp)
+       (incf scroll-begin-timestamp next-scroll-timer)
+       (select-down (node menu))
+       (%set-menu-position-and-color menu))))
+  (on-deactivate
+   (with-slots (scroll-begin-timestamp) menu
+     (unless (>= (ticks) scroll-begin-timestamp)
+       (select-down (node menu))
+       (%set-menu-position-and-color menu))
+     (setf scroll-begin-timestamp nil)))))
 
 (defmethod (setf node) :after (value (menu menu))
   (%set-menu-position-and-color menu))
