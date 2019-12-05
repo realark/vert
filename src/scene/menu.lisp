@@ -149,13 +149,15 @@
      (setf scroll-begin-timestamp (+ (ticks) initial-scroll-timer))))
   (while-active
    (with-slots (scroll-begin-timestamp next-scroll-timer) menu
-     (when (>= (ticks) scroll-begin-timestamp)
+     (when (and scroll-begin-timestamp
+                (>= (ticks) scroll-begin-timestamp))
        (incf scroll-begin-timestamp next-scroll-timer)
        (select-up (node menu))
        (%set-menu-position-and-color menu))))
   (on-deactivate
    (with-slots (scroll-begin-timestamp) menu
-     (unless (>= (ticks) scroll-begin-timestamp)
+     (unless (and scroll-begin-timestamp
+                  (>= (ticks) scroll-begin-timestamp))
        (select-up (node menu))
        (%set-menu-position-and-color menu))
      (setf scroll-begin-timestamp nil))))
@@ -165,13 +167,15 @@
      (setf scroll-begin-timestamp (+ (ticks) initial-scroll-timer))))
   (while-active
    (with-slots (scroll-begin-timestamp next-scroll-timer) menu
-     (when (>= (ticks) scroll-begin-timestamp)
+     (when (and scroll-begin-timestamp
+                (>= (ticks) scroll-begin-timestamp))
        (incf scroll-begin-timestamp next-scroll-timer)
        (select-down (node menu))
        (%set-menu-position-and-color menu))))
   (on-deactivate
    (with-slots (scroll-begin-timestamp) menu
-     (unless (>= (ticks) scroll-begin-timestamp)
+     (unless (and scroll-begin-timestamp
+                  (>= (ticks) scroll-begin-timestamp))
        (select-down (node menu))
        (%set-menu-position-and-color menu))
      (setf scroll-begin-timestamp nil)))))
