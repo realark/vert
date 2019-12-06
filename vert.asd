@@ -49,8 +49,7 @@
                          (:file "linear-motion")
                          (:file "angular-motion")
                          ;; partitioning
-                         (:file "quadtree")
-                         (:file "layered-quadtree")))
+                         (:file "quadtree")))
                (:module util-objects
                         :depends-on (:core :physics)
                         :pathname "src/util-objects"

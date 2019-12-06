@@ -55,24 +55,6 @@ but cannot be removed from the implementation due to iteration.")
                              (start-tracking ,current-quad obj-to-add)))
                       (values))))))))))
 
-(defmacro do-layred-quadtree ((game-object-name layered-quadtree &key min-x max-x min-y max-y min-z max-z) &body body)
-  (assert (symbolp game-object-name))
-  (alexandria:once-only (min-z max-z)
-    (alexandria:with-gensyms (quadtree)
-      `(loop :for ,quadtree :across (slot-value ,layered-quadtree 'quadtrees) :do
-            (when (<= (or ,min-z (z ,quadtree))
-                      (z ,quadtree)
-                      (or ,max-z (z ,quadtree)))
-              (do-quadtree (,game-object-name
-                            ,quadtree
-                            :min-x ,min-x
-                            :max-x ,max-x
-                            :min-y ,min-y
-                            :max-y ,max-y
-                            :min-z ,min-z
-                            :max-z ,max-z)
-                ,@body))))))
-
 (defmacro do-spatial-partition ((game-object-name spatial-partition &key min-x max-x min-y max-y min-z max-z) &body body)
   "Run BODY once over every element (bound to GAME-OBJECT-NAME) in SPATIAL-PARTION."
   (assert (symbolp game-object-name))
@@ -86,15 +68,5 @@ but cannot be removed from the implementation due to iteration.")
                           :max-y ,max-y
                           :min-z ,min-z
                           :max-z ,max-z)
-              ,@body))
-           ((typep ,spatial-partition 'layered-quadtree)
-            (do-layred-quadtree (,game-object-name
-                                 ,spatial-partition
-                                 :min-x ,min-x
-                                 :max-x ,max-x
-                                 :min-y ,min-y
-                                 :max-y ,max-y
-                                 :min-z ,min-z
-                                 :max-z ,max-z)
               ,@body))
            (t (error "unsupported partition type: ~A" ,spatial-partition)))))
