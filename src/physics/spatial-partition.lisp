@@ -40,7 +40,7 @@ but cannot be removed from the implementation due to iteration.")
                                   (push ,child ,quadtrees-to-iterate)))
                            (loop :with ,update-skips = (%update-skips ,current-quad)
                               :for ,object :across (the (vector game-object) ,objects) :do
-                                (locally (declare ((vector T) update-skips)
+                                (locally (declare ((vector T) ,update-skips)
                                                   (game-object ,object))
                                   (when (and (not (eq %dead-object% ,object))
                                              (not (find ,object ,update-skips))

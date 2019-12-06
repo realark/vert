@@ -51,10 +51,10 @@
 (defun %update-skips (node)
   "An array objects for update skipping. Based on the current iteration context."
   (with-slots (iteration-context) (%quadtree-root node)
-    (if (= 0 (fill-pointer iteration-context))
+    (if (= 0 (length iteration-context))
         #()
         (elt iteration-context
-             (1- (fill-pointer iteration-context))))))
+             (- (length iteration-context) 1)))))
 
 (defun %push-iteration-context (node)
   "Push a fresh update-skip list on to the iteration stack"
