@@ -84,3 +84,44 @@
            (return-from find-test-object obj))))
      test-object
      "Test object in partition after z incf.")))
+
+(deftest partition-recursive-iteration
+  "Test calling do-spatial-partition in a nested fashion."
+  (let ((num-objects 100)
+        (objects (make-array 0 :fill-pointer 0 :adjustable t))
+        (partition (make-instance 'recurse.vert::quadtree)))
+    (loop :for i :from 0 :below num-objects :do
+         (let ((obj (make-instance 'obb
+                                   :width 10
+                                   :height 10
+                                   :x i
+                                   :y i)))
+           (vector-push-extend obj objects)
+           (start-tracking partition obj)))
+    (let ((max (make-instance 'obb
+                              :width 10
+                              :height 10
+                              :x (* num-objects 100)
+                              :y (* num-objects 100))))
+      (start-tracking partition max)
+      (stop-tracking partition max))
+    (do-spatial-partition (obj partition)
+      (stop-tracking partition obj)
+      (do-spatial-partition (obj2 partition)
+        (incf (x obj2))
+        (incf (y obj2)))
+      (do-spatial-partition (obj2 partition)
+        (decf (x obj2))
+        (decf (y obj2)))
+      (start-tracking partition obj))
+
+    (loop :with objects-in-wrong-place = (list) ; plist: array-index object
+       :for i :from 0 :below num-objects :do
+         (let ((obj (elt objects i)))
+           (unless (and (float= i (x obj))
+                        (float= i (y obj)))
+             (push obj objects-in-wrong-place)
+             (push i objects-in-wrong-place)))
+       :finally
+         (is objects-in-wrong-place nil
+             "All objects should have an x/y matching their index."))))

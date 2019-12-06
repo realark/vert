@@ -7,7 +7,8 @@
       (equal obj1 obj2)))
 
 (defun run-prove-tests (&key (reporter :fiveam) packages tests debug-on-error)
-  "Reset counts and run all tests. T if all tests pass."
+  "Reset counts and run all tests. T if all tests pass.
+REPORTER is a prove reporter. interesting reporters: :fiveam :list"
   (and
    (loop :for test-symb :in tests :do
         (format T "~%----~A----~%" test-symb)
