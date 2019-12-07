@@ -24,8 +24,7 @@ but cannot be removed from the implementation due to iteration.")
   (alexandria:once-only (quadtree min-x max-x min-y max-y min-z max-z)
     (alexandria:with-gensyms (quadtrees-to-iterate current-quad children child objects level object update-skips)
       `(let ((,quadtrees-to-iterate (list ,quadtree)))
-         (declare (optimize (speed 3))
-                  (dynamic-extent ,quadtrees-to-iterate))
+         (declare (dynamic-extent ,quadtrees-to-iterate))
          (loop :while ,quadtrees-to-iterate :do
               (let ((,current-quad (pop ,quadtrees-to-iterate)))
                 (with-slots ((,children quadtree-children) (,objects objects) (,level level)) ,current-quad

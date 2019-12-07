@@ -133,6 +133,8 @@ The default method should be good enough for most game objects. Extend this meth
                     (eq obj2 hit-box2))
                (any-hit-boxes-collidep hit-box1 hit-box2))))))
 
+;;;; phantom
+
 @export-class
 (defclass phantom ()
   ()
@@ -146,3 +148,25 @@ COLLISION callbacks will still be invoked when objects collide with a phantom, b
   (when (call-next-method other-object phantom)
     (collision other-object phantom))
   nil)
+
+;;;; halfa
+
+@export-class
+(defclass halfa ()
+  ((phantom-p :initarg phantom-p
+              :initform nil
+              :accessor phantom-p))
+  (:documentation "An object which may toggle its phantom collision property."))
+
+(defmethod collidep :around ((halfa1 halfa) (halfa2 halfa))
+  (if (and (phantom-p halfa1) (phantom-p halfa2))
+      nil
+      (call-next-method halfa1 halfa2)))
+
+(defmethod collidep :around (other-object (halfa halfa))
+  (if (phantom-p halfa)
+      (progn
+        (when (call-next-method other-object halfa)
+          (collision other-object halfa))
+        nil)
+      (call-next-method other-object halfa)))
