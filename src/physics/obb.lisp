@@ -90,7 +90,8 @@
 
 @export
 (defun world-dimensions (obb)
-  "Return dimension info in base-world coordinates. (values x y z width height)"
+  "Return bounding-box dimension info in base-world coordinates. (values x y z width height)
+Note that for rotated objects, the dimensions represent an unrotated rectangle which the underlying object fits entirely within."
   (declare (optimize (speed 3))
            (obb obb))
   (flet ((simple-obb-p (obb)
@@ -109,18 +110,46 @@
            (let* ((tmp (vector3 0f0 0f0 0f0))
                   (world-point (transform-point tmp obb))
                   (world-width (* (scale-x obb) (width obb)))
-                  (world-height (* (scale-y obb) (height obb))))
+                  (world-height (* (scale-y obb) (height obb)))
+                  (world-rotation (rotation obb)))
              (declare (dynamic-extent world-point tmp)
-                      (single-float world-width world-height))
+                      (single-float world-width world-height)
+                      (rotation-radians world-rotation))
              (loop :with parent = (parent obb) :while parent :do
                   (setf world-width (* world-width (scale-x parent))
                         world-height (* world-height (scale-y parent))
+                        world-rotation (mod (+ world-rotation (rotation parent)) tau)
                         parent (parent parent)))
-             (values (x world-point)
-                     (y world-point)
-                     (z world-point)
-                     world-width
-                     world-height))))
+             (if (float= 0.0 world-rotation)
+                 (values (x world-point)
+                         (y world-point)
+                         (z world-point)
+                         world-width
+                         world-height)
+                 ;; object has a rotation, return an unrotated rectangle which fits over the object
+                 ;; TODO: make this the default path if profiling show no performance hit
+                 (loop :with min-x = (the single-float (x world-point))
+                      :and max-x = (the single-float (x world-point))
+                      :and max-y = (the single-float (y world-point))
+                      :and min-y = (the single-float (y world-point))
+                    :for point :across (the (simple-array vector3) (world-points obb)) :do
+                      (with-accessors ((point-x x) (point-y y)) point
+                        (declare (single-float point-x point-y))
+                        (when (< point-x min-x)
+                          (setf min-x point-x))
+                        (when (> point-x max-x)
+                          (setf max-x point-x))
+                        (when (< point-y min-y)
+                          (setf min-y point-y))
+                        (when (> point-y max-y)
+                          (setf max-y point-y)))
+                    :finally
+                      (return
+                        (values min-x
+                                min-y
+                                (z world-point)
+                                (- max-x min-x)
+                                (- max-y min-y))))))))
     (declare (inline simple-obb-p simple-obb-dimensions complex-obb-dimensions))
     (if (simple-obb-p obb)
         (simple-obb-dimensions obb)
