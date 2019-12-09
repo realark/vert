@@ -1,12 +1,6 @@
 (in-package :recurse.vert)
 
 @export-class
-(defclass static-object ()
-  ()
-  (:documentation "A marker class which tells a game-scene that the object does not require updates.
-This is an optimization to allow scenes to skip updates for objects."))
-
-@export-class
 (defstruct active-area
   "Defines an area in a game-scene (base world coords). Used to limit which objects are updated/rendered during a game loop."
   (min-x nil :type (or null single-float))

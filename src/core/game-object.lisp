@@ -13,6 +13,12 @@ User may provide this, but if they do so they are responsible for guaranteeing u
                 :documentation "Optional, human-readable name for an object."))
   (:documentation "Base class of all game objects."))
 
+@export-class
+(defclass static-object ()
+  ()
+  (:documentation "A marker class stating that the object does not require updates (i.e. doesn't move or change any state).
+This is an optimization to allow scenes to skip updates for certain objects."))
+
 ;; object's world position, dimension, and rotation info.
 ;; will be implemented by physics component
 

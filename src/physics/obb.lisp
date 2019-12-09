@@ -241,3 +241,7 @@
       (cond ((collidep vertical-rect stationary-object) 'x)
             ((collidep horizontal-rect stationary-object) 'y)
             (t 'x))))
+
+@export-class
+(defclass static-obb (obb static-object)
+  ())
