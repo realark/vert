@@ -21,7 +21,7 @@
                                            :adjustable T
                                            :fill-pointer 0)
                       (gethash event-name event-subscribers) sub-list))
-              (unless (find ,subscriber sub-list)
+              (unless (find ,subscriber (the vector sub-list) :test #'eq)
                 (vector-push-extend ,subscriber sub-list)))))))
 
 (defmacro remove-subscriber (publisher subscriber &rest event-names)

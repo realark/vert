@@ -18,12 +18,14 @@
   (declare (ignore args))
   (read-tiled-file tiled-scene)
   (with-slots (spatial-partition) tiled-scene
-    (let ((new-partition (make-instance 'quadtree :max-depth 20
-                                        :width (* 2 (width tiled-scene))
-                                        :height (* 2 (height tiled-scene)))))
+    (let ((new-partition (make-instance 'quadtree
+                                        :initial-size (vector2
+                                                       (* 2.0 (width tiled-scene))
+                                                       (* 2.0 (height tiled-scene))))))
       ;; map size likely changed. Easiest to just use a new spatial partition
       (do-spatial-partition (object spatial-partition)
-        (start-tracking new-partition object))
+        (start-tracking new-partition object)
+        (stop-tracking spatial-partition object))
       (setf spatial-partition new-partition))))
 
 (progn

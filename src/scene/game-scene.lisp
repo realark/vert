@@ -38,6 +38,10 @@ On the next render frame, the objects will be given a chance to load and this li
            :reader height)
    (update-area :initarg :update-area :initform nil)
    (render-queue :initform (make-instance 'render-queue))
+   (removed-objects :initform (make-array 10
+                                          :element-type 'game-object
+                                          :adjustable t
+                                          :fill-pointer 0))
    (spatial-partition :initform nil
                       :reader spatial-partition))
   (:documentation "A game world."))
@@ -46,9 +50,9 @@ On the next render frame, the objects will be given a chance to load and this li
   (declare (ignore args))
   (with-slots (spatial-partition) game-scene
     (setf spatial-partition
-          (make-instance 'quadtree :max-depth 20
-                         :width (width game-scene)
-                         :height (height game-scene)))))
+          (make-instance 'quadtree
+                         :initial-size (vector2 (float (width game-scene))
+                                                (float (height game-scene)))))))
 
 (defmethod load-resources ((game-scene game-scene) renderer)
   (with-accessors ((music scene-music)
@@ -105,16 +109,24 @@ On the next render frame, the objects will be given a chance to load and this li
     (with-slots (scene-overlays) scene
       (when (find overlay scene-overlays)
         (setf scene-overlays (delete overlay scene-overlays))
-        (release-resources overlay)
-        (render-queue-remove (slot-value scene 'render-queue) overlay))))
+        (render-queue-remove (slot-value scene 'render-queue) overlay)
+        (release-resources overlay))))
   (:method ((scene game-scene) (object game-object))
+    ;; remove object at the start of the next frame to allow pending actions to finish
     (remove-subscriber object scene killed)
     (stop-tracking (spatial-partition scene) object)
+    (render-queue-remove (slot-value scene 'render-queue) object)
     (release-resources object)
-    (render-queue-remove (slot-value scene 'render-queue) object)))
+    (vector-push-extend object (slot-value scene 'removed-objects))))
 
 ;; for subclasses to hook object updates
 (defmethod found-object-to-update ((scene game-scene) game-object))
+
+(defun %object-was-removed-p (scene object)
+  (declare (optimize (speed 3)))
+  (loop :for removed :across (the (vector game-object) (slot-value scene 'removed-objects)) :do
+       (when (eq object removed)
+         (return t))))
 
 (defmethod update ((game-scene game-scene) delta-t-ms (null null))
   (declare (optimize (speed 3))
@@ -123,8 +135,10 @@ On the next render frame, the objects will be given a chance to load and this li
                (queue render-queue)
                (bg scene-background)
                scene-overlays
+               removed-objects
                camera)
       game-scene
+    (setf (fill-pointer removed-objects) 0)
     (let* ((x-min (when update-area (active-area-min-x update-area)))
            (x-max (when update-area (active-area-max-x update-area)))
            (y-min (when update-area (active-area-min-y update-area)))
@@ -180,7 +194,8 @@ On the next render frame, the objects will be given a chance to load and this li
                 (when (not (typep game-object 'static-object))
                   (found-object-to-update game-scene game-object)
                   (update game-object delta-t-ms game-scene))
-                (when (in-render-area-p game-object)
+                (when (and (in-render-area-p game-object)
+                           (not (%object-was-removed-p game-scene game-object)))
                   (render-queue-add queue game-object))))))
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (update overlay delta-t-ms game-scene)

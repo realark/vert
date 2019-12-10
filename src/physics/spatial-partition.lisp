@@ -19,43 +19,47 @@
 but cannot be removed from the implementation due to iteration.")
 
 (defmacro do-quadtree ((game-object-name quadtree &key min-x max-x min-y max-y min-z max-z) &body body)
-  "Optimized implementation of DO-SPATIAL-PARTITION for quadtrees."
   (assert (symbolp game-object-name))
-  (alexandria:once-only (quadtree min-x max-x min-y max-y min-z max-z)
-    (alexandria:with-gensyms (quadtrees-to-iterate current-quad children child objects level object update-skips)
-      `(let ((,quadtrees-to-iterate (list ,quadtree)))
-         (declare (dynamic-extent ,quadtrees-to-iterate))
-         (loop :while ,quadtrees-to-iterate :do
-              (let ((,current-quad (pop ,quadtrees-to-iterate)))
-                (with-slots ((,children quadtree-children) (,objects objects) (,level level)) ,current-quad
-                  (declare (fixnum ,level)
-                           ((vector game-object) ,objects))
-                  (when (%in-boundary-p ,current-quad ,min-x ,max-x ,min-y ,max-y ,min-z ,max-z)
-                    (unwind-protect
-                         (progn
-                           (%push-iteration-context ,quadtree)
-                           (when ,children
-                             (loop :for ,child :across (the (simple-array quadtree (4)) ,children) :do
-                                  (push ,child ,quadtrees-to-iterate)))
-                           (loop :with ,update-skips = (%update-skips ,current-quad)
-                              :for ,object :across (the (vector game-object) ,objects) :do
-                                (locally (declare ((vector T) ,update-skips)
-                                                  (game-object ,object))
-                                  (when (and (not (eq %dead-object% ,object))
-                                             (not (find ,object ,update-skips))
-                                             (%in-boundary-p ,object ,min-x ,max-x ,min-y ,max-y ,min-z ,max-z))
-                                    (let ((,game-object-name ,object))
-                                      ,@body)))))
-                      (%pop-iteration-context ,quadtree)
-                      (unless (%is-iterating ,current-quad)
-                        (%rebalance ,current-quad)
-                        #+nil
-                        (loop :for obj-to-add :across ,add-queue :do
-                             (start-tracking ,current-quad obj-to-add)))
-                      (values))))))))))
+  (alexandria:once-only
+   (quadtree min-x max-x min-y max-y min-z max-z)
+   (alexandria:with-gensyms
+    (node nodes nodes-fill-pointer iterating-p update-queue update-queue-fill-pointer i j objects objects-fill-pointer)
+    `(with-slots ((,nodes nodes)
+                  (,iterating-p iterating-p)
+                  (,nodes-fill-pointer nodes-fill-pointer))
+         ,quadtree
+       (let ((,update-queue (%checkout-update-queue ,quadtree))
+             (,update-queue-fill-pointer 0))
+         (unwind-protect
+              (progn
+                (setf ,iterating-p t)
+                (loop :for ,i :from 0 :below ,nodes-fill-pointer :do
+                     (let ((,node (elt ,nodes ,i)))
+                       (declare (%quadtree-node ,node))
+                       (when (%%overlaps-boundary-p ,node ,min-x ,max-x ,min-y ,max-y nil nil)
+                         (with-slots ((,objects objects) (,objects-fill-pointer objects-fill-pointer)) ,node
+                           (loop :for ,j :from 0 :below ,objects-fill-pointer :do
+                              ;; TODO: add optimization to optionally skip static-objects
+                                (when (%%overlaps-boundary-p (elt ,objects ,j) ,min-x ,max-x ,min-y ,max-y ,min-z ,max-z)
+                                  (multiple-value-bind (new-update-queue new-fill-pointer)
+                                      (%update-queue-add ,quadtree ,update-queue ,update-queue-fill-pointer (elt ,objects ,j))
+                                    (setf ,update-queue new-update-queue
+                                          ,update-queue-fill-pointer new-fill-pointer))))))))
+                (setf ,iterating-p nil)
+                (loop :for ,i :from 0 :below ,update-queue-fill-pointer :do
+                     (when (elt ,update-queue ,i) ; objected may have been nulled out if removed from the partition
+                       (let ((,game-object-name (elt ,update-queue ,i)))
+                         ,@body))))
+           (when ,iterating-p
+             (setf ,iterating-p nil))
+           (%return-update-queue ,quadtree ,update-queue)
+           (values)))))))
 
-(defmacro do-spatial-partition ((game-object-name spatial-partition &key min-x max-x min-y max-y min-z max-z) &body body)
-  "Run BODY once over every element (bound to GAME-OBJECT-NAME) in SPATIAL-PARTION."
+(defmacro do-spatial-partition ((game-object-name spatial-partition &key min-x max-x min-y max-y min-z max-z static-iteration-p skip-static-objects-p) &body body)
+  "Run BODY once over every element (bound to GAME-OBJECT-NAME) in SPATIAL-PARTION. Keyword args are optional optimization hints
+When supplied, MIN/MAX boundaries limit iteration to all objects which overlap the boundary.
+SKIP-STATIC-OBJECTS-P will skip all objects of type STATIC-OBJECT
+STATIC-ITERATION-P optimization hint which tells the partition that no objects will be updated during iteration (useful for object lookup, collision lookup, etc)."
   (assert (symbolp game-object-name))
   (alexandria:once-only (spatial-partition)
     `(cond ((typep ,spatial-partition 'quadtree)
@@ -69,3 +73,17 @@ but cannot be removed from the implementation due to iteration.")
                           :max-z ,max-z)
               ,@body))
            (t (error "unsupported partition type: ~A" ,spatial-partition)))))
+
+
+(defmethod find-spatial-partition (object (partition spatial-partition))
+  (block find-object
+    (do-spatial-partition (obj
+                           partition
+                           :min-x (x object)
+                           :max-x (+ (x object) (width object))
+                           :min-y (y object)
+                           :max-x (+ (y object) (height object))
+                           :min-z (z object)
+                           :max-z (z object))
+      (when (eq object obj)
+        (return-from find-object obj)))))

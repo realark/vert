@@ -120,8 +120,10 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
     ;; first run any pending scene changes
     (with-slots (pending-scene-changes) engine-manager
       (when pending-scene-changes
-        (funcall pending-scene-changes)
-        (setf pending-scene-changes nil)))
+        (let ((pending pending-scene-changes))
+          (declare (function pending))
+          (setf pending-scene-changes nil)
+          (funcall pending))))
     ;; then any pending dev actions
     (with-slots (pending-action) engine-manager
       (unless (eq 'no-action pending-action)

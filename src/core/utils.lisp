@@ -115,3 +115,44 @@ LABEL must be symbol. Previously bound label code will be replaced if the same l
      (setf (gethash ,label *engine-stop-hooks*)
            (lambda ()
              ,@body))))
+
+;;;; array utils
+
+(defun simple-array-double-size (array &key initial-element)
+  "Return a new simple array twice the size of ARRAY with the same elements in the first half of the new array.
+The second half will be populated with INITIAL-ELEMENT."
+  (log:debug "doubling array size: ~A : ~A -> ~A"
+             array
+             (length array)
+             (* 2 (length array)))
+  (unless (typep initial-element (array-element-type array))
+    (error "Cannot double array. Initial-element ~A is not of type ~A"
+           initial-element
+           (array-element-type array)))
+  (let ((new-array (make-array (* 2 (length array))
+                               :adjustable nil
+                               :element-type (array-element-type array)
+                               :initial-element initial-element)))
+    (declare (simple-array array new-array))
+    (loop :for i :from 0 :below (length array) :do
+         (setf (elt new-array i)
+               (elt array i)))
+    new-array))
+
+(defun simple-array-left-shift (array starting-index ending-index)
+  "Starting from (+ 1 STARTING-INDEX) and up to ENDING-INDEX, move every element in ARRAY one place to the left."
+  (declare (optimize (speed 3))
+           ((simple-array t) array)
+           (fixnum starting-index ending-index))
+  (loop :for i :from starting-index :below ending-index :do
+       (setf (elt array i)
+             (elt array (+ i 1)))))
+
+(defun simple-array-right-shift (array starting-index ending-index)
+  "From STARTING-INDEX and up to (but not including) ENDING-INDEX, move every element in ARRAY one place to the right."
+  (declare (optimize (speed 3))
+           ((simple-array t) array)
+           (fixnum starting-index ending-index))
+  (loop :for i :from ending-index :above starting-index :do
+       (setf (elt array i)
+             (elt array (- i 1)))))
