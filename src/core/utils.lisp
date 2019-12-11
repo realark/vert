@@ -121,10 +121,13 @@ LABEL must be symbol. Previously bound label code will be replaced if the same l
 (defun simple-array-double-size (array &key initial-element)
   "Return a new simple array twice the size of ARRAY with the same elements in the first half of the new array.
 The second half will be populated with INITIAL-ELEMENT."
-  (log:debug "doubling array size: ~A : ~A -> ~A"
-             array
-             (length array)
-             (* 2 (length array)))
+  (when (log:debug)
+    ;; calling method must be obtained outside the log statement, hence the WHEN wrapping
+    (let ((calling-method (second (sb-debug:list-backtrace))))
+      (log:debug "doubling array size ~A: ~A -> ~A"
+                 calling-method
+                 (length array)
+                 (* 2 (length array)))))
   (unless (typep initial-element (array-element-type array))
     (error "Cannot double array. Initial-element ~A is not of type ~A"
            initial-element

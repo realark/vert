@@ -10,8 +10,8 @@
                 :initform 200
                 :documentation "Max objects to be added before a split.")
    (max-depth :initarg :max-depth
-              :initform 10
-              :documentation "Maximum number of sub quadtrees allowed (root node == depth 0).")
+              :initform 5
+              :documentation "Maximum number of sub quadtrees allowed (initial node == depth 0).")
    (min-node-size :initarg :min-node-size
                   :initform (vector2 200.0 200.0))
    (iterating-p :initform nil
@@ -37,7 +37,7 @@ When the quadtree is iterating no operations should be performed on the nodes or
 
 (defmethod initialize-instance :after ((quadtree quadtree) &rest args)
   (declare (ignore args))
-  (with-slots (nodes nodes-fill-pointer initial-size initial-position) quadtree
+  (with-slots (nodes nodes-fill-pointer initial-size initial-position min-node-size) quadtree
     (setf (elt nodes nodes-fill-pointer)
           (make-instance '%quadtree-node
                          :quadtree quadtree
@@ -45,7 +45,12 @@ When the quadtree is iterating no operations should be performed on the nodes or
                          :y (y initial-position)
                          :width (width initial-size)
                          :height (height initial-size)))
-    (incf nodes-fill-pointer)))
+    (incf nodes-fill-pointer)
+    (when (or (< (width initial-size) (width min-node-size))
+              (< (height initial-size) (height min-node-size)))
+      (error "quadtree's initial-size, ~A, cannot be smaller than its min node size, ~A"
+             initial-size
+             min-node-size))))
 
 ;;; quadtree nodes
 (defclass %quadtree-node (obb)
@@ -80,11 +85,11 @@ When the quadtree is iterating no operations should be performed on the nodes or
                                          (height initial-size))))
                             (y initial-position)))
              (new-node (make-instance '%quadtree-node
-                       :quadtree quadtree
-                       :x new-node-x
-                       :y new-node-y
-                       :width (width initial-size)
-                       :height (height initial-size))))
+                                      :quadtree quadtree
+                                      :x new-node-x
+                                      :y new-node-y
+                                      :width (width initial-size)
+                                      :height (height initial-size))))
         (%quadtree-add-new-node quadtree new-node)
         new-node))))
 
@@ -122,29 +127,6 @@ When the quadtree is iterating no operations should be performed on the nodes or
                            (elt nodes (- i 1))))
                  (t ; sorted along x and y axis, stop
                   (return)))))))
-
-(defun %%quadtree-node-object-overlaps-node-p (node object)
-  (declare (optimize (speed 3))
-           (%quadtree-node node)
-           (game-object object))
-  (multiple-value-bind (object-x object-y z object-w object-h)
-      (world-dimensions object)
-    (declare (ignore z)
-             (single-float object-x object-y object-w object-h))
-    (let ((object-max-x (the single-float (+ object-x object-w)))
-          (object-max-y (the single-float (+ object-y object-h))))
-      (with-accessors ((node-x x) (node-y y)
-                       (node-w width) (node-h height))
-          node
-        (declare (single-float node-x node-y node-w node-h))
-        (let ((node-max-x (the single-float (+ node-x node-w)))
-              (node-max-y (the single-float (+ node-y node-h))))
-          (declare (single-float node-max-x node-max-y))
-
-          (and (or (<= node-x object-x node-max-x)
-                   (<= node-x object-max-x node-max-x))
-               (or (<= node-y object-y node-max-y)
-                   (<= node-y object-max-y node-max-y))))))))
 
 (defun %%quadtree-node-has-object-p (node object)
   (%%quadtree-node-index-for-object node object))
@@ -198,9 +180,20 @@ OBJECT may or may not be present in the quadtree."
                (log:error "quadtree node is expected to have a null transform parent: ~A -- ~A"
                           node
                           (parent node)))
-             (when (%%quadtree-node-object-overlaps-node-p node object)
-               (setf found-node-for-object-p t)
-               (funcall function node)))
+
+             (with-accessors ((node-x x) (node-y y)
+                              (node-w width) (node-h height))
+                 node
+               (declare (single-float node-x node-y node-w node-h))
+               (let ((node-max-x (the single-float (+ node-x node-w)))
+                     (node-max-y (the single-float (+ node-y node-h))))
+                 (declare (single-float node-max-x node-max-y))
+                 (when (%%overlaps-boundary-p object
+                                              node-x node-max-x
+                                              node-y node-max-y
+                                              nil nil)
+                   (setf found-node-for-object-p t)
+                   (funcall function node)))))
          :finally
            (unless found-node-for-object-p
              (let ((node (%quadtree-create-new-node-for-object quadtree object)))
@@ -283,7 +276,9 @@ OBJECT may or may not be present in the quadtree."
             (log:debug "Adding object ~A to node ~A" object node)
             ;; (break "Adding object ~A to node ~A" object node)
             (%%quadtree-node-insert-objects-array node object)
-            (add-subscriber object node object-moved))))))
+            (add-subscriber object node object-moved))))
+    ;; return non-nil to indicate the object was added instead of skipped for already existing in node
+    t))
 
 (defun %quadtree-node-remove-object (node object)
   (declare (optimize (speed 3))
@@ -299,6 +294,7 @@ OBJECT may or may not be present in the quadtree."
 
 ;;; update queue utils
 (defun %checkout-update-queue (quadtree)
+  ;; (break "checkout update queue: ~A" quadtree)
   (with-slots (update-queues update-queues-fill-pointer) quadtree
     (when (= (length update-queues) update-queues-fill-pointer)
       (vector-push-extend
@@ -331,40 +327,38 @@ OBJECT may or may not be present in the quadtree."
     (with-slots (update-queues update-queues-fill-pointer) quadtree
       (declare (vector update-queues))
       (setf (elt update-queues (- update-queues-fill-pointer 1)) update-queue)))
-  (loop :for i :from 0 :below fill-pointer :do
-       (when (eq object (elt update-queue i))
-         ;; already in queue
-         (return))
-     :finally
-       (setf (elt update-queue fill-pointer) object)
-       (incf fill-pointer))
+  (if (eq (elt update-queue fill-pointer) object)
+      (incf fill-pointer)
+      (loop :for i :from 0 :below fill-pointer :do
+           (when (eq object (elt update-queue i))
+             ;; already in queue
+             (return))
+         :finally
+           (setf (elt update-queue fill-pointer) object)
+           (incf fill-pointer)))
   ;; return the update queue so callers can re-bind it if we changed the size or added object
   (values update-queue fill-pointer))
 
 ;;; implement spatial-partition
 
 (defevent-callback object-moved ((object game-object) (node %quadtree-node))
-  (unless (%%inside-boundary-p object
+  (unless (%%overlaps-boundary-p object
                                (x node) (+ (x node) (width node))
                                (y node) (+ (y node) (height node))
                                nil nil)
-    (unless (%%overlaps-boundary-p object
-                                   (x node) (+ (x node) (width node))
-                                   (y node) (+ (y node) (height node))
-                                   nil nil)
-      (%quadtree-node-remove-object node object))
-    ;; (break "obj between nodes ~A ~A" object node)
-    ;; object may need to be added to other nodes
-    ;; (break "boundary ~A -- ~A" object node)
+    (%quadtree-node-remove-object node object)
     (start-tracking (slot-value node 'quadtree) object)))
 
 ;; implement spatial partition methods
 (defmethod start-tracking ((quadtree quadtree) (object game-object))
-  (%quadtree-map-nodes-for-object
-   (lambda (node)
-     (%quadtree-node-add-object node object))
-   quadtree
-   object))
+  (let ((already-in-quadtree-p nil))
+    (%quadtree-map-nodes-for-object
+     (lambda (node)
+       (unless (%quadtree-node-add-object node object)
+         (setf already-in-quadtree-p t)))
+     quadtree
+     object)
+    (not already-in-quadtree-p)))
 
 (defmethod stop-tracking ((quadtree quadtree) (object game-object))
   (%quadtree-map-nodes-for-object
@@ -381,9 +375,20 @@ OBJECT may or may not be present in the quadtree."
                   (log:trace "remove pending update for: ~A:~A -> ~A" i j (elt queue j))
                   (setf (elt queue j) nil)))))))
 
-@inline
+(defmethod partition-clear ((quadtree quadtree))
+  (with-slots (nodes nodes-fill-pointer) quadtree
+    (declare ((simple-array (or null %quadtree-node)) nodes)
+             ((integer 0 #.%max-quadtree-nodes) nodes-fill-pointer))
+    (loop :for i :from 0 :below nodes-fill-pointer :do
+         (let ((node (elt nodes i)))
+           (with-slots (objects objects-fill-pointer) node
+             (loop :for j :from 0 :below objects-fill-pointer :do
+                  (remove-subscriber (elt objects j) node object-moved)
+                  (setf (elt objects j) nil))
+             (setf objects-fill-pointer 0))))))
+
 (defun %%overlaps-boundary-p (object min-x max-x min-y max-y min-z max-z)
-  "T if OBJECT overlaps the defined boundary"
+  "T if OBJECT overlaps or is inside the defined boundary"
   (declare (optimize (speed 3))
            (game-object object))
   (multiple-value-bind (x y z w h)
@@ -397,7 +402,6 @@ OBJECT may or may not be present in the quadtree."
          (or (null min-z) (>= z min-z))
          (or (null max-z) (<= z max-z)))))
 
-@inline
 (defun %%inside-boundary-p (object min-x max-x min-y max-y min-z max-z)
   "T if OBJECT fits entirely inside the defined boundary"
   (declare (optimize (speed 3))
@@ -412,13 +416,3 @@ OBJECT may or may not be present in the quadtree."
          (or (null max-y) (and (<= y max-y) (<= (+ y h) max-y)))
          (or (null min-z) (>= z min-z))
          (or (null max-z) (<= z max-z)))))
-
-(defmethod find-spatial-partition (object (quadtree quadtree))
-  (block find-object
-    (%quadtree-map-nodes-for-object
-     (lambda (node)
-       (when (%%quadtree-node-has-object-p node object)
-         (return-from find-object t)))
-     quadtree
-     object)
-    nil))

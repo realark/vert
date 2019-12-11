@@ -39,9 +39,14 @@ On the next render frame, the objects will be given a chance to load and this li
    (update-area :initarg :update-area :initform nil)
    (render-queue :initform (make-instance 'render-queue))
    (removed-objects :initform (make-array 10
-                                          :element-type 'game-object
+                                          :element-type '(or game-object null)
                                           :adjustable t
-                                          :fill-pointer 0))
+                                          :fill-pointer 0
+                                          :initial-element nil))
+   (update-queue :initform (make-array 160
+                                       :element-type '(or null game-object)
+                                       :initial-element nil))
+   (update-queue-fill-pointer :initform 0)
    (spatial-partition :initform nil
                       :reader spatial-partition))
   (:documentation "A game world."))
@@ -50,9 +55,7 @@ On the next render frame, the objects will be given a chance to load and this li
   (declare (ignore args))
   (with-slots (spatial-partition) game-scene
     (setf spatial-partition
-          (make-instance 'quadtree
-                         :initial-size (vector2 (float (width game-scene))
-                                                (float (height game-scene)))))))
+          (make-instance 'quadtree))))
 
 (defmethod load-resources ((game-scene game-scene) renderer)
   (with-accessors ((music scene-music)
@@ -60,7 +63,7 @@ On the next render frame, the objects will be given a chance to load and this li
       game-scene
     (when bg
       (load-resources bg renderer))
-    (do-spatial-partition (game-object (spatial-partition game-scene))
+    (do-spatial-partition (game-object (spatial-partition game-scene) :static-iteration-p t)
       (load-resources game-object renderer))
     (loop :for overlay :across (the (vector overlay) (slot-value game-scene 'scene-overlays)) :do
          (load-resources overlay renderer))
@@ -71,8 +74,8 @@ On the next render frame, the objects will be given a chance to load and this li
           (play-music *audio* music :num-plays -1)))))
 
 (defmethod release-resources ((game-scene game-scene))
-  (do-spatial-partition (game-object (spatial-partition game-scene))
-    (remove-from-scene game-scene game-object))
+  (do-spatial-partition (game-object (spatial-partition game-scene) :static-iteration-p t)
+    (release-resources game-object))
   (when (scene-background game-scene)
     (release-resources (scene-background game-scene)))
   (loop :for overlay :across (the (vector overlay) (slot-value game-scene 'scene-overlays)) :do
@@ -92,9 +95,8 @@ On the next render frame, the objects will be given a chance to load and this li
         (vector-push-extend overlay scene-overlays)
         (push overlay (unloaded-game-objects scene)))))
   (:method ((scene game-scene) (object game-object))
-    (unless (find-spatial-partition object (spatial-partition scene))
+    (when (start-tracking (spatial-partition scene) object)
       (add-subscriber object scene killed)
-      (start-tracking (spatial-partition scene) object)
       (push object (unloaded-game-objects scene)))))
 
 @export
@@ -133,12 +135,17 @@ On the next render frame, the objects will be given a chance to load and this li
            (ignore null))
   (with-slots (update-area
                (queue render-queue)
+               update-queue
+               update-queue-fill-pointer
                (bg scene-background)
                scene-overlays
                removed-objects
                camera)
       game-scene
-    (setf (fill-pointer removed-objects) 0)
+    (declare ((simple-array (or null game-object)) update-queue)
+             ((integer 0 100000) update-queue-fill-pointer))
+    (setf (fill-pointer removed-objects) 0
+          update-queue-fill-pointer 0)
     (let* ((x-min (when update-area (active-area-min-x update-area)))
            (x-max (when update-area (active-area-max-x update-area)))
            (y-min (when update-area (active-area-min-y update-area)))
@@ -150,8 +157,11 @@ On the next render frame, the objects will be given a chance to load and this li
         ;; pre-update frame to mark positions
         (pre-update (camera game-scene))
         (when bg (pre-update bg))
+        #+nil
         (do-spatial-partition (game-object
                                (spatial-partition game-scene)
+                               :static-iteration-p t
+                               :skip-static-objects-p t
                                :min-x x-min :max-x x-max
                                :min-y y-min :max-y y-max)
           (when (not (typep game-object 'static-object))
@@ -182,21 +192,31 @@ On the next render frame, the objects will be given a chance to load and this li
                               (and (<= y render-y-min)
                                    (>= (+ y h) render-y-max)))))))
             (declare (inline in-render-area-p))
-            (let ((previous nil))
-              (do-spatial-partition (game-object
-                                     (spatial-partition game-scene)
-                                     :min-x x-min :max-x x-max
-                                     :min-y y-min :max-y y-max)
-                (when (eq previous game-object)
-                  (log:warn "object visited twice ~A" previous))
-                (setf previous game-object)
-
-                (when (not (typep game-object 'static-object))
-                  (found-object-to-update game-scene game-object)
-                  (update game-object delta-t-ms game-scene))
-                (when (and (in-render-area-p game-object)
-                           (not (%object-was-removed-p game-scene game-object)))
-                  (render-queue-add queue game-object))))))
+            (do-spatial-partition (game-object
+                                   (spatial-partition game-scene)
+                                   :static-iteration-p t
+                                   :min-x x-min :max-x x-max
+                                   :min-y y-min :max-y y-max)
+              (when (and (not (typep game-object 'static-object))
+                         (not (block already-in-queue-p
+                                (loop :for i :from 0 :below update-queue-fill-pointer :do
+                                     (when (eq game-object (elt update-queue i))
+                                       (return t))))))
+                (when (= update-queue-fill-pointer (length update-queue))
+                  (log:info "Doubling update queue size: ~A -> ~A"
+                            update-queue-fill-pointer
+                            (* 2 update-queue-fill-pointer))
+                  (setf update-queue (simple-array-double-size update-queue)))
+                (setf (elt update-queue update-queue-fill-pointer) game-object)
+                (incf update-queue-fill-pointer)
+                (pre-update game-object))
+              (when (and (in-render-area-p game-object)
+                         (not (%object-was-removed-p game-scene game-object)))
+                (render-queue-add queue game-object)))))
+        (loop :for i :from 0 :below update-queue-fill-pointer :do
+             (let ((game-object (elt update-queue i)))
+               (found-object-to-update game-scene game-object)
+               (update game-object delta-t-ms game-scene)))
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (update overlay delta-t-ms game-scene)
              (render-queue-add queue overlay))
@@ -268,6 +288,6 @@ On the next render frame, the objects will be given a chance to load and this li
   "Return the (presumably) unique game-object identified by ID in SCENE."
   (declare (game-scene scene))
   (block find-object
-    (do-spatial-partition (game-object (spatial-partition scene))
+    (do-spatial-partition (game-object (spatial-partition scene) :static-iteration-p t)
       (when (equalp (object-id game-object) id)
         (return-from find-object game-object)))))
