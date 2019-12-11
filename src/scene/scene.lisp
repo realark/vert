@@ -2,7 +2,7 @@
 
 (in-package :recurse.vert)
 
-(defclass scene ()
+(defclass scene (event-publisher)
   ((camera :initarg :camera
            :initform (make-instance 'camera
                                     :width 100

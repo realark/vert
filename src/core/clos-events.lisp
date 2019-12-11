@@ -7,30 +7,50 @@
 
 ;; lazy initialize event map
 (defmethod slot-unbound (class (object event-publisher) (slot-name (eql 'event-subscribers)))
-  (setf (slot-value object 'event-subscribers) (make-hash-table)))
+  (setf (slot-value object 'event-subscribers) (make-hash-table :test #'eq)))
 
 (defmacro add-subscriber (publisher subscriber &rest event-names)
   "Notify SUBSCRIBER of PUBLISHER's events specified by EVENT-NAMES."
   (assert (every #'symbolp event-names))
   (alexandria:once-only (publisher subscriber)
     `(with-slots (event-subscribers) ,publisher
-       (loop for event-name in ',event-names do
+       (loop :for event-name :across #(,@event-names) :do
             (let ((sub-list (gethash event-name event-subscribers)))
               (unless sub-list
                 (setf sub-list (make-array 5
-                                           :adjustable T
-                                           :fill-pointer 0)
+                                           :element-type '(or null event-publisher)
+                                           :initial-element nil)
                       (gethash event-name event-subscribers) sub-list))
-              (unless (find ,subscriber (the vector sub-list) :test #'eq)
-                (vector-push-extend ,subscriber sub-list)))))))
+              (let ((first-null-index nil))
+                (declare ((simple-array) sub-list))
+                (loop :for i :from 0 :below (length sub-list) :do
+                     (let ((sub (elt sub-list i)))
+                       (cond ((null sub)
+                              (unless first-null-index
+                                (setf first-null-index i)))
+                             ((eq sub ,subscriber)
+                              ;; already in sub list. Stop.
+                              (return))))
+                   :finally
+                   ;; not found in sub list
+                     (unless first-null-index
+                       ;; resize list if no empty spaces
+                       (setf first-null-index (length sub-list)
+                             sub-list (simple-array-double-size sub-list)))
+                     (setf (elt sub-list first-null-index) ,subscriber))))))))
 
 (defmacro remove-subscriber (publisher subscriber &rest event-names)
-  "Stop notifying SUBSCRIBER of PUBLISHER's events.
-If no EVENT-NAMES are passed, SUBSCRIBER is removed from all of PUBLISHER's events."
+  "Stop notifying SUBSCRIBER of PUBLISHER's events."
+  (assert (every #'symbolp event-names))
   `(with-slots (event-subscribers) ,publisher
-     (loop for event-name in ',event-names do
-          (setf (gethash event-name event-subscribers)
-                (delete ,subscriber (gethash event-name event-subscribers))))))
+     (loop :for event-name :across #(,@event-names) :do
+          (let ((sub-list (gethash event-name event-subscribers)))
+            (when sub-list
+              (locally (declare ((simple-array) sub-list))
+                (loop :for i :from 0 :below (length sub-list) :do
+                     (when (eq ,subscriber (elt sub-list i))
+                       (setf (elt sub-list i) nil)
+                       (return)))))))))
 
 (defun %event-callback-name (event-name)
   (merge-symbols (symbol-package event-name) 'event-callback- event-name))
@@ -65,12 +85,18 @@ If no EVENT-NAMES are passed, SUBSCRIBER is removed from all of PUBLISHER's even
        (defgeneric ,callback-name (publisher subscriber ,@event-args-names)
          (:documentation ,(format nil "(clos-event callback) ~A" doc-string)))
        (defmethod ,event-name (,publisher ,@event-args)
+         (declare (optimize (speed 3)))
          ,@body)
        (defmethod ,event-name :after ((publisher event-publisher) ,@event-args)
-                  (loop :for sub :across (gethash ',event-name
-                                                  (slot-value publisher 'event-subscribers)
-                                                  #())
-                     :do (,callback-name publisher sub ,@event-args-names)))
+                  (declare (optimize (speed 3)))
+                  (loop :for sub :across
+                       (the (simple-array (or null event-publisher))
+                            (gethash ',event-name
+                                     (slot-value publisher 'event-subscribers)
+                                     #()))
+                     :do
+                       (when sub
+                         (,callback-name publisher sub ,@event-args-names))))
        (defmethod ,callback-name (publisher listener ,@event-args)
          (declare (optimize (speed 3)))
          (values)))))
