@@ -2,6 +2,7 @@
 
 (deftest partition-iteration
   (let ((partition (make-instance 'quadtree
+                                  :min-node-size (vector2 1.0 1.0)
                                   :initial-size (vector2 100.0 100.0)))
         (obj-hash (make-hash-table :test #'eq))
         (num-objects 100))
@@ -47,6 +48,7 @@
 
 (deftest quadtree-track-z-changes
   (let ((partition (make-instance 'recurse.vert::quadtree
+                                  :min-node-size (vector2 1.0 1.0)
                                   :initial-size (vector2 100.0 100.0)))
         (test-object (make-instance 'obb
                                     :x 10

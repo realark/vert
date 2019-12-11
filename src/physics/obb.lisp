@@ -24,13 +24,19 @@
            (obb obb))
   (with-slots (local-points) obb
     (with-accessors ((w width) (h height)) obb
-      (setf local-points (make-array
-                          4
-                          :element-type 'vector3
-                          :initial-contents (list (vector3 0.0 0.0 0.0)
-                                                  (vector3 w 0.0 0.0)
-                                                  (vector3 w h 0.0)
-                                                  (vector3 0.0 h 0.0)))))))
+      (if local-points
+          (locally (declare ((simple-array vector3) local-points))
+            (setf (x (elt local-points 1)) w
+                  (x (elt local-points 2)) w
+                  (y (elt local-points 2)) h
+                  (y (elt local-points 3)) h))
+        (setf local-points (make-array
+                            4
+                            :element-type 'vector3
+                            :initial-contents (list (vector3 0.0 0.0 0.0)
+                                                    (vector3 w 0.0 0.0)
+                                                    (vector3 w h 0.0)
+                                                    (vector3 0.0 h 0.0))))))))
 
 (defgeneric local-points (obb)
   (:documentation "Return a vector containing the four corners of the Bounding Box.
@@ -45,16 +51,24 @@
 (defmethod width ((obb obb))
   (width (slot-value obb 'local-dimensions)))
 (defmethod (setf width) (value (obb obb))
-  (prog1 (setf (width (slot-value obb 'local-dimensions)) (coerce value 'single-float))
-    (%set-local-points obb)
-    (%mark-dirty obb)))
+  (unless (eq value (width (slot-value obb 'local-dimensions)))
+    (let ((float-value  (coerce value 'single-float))
+          (current-value (width (slot-value obb 'local-dimensions))))
+      (unless (float= float-value current-value)
+        (prog1 (setf (width (slot-value obb 'local-dimensions)) float-value)
+          (%set-local-points obb)
+          (%mark-dirty obb))))))
 
 (defmethod height ((obb obb))
   (height (slot-value obb 'local-dimensions)))
 (defmethod (setf height) (value (obb obb))
-  (prog1 (setf (height (slot-value obb 'local-dimensions)) (coerce value 'single-float))
-    (%set-local-points obb)
-    (%mark-dirty obb)))
+  (unless (eq value (height (slot-value obb 'local-dimensions)))
+    (let ((float-value  (coerce value 'single-float))
+          (current-value (height (slot-value obb 'local-dimensions))))
+      (unless (float= float-value current-value)
+        (prog1 (setf (height (slot-value obb 'local-dimensions)) float-value)
+          (%set-local-points obb)
+          (%mark-dirty obb))))))
 
 ;; TODO: could optimize further by only computing world points when the transform is dirtied
 (defun world-points (obb)
