@@ -108,7 +108,9 @@
           (:on-collision stationary-object
                          (linear-resolution object
                                             stationary-object
-                                            :original-position original-position))))))
+                                            :original-position original-position)))
+        (setf x (round x)
+              y (round y)))))
   (unless (= 0.0
              (the vector-dimension (velocity-x object))
              (the vector-dimension (velocity-y object))
