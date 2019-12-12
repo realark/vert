@@ -184,77 +184,80 @@
 
 (defun sdl-joystick-movement (controller-id axis-id value)
   ;; TODO: properly handle analog input in the input system instead of mocking dpad
+  (log:trace "sdl joystick input: ~A:~A -> ~A" controller-id axis-id value)
   (flet ((set-mock-button (controller-id axis-id button-keyword)
-           (setf
-            (getcache
-             axis-id
-             (getcache-default controller-id
-                               %mock-button-state%
-                               (make-instance 'cache :test #'equalp)))
-            button-keyword))
+           (setf (getcache axis-id
+                           (getcache-default controller-id
+                                             %mock-button-state%
+                                             (make-instance 'cache :test #'equalp)))
+                 button-keyword))
          (get-mock-button (controller-id axis-id)
-            (getcache
-             axis-id
-             (getcache-default controller-id
-                               %mock-button-state%
-                               (make-instance 'cache :test #'equalp)))))
-    (let ((dead-zone 8000))
+           (getcache axis-id
+                     (getcache-default controller-id
+                                       %mock-button-state%
+                                       (make-instance 'cache :test #'equalp)))))
+    (let ((dead-zone 8000)
+          (current-button (get-mock-button controller-id axis-id)))
       (cond ((= 0 axis-id)
-             (cond ((> value dead-zone)
-                    ;; right
-                    (unless (eq :14 (get-mock-button controller-id axis-id))
-                      (set-mock-button controller-id axis-id :14)
-                      (activate-input (gethash controller-id (slot-value *engine-manager*
-                                                                         'sdl-to-vert-controllers))
-                                      :14)))
-                   ((< value (- dead-zone))
-                    ;; left
-                    (unless (eq :13 (get-mock-button controller-id axis-id))
-                      (set-mock-button controller-id axis-id :13)
-                      (activate-input (gethash controller-id (slot-value *engine-manager*
-                                                                         'sdl-to-vert-controllers))
-                                      :13)))
-                   (T
-                    ;; stop right
-                    (when (eq :14 (get-mock-button controller-id axis-id))
-                      (set-mock-button controller-id axis-id nil)
+             (cond ((and (> value dead-zone) (not (eq :14 current-button)))
+                    (log:trace "-- mock right button press")
+                    (when current-button
                       (deactivate-input (gethash controller-id (slot-value *engine-manager*
                                                                            'sdl-to-vert-controllers))
-                                        :14))
-                    ;; stop left
-                    (when (eq :13 (get-mock-button controller-id axis-id))
-                      (set-mock-button controller-id axis-id nil)
+                                        current-button))
+                    (set-mock-button controller-id axis-id :14)
+                    (activate-input (gethash controller-id (slot-value *engine-manager*
+                                                                       'sdl-to-vert-controllers))
+                                    :14))
+                   ((and (<= value dead-zone) (eq :14 (get-mock-button controller-id axis-id)))
+                    (log:trace "-- mock deactivate right")
+                    (set-mock-button controller-id axis-id nil)
+                    (deactivate-input (gethash controller-id (slot-value *engine-manager*
+                                                                         'sdl-to-vert-controllers))
+                                      :14))
+                   ((and (< value (- dead-zone)) (not (eq :13 current-button)))
+                    (log:trace "-- mock left button press")
+                    (when current-button
                       (deactivate-input (gethash controller-id (slot-value *engine-manager*
                                                                            'sdl-to-vert-controllers))
-                                        :13)))))
+                                        current-button))
+                    (set-mock-button controller-id axis-id :13)
+                    (activate-input (gethash controller-id (slot-value *engine-manager*
+                                                                       'sdl-to-vert-controllers))
+                                    :13))
+                   ((and (>= value (- dead-zone)) (eq :13 (get-mock-button controller-id axis-id)))
+                    (log:trace "-- mock deactivate left")
+                    (set-mock-button controller-id axis-id nil)
+                    (deactivate-input (gethash controller-id (slot-value *engine-manager*
+                                                                         'sdl-to-vert-controllers))
+                                      :13))))
             ((= 1 axis-id)
-             (cond ((> value dead-zone)
-                    ;; down
-                    (unless (eq :12 (get-mock-button controller-id axis-id))
-                      (set-mock-button controller-id axis-id :12)
-                      (activate-input (gethash controller-id (slot-value *engine-manager*
+             (cond ((and (> value dead-zone) (not (eq :12 current-button)))
+                    (log:trace "-- mock down button press")
+                    (set-mock-button controller-id axis-id :12)
+                    (activate-input (gethash controller-id (slot-value *engine-manager*
+                                                                       'sdl-to-vert-controllers))
+                                    :12))
+                   ((and (<= value dead-zone) (eq :12 current-button))
+                    (log:trace "-- mock deactivate down")
+                    (set-mock-button controller-id axis-id nil)
+                    (deactivate-input (gethash controller-id (slot-value *engine-manager*
                                                                          'sdl-to-vert-controllers))
-                                      :12)))
+                                      :12))
                    ((< value (- dead-zone))
                     ;; up
                     (unless (eq :11 (get-mock-button controller-id axis-id))
+                      (log:trace "-- mock up button press")
                       (set-mock-button controller-id axis-id :11)
                       (activate-input (gethash controller-id (slot-value *engine-manager*
                                                                          'sdl-to-vert-controllers))
                                       :11)))
-                   (T
-                    ;; stop up
-                    (when (eq :11 (get-mock-button controller-id axis-id))
-                      (set-mock-button controller-id axis-id nil)
-                      (deactivate-input (gethash controller-id (slot-value *engine-manager*
-                                                                           'sdl-to-vert-controllers))
-                                        :11))
-                    ;; stop down
-                    (when (eq :12 (get-mock-button controller-id axis-id))
-                      (set-mock-button controller-id axis-id nil)
-                      (deactivate-input (gethash controller-id (slot-value *engine-manager*
-                                                                           'sdl-to-vert-controllers))
-                                        :12)))))))))
+                   ((and (>= value (- dead-zone)) (eq :11 current-button))
+                    (log:trace "-- mock deactivate up")
+                    (set-mock-button controller-id axis-id nil)
+                    (deactivate-input (gethash controller-id (slot-value *engine-manager*
+                                                                         'sdl-to-vert-controllers))
+                                      :11))))))))
 
 (defun initialize-sdl-controller (engine-manager device-index)
   ;; TODO: Send event to input users
