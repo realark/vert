@@ -73,73 +73,63 @@
 (defmotion linear-motion ((object kinematic-object) delta-t-ms (physics-context physics-context-2d))
   (declare (optimize (speed 3))
            ((integer 1 100) delta-t-ms))
-  (let ((original-position (vector3 0.0 0.0 0.0)))
-    (declare (dynamic-extent original-position))
-    (with-accessors ((v-x velocity-x) (v-y velocity-y)
-                     (a-x acceleration-x) (a-y acceleration-y))
-        object
-      (declare (vector-dimension v-x v-y a-x a-y))
-      (when (and (/= 0f0 v-x)
-                 (= 0f0 a-x)
-                 (< 0f0 (abs v-x) *movement-threshold*))
-        (setf v-x 0f0))
-      (when (and (/= 0f0 v-y)
-                 (= 0f0 a-y)
-                 (< 0f0 (abs v-y) *movement-threshold*))
-        (setf v-y 0f0)))
-    ;; update position
-    (unless (= 0.0
-               (the vector-dimension (velocity-x object))
-               (the vector-dimension (velocity-y object)))
-      (with-accessors ((x x) (y y) (z z)
-                       (v-x velocity-x) (v-y velocity-y))
-          object
-        (declare (world-position x y z)
-                 (vector-dimension v-x v-y))
-        (setf (x original-position) x
-              (y original-position) y
-              (z original-position) z)
-        (with-collision-check (object physics-context)
-          (:position-update
-           (log:trace "moving (~A,~A) -> ~A" v-x v-y object)
-           ;; for some reason, the compiler complains if I use incf
-           (setf x (+ x (* v-x delta-t-ms)))
-           (setf y (+ y (* v-y delta-t-ms))))
-          (:on-collision stationary-object
-                         (linear-resolution object
-                                            stationary-object
-                                            :original-position original-position)))
-        (setf x (round x)
-              y (round y)))))
-  (unless (= 0.0
-             (the vector-dimension (velocity-x object))
-             (the vector-dimension (velocity-y object))
-             (the vector-dimension (acceleration-x object))
-             (the vector-dimension (acceleration-y object)))
-    (with-accessors ((v-x velocity-x) (v-y velocity-y)
-                     (a-x acceleration-x) (a-y acceleration-y))
-        object
-      (declare (vector-dimension v-x v-y a-x a-y))
+  (flet ((cap (max-magnitude x)
+           (declare (single-float x)
+                    ((or null vector-dimension) max-magnitude))
+           (if max-magnitude
+               (if (<= 0 x)
+                   (min x max-magnitude)
+                   (max x (- max-magnitude)))
+               x)))
+    (declare (inline cap))
+    (let ((original-position (vector3 0.0 0.0 0.0)))
+      (declare (dynamic-extent original-position))
       (with-accessors ((max-v-x max-velocity-x) (max-v-y max-velocity-y)
                        (friction-x friction-x) (drag-y drag-y))
           physics-context
         (declare ((single-float 0.0 1.0) friction-x drag-y))
-        (flet ((cap (max-magnitude x)
-                 (declare (single-float x))
-                 (if max-magnitude
-                     (locally (declare (type vector-dimension max-magnitude))
-                       (if (<= 0 x)
-                           (min x max-magnitude)
-                           (max x (- max-magnitude))))
-                     x)))
-          (setf
-           ;; update velocity
-           v-x (cap max-v-x (+ ;; friction applied to previous x velocity
-                             (* (expt friction-x delta-t-ms) v-x)
-                             (* a-x delta-t-ms)))
-           v-y (cap max-v-y (+ (* (expt drag-y delta-t-ms) v-y)
-                               (* a-y delta-t-ms)))
-           ;; update acceleration
-           a-x 0.0
-           a-y 0.0)))))
+        (with-accessors ((x x) (y y) (z z)
+                         (v-x velocity-x) (v-y velocity-y)
+                         (a-x acceleration-x) (a-y acceleration-y))
+            object
+          (declare (world-position x y z)
+                   (vector-dimension v-x v-y a-x a-y))
+          (block zero-out-velocity
+            (when (and (/= 0f0 v-x)
+                   (= 0f0 a-x)
+                   (< 0f0 (abs v-x) *movement-threshold*))
+              (setf v-x 0f0))
+            (when (and (/= 0f0 v-y)
+                   (= 0f0 a-y)
+                   (< 0f0 (abs v-y) *movement-threshold*))
+              (setf v-y 0f0)))
+          (block update-position
+            (unless (= 0.0 v-x v-y)
+              (setf (x original-position) x
+                    (y original-position) y
+                    (z original-position) z)
+              (with-collision-check (object physics-context)
+                (:position-update
+                 (log:trace "moving (~A,~A) -> ~A" v-x v-y object)
+                 ;; for some reason, the compiler complains if I use incf
+                 (setf x (+ x (* v-x delta-t-ms)))
+                 (setf y (+ y (* v-y delta-t-ms))))
+                (:on-collision stationary-object
+                               (linear-resolution object
+                                                  stationary-object
+                                                  :original-position original-position)))
+              ;; apply friction and drag
+              (setf v-x (* (expt friction-x delta-t-ms) v-x)
+                    v-y (* (expt drag-y delta-t-ms) v-y)
+                    x (round x)
+                    y (round y))))
+          (block update-velocity-and-acceleration
+            (unless (= 0.0 v-x v-y a-x a-y)
+              (setf
+               ;; update velocity
+               v-x (cap max-v-x (+ v-x (* a-x delta-t-ms)))
+               v-y (cap max-v-y (+ v-y (* a-y delta-t-ms)))
+               ;; update acceleration
+               a-x 0.0
+               a-y 0.0)))))))
   (values))
