@@ -157,15 +157,6 @@ On the next render frame, the objects will be given a chance to load and this li
         ;; pre-update frame to mark positions
         (pre-update (camera game-scene))
         (when bg (pre-update bg))
-        #+nil
-        (do-spatial-partition (game-object
-                               (spatial-partition game-scene)
-                               :static-iteration-p t
-                               :skip-static-objects-p t
-                               :min-x x-min :max-x x-max
-                               :min-y y-min :max-y y-max)
-          (when (not (typep game-object 'static-object))
-            (pre-update game-object)))
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (pre-update overlay))
         ;; run scheduler

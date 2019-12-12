@@ -71,21 +71,67 @@
                   input
                   :deactivated))
 
+(let ((vec (make-array 8
+                       :element-type 'keyword
+                       :adjustable t
+                       :fill-pointer 0
+                       :initial-element :no-input)))
+  (defun %remove-duplicate-commands (input-handler input-device input-vector)
+    "Return a new vector which is identical to INPUT-VECTOR except all duplicate input commands which cause the same action will be removed (as defined by INPUT-HANDLER).
+For example, if the handler allows for keyboard :scancode-right and :scancode-d to move the player right, remove the second duplicate input when both are pressed.
+The returned vector will be re-used by subsequent calls so callers must not hold a reference to it."
+    (setf (fill-pointer vec) 0)
+    (let* ((input-map (or (slot-value input-handler 'input-command-map)
+                          (%default-input-command-map input-handler)))
+           (input-plist (gethash (input-device-type input-device) input-map)))
+      (loop :for i :from 0 :below (length input-vector) :do
+           (let* ((input (elt input-vector i))
+                  (command (and input-plist (getf input-plist input)))
+                  (duplicate-command-p
+                   (when command (loop :for j :from (- i 1) :downto 0 :do
+                                      (when (eq command (getf input-plist (elt input-vector j)))
+                                        (return t))))))
+             (cond ((null command)
+                    (log:debug "~A : ignoring input with no command mapping: ~A"
+                               input-handler
+                               (elt input-vector i)))
+                   (duplicate-command-p
+                    (log:debug "~A : ignoring input with no duplicate command: ~A -> ~A"
+                               input-handler input command))
+                   (t (vector-push-extend input vec))))))
+    vec))
+
 (defmethod update-input ((input-handler input-handler) delta-t-ms input-context)
   (when (active-input-device input-handler)
     ;; TODO: instead of `scene-input` make a generic getter (separate from the concept of scenes)
-    (loop for input-device across (scene-input input-context) do
+    (loop :for input-device :across (scene-input input-context) :do
          (when (or (eql *all-input-id* (active-input-device input-handler))
                    (eql (active-input-device input-handler) (device-id input-device)))
-           (loop :for input :across (get-activated-inputs input-device) :do
-                (with-slots (last-input-device) input-handler
-                  (unless (eq input-device last-input-device)
-                    (setf last-input-device input-device)))
-                (%handle-activated-input input-handler input-device input))
-           (loop :for input :across (get-active-inputs input-device) :do
-                (%handle-active-input input-handler input-device input))
-           (loop :for input :across (get-deactivated-inputs input-device) :do
-                (%handle-deactivated-input input-handler input-device input))))))
+           (let ((device-sending-input-p nil))
+             (loop :for input :across (%remove-duplicate-commands
+                                       input-handler
+                                       input-device
+                                       (get-activated-inputs input-device)) :do
+                  (setf device-sending-input-p t)
+                  (with-slots (last-input-device) input-handler
+                    (unless (eq input-device last-input-device)
+                      (setf last-input-device input-device)))
+                  (%handle-activated-input input-handler input-device input))
+             (loop :for input :across (%remove-duplicate-commands
+                                       input-handler
+                                       input-device
+                                       (get-active-inputs input-device)) :do
+                  (setf device-sending-input-p t)
+                  (%handle-active-input input-handler input-device input))
+             (loop :for input :across (%remove-duplicate-commands
+                                       input-handler
+                                       input-device
+                                       (get-deactivated-inputs input-device)) :do
+                  (setf device-sending-input-p t)
+                  (%handle-deactivated-input input-handler input-device input))
+             (when device-sending-input-p
+               ;; process input from the first configured device that is sending input
+               (return)))))))
 
 (defmacro set-default-input-command-map (classname &rest input-mappings)
   "Set the default input-command map for CLASSNAME."
