@@ -189,40 +189,41 @@
                       :initarg :target-max-offset
                       :reader target-max-offset
                       :documentation "Allow the target to move within a box of this slot's length before moving the camera.")
-   (target-center-x :initform 0
-                    :accessor target-center-x
-                    :documentation "X center of the screen based on the target")
-   (target-center-y :initform 0
-                    :accessor target-center-y
-                    :documentation "Y center of the screen based on the target"))
+   (destination :initform (vector2)
+                :documentation "The XY destination the camera is moving towards"))
   (:documentation "A camera which will track a given target"))
 
 (defmethod initialize-instance :after ((camera target-tracking-camera) &rest args)
   (declare (ignore args))
+  (with-slots (destination) camera
+    (setf (x destination) (x camera)
+          (y destination) (y camera)))
   (with-accessors ((target target)) camera
     (when target
       (let ((old-target target))
         (setf target nil)
         (setf target old-target)))))
 
-(defmethod (setf target) :before (new-target (camera target-tracking-camera))
-  (unless (eq new-target (target camera))
-    (when new-target
-      (setf (target-center-x camera) (+ (x new-target) (/ (width new-target) 2)))
-      (setf (target-center-y camera) (+ (y new-target) (/ (height new-target) 2)))
-      (add-subscriber new-target camera object-moved))
-    (when (target camera)
-      (remove-subscriber (target camera) camera object-moved))))
-
 (flet ((camera-track-target (camera)
          ;; Center the camera around its target.
+         (with-slots (target destination) camera
+           (when target
+             (setf (x destination) (- (+ (x target) (/ (width target) 2.0))
+                                      (/ (width camera) 2.0))
+                   (y destination) (- (+ (y target) (/ (height target) 2.0))
+                                      (/ (height camera) 2.0)))
+             #+nil
+             (setf (x camera) (x destination)
+                   (y camera) (y destination))))
+         #+nil
          (with-accessors ((camera-width width) (camera-height height)
                           (center-x target-center-x) (center-y target-center-y)
-                          (max-offset target-max-offset)
+                                        ; (max-offset target-max-offset)
                           (target target))
              camera
            (when target
              (let ((target-x (x target))
+                   (max-offset 0) ; FIXME
                    (target-y (y target)))
                (when (<= center-y (- target-y max-offset))
                  (setf center-y (- target-y max-offset)))
@@ -235,9 +236,7 @@
              (let* ((new-camera-x (- center-x
                                      (/ camera-width 2)))
                     (new-camera-y (- center-y
-                                     (/ camera-height 2)))
-                    (delta-x (abs (- (x camera) new-camera-x)))
-                    (delta-y (abs (- (y camera) new-camera-y))))
+                                     (/ camera-height 2))))
                (setf (x camera) new-camera-x
                      (y camera) new-camera-y))))))
 
@@ -259,9 +258,31 @@
   (defmethod (setf zoom) :after (value (camera target-tracking-camera))
              (camera-track-target camera))
 
+  (defmethod (setf target) :before (new-target (camera target-tracking-camera))
+             (unless (eq new-target (target camera))
+               (when new-target
+                 (add-subscriber new-target camera object-moved)
+                 (camera-track-target camera))
+               (when (target camera)
+                 (remove-subscriber (target camera) camera object-moved))))
+
   (defevent-callback object-moved ((object game-object) (camera target-tracking-camera))
     (when (eq object (target camera))
       (camera-track-target camera))))
+
+(defmethod update ((camera target-tracking-camera) delta-t-ms world-context)
+  (declare (optimize (speed 3)))
+  (flet ((camera-lerp (a b time)
+           (declare (single-float a b time))
+           (+ a
+              (* (- b a)
+                 time))))
+    (declare (inline camera-lerp))
+    (with-slots (destination) camera
+      (let ((time 0.1))
+        (setf (x camera) (camera-lerp (x camera) (x destination) time)
+              (y camera) (camera-lerp (y camera) (y destination) time)))))
+  (call-next-method camera delta-t-ms world-context))
 
 ;;;; default camera
 

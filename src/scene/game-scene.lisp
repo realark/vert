@@ -152,18 +152,17 @@ On the next render frame, the objects will be given a chance to load and this li
            (y-max (when update-area (active-area-max-y update-area))))
       (declare ((or null single-float) x-min x-max y-min y-max))
       (with-slots ((bg scene-background) scene-overlays) game-scene
-        ;; reset rendering queue
         (render-queue-reset queue)
         ;; pre-update frame to mark positions
         (pre-update (camera game-scene))
-        (when bg (pre-update bg))
+        (when bg
+          (pre-update bg)
+          (render-queue-add queue bg))
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (pre-update overlay))
         ;; run scheduler
         (%run-scheduled-callbacks game-scene)
         ;; update frame
-        (when bg
-          (render-queue-add queue bg))
         (let* ((render-delta 16.0) ; TODO this value could be smaller
                (render-x-min (- (x camera) render-delta))
                (render-x-max (+ (x camera) (width camera) render-delta))
@@ -204,16 +203,16 @@ On the next render frame, the objects will be given a chance to load and this li
               (when (and (in-render-area-p game-object)
                          (not (%object-was-removed-p game-scene game-object)))
                 (render-queue-add queue game-object)))))
+        (update (camera game-scene) delta-t-ms game-scene)
+        (loop :for overlay :across (the (vector overlay) scene-overlays) :do
+             (update overlay delta-t-ms game-scene)
+             (render-queue-add queue overlay))
+        (when bg
+          (update bg delta-t-ms game-scene))
         (loop :for i :from 0 :below update-queue-fill-pointer :do
              (let ((game-object (elt update-queue i)))
                (found-object-to-update game-scene game-object)
                (update game-object delta-t-ms game-scene)))
-        (loop :for overlay :across (the (vector overlay) scene-overlays) :do
-             (update overlay delta-t-ms game-scene)
-             (render-queue-add queue overlay))
-        (update (camera game-scene) delta-t-ms game-scene)
-        (when bg
-          (update bg delta-t-ms game-scene))
         (incf (slot-value game-scene 'scene-ticks) delta-t-ms)
         (values)))))
 
