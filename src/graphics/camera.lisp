@@ -190,7 +190,10 @@
                       :reader target-max-offset
                       :documentation "Allow the target to move within a box of this slot's length before moving the camera.")
    (destination :initform (vector2)
-                :documentation "The XY destination the camera is moving towards"))
+                :documentation "The XY destination the camera is moving towards")
+   (offset :initform (vector2)
+           :documentation "Offset to move the camera from the center of camera target.
+Used to favor areas of the screen where the upcoming action will be."))
   (:documentation "A camera which will track a given target"))
 
 (defmethod initialize-instance :after ((camera target-tracking-camera) &rest args)
@@ -206,39 +209,14 @@
 
 (flet ((camera-track-target (camera)
          ;; Center the camera around its target.
-         (with-slots (target destination) camera
+         (with-slots (target destination offset) camera
            (when target
-             (setf (x destination) (- (+ (x target) (/ (width target) 2.0))
-                                      (/ (width camera) 2.0))
-                   (y destination) (- (+ (y target) (/ (height target) 2.0))
-                                      (/ (height camera) 2.0)))
-             #+nil
-             (setf (x camera) (x destination)
-                   (y camera) (y destination))))
-         #+nil
-         (with-accessors ((camera-width width) (camera-height height)
-                          (center-x target-center-x) (center-y target-center-y)
-                                        ; (max-offset target-max-offset)
-                          (target target))
-             camera
-           (when target
-             (let ((target-x (x target))
-                   (max-offset 0) ; FIXME
-                   (target-y (y target)))
-               (when (<= center-y (- target-y max-offset))
-                 (setf center-y (- target-y max-offset)))
-               (when (>= center-y (+ target-y max-offset))
-                 (setf center-y (+ target-y max-offset)))
-               (when (<= center-x (- target-x max-offset))
-                 (setf center-x (- target-x max-offset)))
-               (when (>= center-x (+ target-x max-offset))
-                 (setf center-x (+ target-x max-offset))))
-             (let* ((new-camera-x (- center-x
-                                     (/ camera-width 2)))
-                    (new-camera-y (- center-y
-                                     (/ camera-height 2))))
-               (setf (x camera) new-camera-x
-                     (y camera) new-camera-y))))))
+             (setf (x destination) (+ (- (+ (x target) (/ (width target) 2.0))
+                                         (/ (width camera) 2.0))
+                                      (x offset))
+                   (y destination) (+ (- (+ (y target) (/ (height target) 2.0))
+                                         (/ (height camera) 2.0))
+                                      (y offset)))))))
 
   (defmethod (setf target) :after (new-target (camera target-tracking-camera))
              (camera-track-target camera))
@@ -266,13 +244,30 @@
                (when (target camera)
                  (remove-subscriber (target camera) camera object-moved))))
 
+  @export
+  (defmethod camera-get-offset ((camera target-tracking-camera))
+    "Get the XY center offset for CAMERA. Returns (values x-offset y-offset)"
+    (with-slots (offset) camera
+      (values (x offset) (y offset))))
+
+  @export
+  (defmethod camera-set-offset ((camera target-tracking-camera) new-x-offset &optional new-y-offset)
+    "Set a new XY offset for CAMERA. NIL values are ignored."
+    (with-slots (offset) camera
+      (when new-x-offset
+        (setf (x offset) new-x-offset))
+      (when new-y-offset
+        (setf (y offset) new-y-offset)))
+    (camera-track-target camera)
+    camera)
+
   (defevent-callback object-moved ((object game-object) (camera target-tracking-camera))
     (when (eq object (target camera))
       (camera-track-target camera))))
 
 @export
 (defun camera-snap-to-target (camera)
-  "Instantly move CAMERA to its target."
+  "Instantly move CAMERA to its destination."
   (declare (target-tracking-camera camera))
   (with-slots (destination) camera
     (setf (x camera) (x destination)
