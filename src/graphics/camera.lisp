@@ -270,6 +270,16 @@
     (when (eq object (target camera))
       (camera-track-target camera))))
 
+@export
+(defun camera-snap-to-target (camera)
+  "Instantly move CAMERA to its target."
+  (declare (target-tracking-camera camera))
+  (with-slots (destination) camera
+    (setf (x camera) (x destination)
+          (y camera) (y destination))
+    (recycle camera)
+    camera))
+
 (defmethod update ((camera target-tracking-camera) delta-t-ms world-context)
   (declare (optimize (speed 3)))
   (flet ((camera-lerp (a b time)
