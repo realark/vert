@@ -281,10 +281,23 @@ Used to favor areas of the screen where the upcoming action will be."))
            (declare (single-float a b time))
            (+ a
               (* (- b a)
-                 time))))
-    (declare (inline camera-lerp))
+                 time)))
+         (distance-to-destination (camera)
+           (with-accessors ((camera-x x) (camera-y y)) camera
+             (with-accessors ((dest-x x) (dest-y y)) (slot-value camera 'destination)
+               (declare (single-float camera-x camera-y dest-x dest-y))
+               (sqrt (+ (expt (- camera-x dest-x) 2)
+                        (expt (- camera-y dest-y) 2)))))))
+    (declare (inline camera-lerp distance-to-destination))
     (with-slots (destination) camera
-      (let ((time 0.1))
+      (let* ((min-time 0.1)
+             (max-time 1.0)
+             (time-span (- max-time min-time))
+             ;; TODO: a logrithmic scale would probably feel more natural
+             (time (+ min-time
+                      (* (min 1.0 (/ (distance-to-destination camera)
+                                     (width camera)))
+                         time-span))))
         (setf (x camera) (camera-lerp (x camera) (x destination) time)
               (y camera) (camera-lerp (y camera) (y destination) time)))))
   (call-next-method camera delta-t-ms world-context))
