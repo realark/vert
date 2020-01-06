@@ -180,21 +180,29 @@
             (y camera) (y camera)))))
 
 ;;;; target-tracking camera
-(defclass target-tracking-camera (simple-camera)
-  ((target :initarg :target
-           :initform nil
-           :accessor target
-           :documentation "When bound to non-nil, the camera will center around this world object.")
-   (target-max-offset :initform 100
-                      :initarg :target-max-offset
-                      :reader target-max-offset
-                      :documentation "Allow the target to move within a box of this slot's length before moving the camera.")
-   (destination :initform (vector2)
-                :documentation "The XY destination the camera is moving towards")
-   (offset :initform (vector2)
-           :documentation "Offset to move the camera from the center of camera target.
-Used to favor areas of the screen where the upcoming action will be."))
-  (:documentation "A camera which will track a given target"))
+(progn
+  (defclass target-tracking-camera (simple-camera)
+    ((target :initarg :target
+             :initform nil
+             :accessor target
+             :documentation "When non-nil, the camera will center around this world object.")
+     (target-max-offset :initform 100
+                        :initarg :target-max-offset
+                        :reader target-max-offset
+                        :documentation "Allow the target to move within a box of this slot's length before moving the camera.")
+     (destination :initform (vector2)
+                  :documentation "The XY destination the camera is moving towards")
+     (offset :initform (vector2)
+             :documentation "Offset to move the camera from the center of camera target.
+Used to favor areas of the screen where the upcoming action will be.")
+     (offset-drift-time :initform 0.01
+                        :accessor offset-drift-time
+                        :documentation "Interpolation factor to apply to offset drift. 1.0 will instantly apply an offset.")
+     (offset-destination :initform (vector2)
+                         :documentation "The target offset. Camera will drift from OFFSET towards OFFSET-DESTINATION every update frame."))
+    (:documentation "A camera which will track a given target"))
+
+  (export '(offset-drift-time)))
 
 (defmethod initialize-instance :after ((camera target-tracking-camera) &rest args)
   (declare (ignore args))
@@ -237,23 +245,24 @@ Used to favor areas of the screen where the upcoming action will be."))
              (camera-track-target camera))
 
   (defmethod (setf target) :before (new-target (camera target-tracking-camera))
-             (unless (eq new-target (target camera))
-               (when new-target
-                 (add-subscriber new-target camera object-moved)
-                 (camera-track-target camera))
-               (when (target camera)
-                 (remove-subscriber (target camera) camera object-moved))))
+             (with-slots (target) camera
+               (unless (eq new-target target)
+                 (when new-target
+                   (add-subscriber new-target camera object-moved)
+                   (camera-track-target camera))
+                 (when target
+                   (remove-subscriber target camera object-moved)))))
 
   @export
   (defmethod camera-get-offset ((camera target-tracking-camera))
     "Get the XY center offset for CAMERA. Returns (values x-offset y-offset)"
-    (with-slots (offset) camera
+    (with-slots ((offset offset-destination)) camera
       (values (x offset) (y offset))))
 
   @export
   (defmethod camera-set-offset ((camera target-tracking-camera) new-x-offset &optional new-y-offset)
     "Set a new XY offset for CAMERA. NIL values are ignored."
-    (with-slots (offset) camera
+    (with-slots ((offset offset-destination)) camera
       (when new-x-offset
         (setf (x offset) new-x-offset))
       (when new-y-offset
@@ -262,45 +271,66 @@ Used to favor areas of the screen where the upcoming action will be."))
     camera)
 
   (defevent-callback object-moved ((object game-object) (camera target-tracking-camera))
-    (when (eq object (target camera))
-      (camera-track-target camera))))
+    (camera-track-target camera))
 
-@export
-(defun camera-snap-to-target (camera)
-  "Instantly move CAMERA to its destination."
-  (declare (target-tracking-camera camera))
-  (with-slots (destination) camera
-    (setf (x camera) (x destination)
-          (y camera) (y destination))
-    (recycle camera)
-    camera))
+  @export
+  (defun camera-snap-to-target (camera)
+    "Instantly move CAMERA to its destination."
+    (declare (target-tracking-camera camera))
+    (with-slots (destination offset offset-destination) camera
+      (setf (x offset) (x offset-destination)
+            (y offset) (y offset-destination)
+            (x camera) (x destination)
+            (y camera) (y destination))
+      (recycle camera)
+      (camera-track-target camera)
+      camera))
 
-(defmethod update ((camera target-tracking-camera) delta-t-ms world-context)
-  (declare (optimize (speed 3)))
-  (flet ((camera-lerp (a b time)
-           (declare (single-float a b time))
-           (+ a
-              (* (- b a)
-                 time)))
-         (distance-to-destination (camera)
-           (with-accessors ((camera-x x) (camera-y y)) camera
-             (with-accessors ((dest-x x) (dest-y y)) (slot-value camera 'destination)
-               (declare (single-float camera-x camera-y dest-x dest-y))
-               (sqrt (+ (expt (- camera-x dest-x) 2)
-                        (expt (- camera-y dest-y) 2)))))))
-    (declare (inline camera-lerp distance-to-destination))
-    (with-slots (destination) camera
-      (let* ((min-time 0.1)
-             (max-time 1.0)
-             (time-span (- max-time min-time))
-             ;; TODO: a logrithmic scale would probably feel more natural
-             (time (+ min-time
-                      (* (min 1.0 (/ (distance-to-destination camera)
-                                     (width camera)))
-                         time-span))))
-        (setf (x camera) (camera-lerp (x camera) (x destination) time)
-              (y camera) (camera-lerp (y camera) (y destination) time)))))
-  (call-next-method camera delta-t-ms world-context))
+  (defmethod update ((camera target-tracking-camera) delta-t-ms world-context)
+    (declare (optimize (speed 3)))
+    (flet ((camera-lerp (a b time)
+             (declare (single-float a b time))
+             (+ a
+                (* (- b a)
+                   time)))
+           (time-for-distance (distance)
+             (declare (single-float distance))
+             ;; hand-made logrithmic function which gives good camera-time
+             ;; results for inputs between 0 and 1
+             ;; https://www.wolframalpha.com/input/?i=log%28%28x+-+1%29+*+-4%29+*+-1+%2B+1.4
+             ;; log((x - 1) * -4) * -1 + 1.4
+             (let ((result (+ (* (log (* (- distance 1.0) -4.0)) -1.0) 1.4)))
+               (if (complexp result)
+                   (realpart result)
+                   result)))
+           (distance-to-destination (camera)
+             (with-accessors ((camera-x x) (camera-y y)) camera
+               (with-accessors ((dest-x x) (dest-y y)) (slot-value camera 'destination)
+                 (declare (single-float camera-x camera-y dest-x dest-y))
+                 (sqrt (+ (expt (- camera-x dest-x) 2)
+                          (expt (- camera-y dest-y) 2)))))))
+      (declare (inline camera-lerp distance-to-destination time-for-distance))
+      (with-slots (offset offset-destination offset-drift-time) camera
+        (unless (and (float= (x offset) (x offset-destination))
+                     (float= (y offset) (y offset-destination)))
+          (setf (x offset) (camera-lerp (x offset) (x offset-destination) offset-drift-time)
+                (y offset) (camera-lerp (y offset) (y offset-destination) offset-drift-time))
+          (camera-track-target camera)))
+      (with-slots (destination) camera
+        (let* ((min-time 0.1)
+               (max-time 1.0)
+               (time-span (- max-time min-time))
+               ;; (time (+ min-time
+               ;;          (* (min 1.0 (/ (distance-to-destination camera)
+               ;;                         (/ (width camera) 2.0)))
+               ;;             time-span)))
+               (time (min-max min-time
+                              (time-for-distance (/ (distance-to-destination camera)
+                                                    (/ (width camera) 4.0)))
+                              max-time)))
+          (setf (x camera) (camera-lerp (x camera) (x destination) time)
+                (y camera) (camera-lerp (y camera) (y destination) time)))))
+    (call-next-method camera delta-t-ms world-context)))
 
 ;;;; default camera
 

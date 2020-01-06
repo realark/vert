@@ -394,3 +394,11 @@
                (+ (* (- 1.0 interpolation-value) (elt m0 i))
                   (* interpolation-value (elt m1 i)))))
     interpolated-matrix))
+
+@export
+@inline
+(defun min-max (min-float float max-float)
+  "Return FLOAT if within the min-max bounds. Return the min or max if outside of the bounds."
+  (declare (optimize (speed 3))
+           (single-float min-float float max-float))
+  (min (max min-float float) max-float))
