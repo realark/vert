@@ -320,13 +320,16 @@ Used to favor areas of the screen where the upcoming action will be.")
         (let* ((min-time 0.1)
                (max-time 1.0)
                (time-span (- max-time min-time))
-               ;; (time (+ min-time
-               ;;          (* (min 1.0 (/ (distance-to-destination camera)
-               ;;                         (/ (width camera) 2.0)))
-               ;;             time-span)))
+               ;; linear time scale
+               #+nil
+               (time (+ min-time
+                        (* (min 1.0 (/ (distance-to-destination camera)
+                                       (* (width camera) 3/8)))
+                           time-span)))
+               ;; logarithmic time scale
                (time (min-max min-time
                               (time-for-distance (/ (distance-to-destination camera)
-                                                    (/ (width camera) 4.0)))
+                                                    (width camera)))
                               max-time)))
           (setf (x camera) (camera-lerp (x camera) (x destination) time)
                 (y camera) (camera-lerp (y camera) (y destination) time)))))
