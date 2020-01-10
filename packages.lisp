@@ -1,7 +1,8 @@
 (in-package :cl-user)
 
 (defpackage :recurse.vert
-  (:use :cl :bordeaux-threads)
+  (:use #:cl #:bordeaux-threads)
+  (:nicknames #:vert)
   (:import-from :cl-annot.class :export-structure :export-slots :export-class)
   (:export
    ;; event system
