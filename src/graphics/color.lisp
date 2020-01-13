@@ -84,6 +84,13 @@
   (def-color-getter-and-setter b)
   (def-color-getter-and-setter a))
 
+@export
+(defun color= (color1 color2)
+  (and
+   (= (r color1) (r color2))
+   (= (g color1) (g color2))
+   (= (b color1) (b color2))
+   (= (a color1) (a color2))))
 
 ;; TODO: allow for fixed colors in random
 @export
