@@ -383,10 +383,11 @@ The NEXT value of each node defaults to the next line in BODY. "
               (if (cutscene-node-next-nodes ,node)
                   (setf (cutscene-node-next-nodes ,node)
                         (mapcar (lambda (,next-node-id)
-                                  (or (gethash ,next-node-id ,id-hash)
-                                      (error "~A's next value not found in cutscene: ~A"
-                                             ,node
-                                             ,next-node-id)))
+                                  (unless (typep ,next-node-id 'cutscene-node)
+                                    (or (gethash ,next-node-id ,id-hash)
+                                        (error "~A's next value not found in cutscene: ~A"
+                                               ,node
+                                               ,next-node-id))))
                                 (cutscene-node-next-nodes ,node)))
                   (when (< ,i (- (length ,nodes) 1))
                     ;; if node does not define a next node, set to the node which appears on the next line
@@ -629,8 +630,8 @@ The NEXT value of each node defaults to the next line in BODY. "
 
 @export
 (defun cutscene-ask (prompt &key answer-indicator select-sfx selection-made-sfx answers)
-  (unless (>= (length answers) 2)
-    (error "At least two answers required"))
+  (unless (>= (length answers) 1)
+    (error "At least one answer required"))
   (loop :for answer :in answers :do
        (unless (and (consp answer)
                     (typep (car answer) 'game-object)
@@ -643,9 +644,10 @@ The NEXT value of each node defaults to the next line in BODY. "
                  :selection-made-sfx selection-made-sfx
                  :text prompt
                  :next-nodes
-                 (mapcar (lambda (answer)
-                           (cdr answer))
-                         answers)
+                 (when (> (length answers) 1)
+                   (mapcar (lambda (answer)
+                             (cdr answer))
+                           answers))
                  :answers
                  (mapcar (lambda (answer)
                            (car answer))
