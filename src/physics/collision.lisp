@@ -74,23 +74,25 @@ inside of PHYSICS-CONTEXT and call COLLISION-RESOLUTION-NAME if any collisions o
   (assert (eq on-collision-keyword :on-collision))
   (assert (symbolp stationary-object))
   (alexandria:once-only (moving-object)
-    (alexandria:with-gensyms (game-obj)
+    (alexandria:with-gensyms (game-obj x y z w h)
       `(progn
          ,@position-update-body
          ;; object's position has updated. Now check for collisions
-         (do-spatial-partition (,game-obj
-                                (spatial-partition ,physics-context)
-                                :min-x (- (x ,moving-object) *collision-precision*)
-                                :max-x (+ (x ,moving-object) (width ,moving-object) *collision-precision*)
-                                :min-y (- (y ,moving-object) *collision-precision*)
-                                :max-y (+ (y ,moving-object) (height ,moving-object) *collision-precision*)
-                                :min-z (z ,moving-object)
-                                :max-z (z ,moving-object))
-           (unless (eq ,game-obj ,moving-object)
-             (when (collidep ,moving-object ,game-obj)
-               (let ((,stationary-object ,game-obj))
-                 (collision ,moving-object ,stationary-object)
-                 ,@collision-resolution-body))))
+         (multiple-value-bind (,x ,y ,z ,w ,h)
+             (world-dimensions ,moving-object)
+           (do-spatial-partition (,game-obj
+                                  (spatial-partition ,physics-context)
+                                  :min-x (- ,x *collision-precision*)
+                                  :max-x (+ ,x ,w *collision-precision*)
+                                  :min-y (- ,y *collision-precision*)
+                                  :max-y (+ ,y ,h *collision-precision*)
+                                  :min-z ,z
+                                  :max-z ,z)
+             (unless (eq ,game-obj ,moving-object)
+               (when (collidep ,moving-object ,game-obj)
+                 (let ((,stationary-object ,game-obj))
+                   (collision ,moving-object ,stationary-object)
+                   ,@collision-resolution-body)))))
          (values)))))
 
 (defgeneric favored-collision-resolution-axis (moving-object stationary-object)
