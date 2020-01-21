@@ -86,11 +86,27 @@
 
 @export
 (defun color= (color1 color2)
+  (declare (optimize (speed 3))
+           (color color1 color2))
   (and
-   (= (r color1) (r color2))
-   (= (g color1) (g color2))
-   (= (b color1) (b color2))
-   (= (a color1) (a color2))))
+   (float= (r color1) (r color2))
+   (float= (g color1) (g color2))
+   (float= (b color1) (b color2))
+   (float= (a color1) (a color2))))
+
+@export
+(defun color-copy (from-color &key r g b a (to-color (make-color)))
+  "Copy FROM-COLOR to TO-COLOR (optional).
+ Any provided RRBA values (optional) shall be used in place of copying."
+  (declare (optimize (speed 3))
+           (color from-color)
+           ((or null color) to-color)
+           ((or null single-float) r g b a))
+  (setf (r to-color) (or r (r from-color))
+        (g to-color) (or g (g from-color))
+        (b to-color) (or b (b from-color))
+        (a to-color) (or a (a from-color)))
+  to-color)
 
 ;; TODO: allow for fixed colors in random
 @export
