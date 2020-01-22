@@ -57,6 +57,9 @@ Object will be rendered the next time RENDER is invoked on the queue.")
         (setf (elt objects-to-render fill-pointer) game-object)
         (setf fill-pointer (+ 1 fill-pointer))
         (insert-sorted game-object objects-to-render fill-pointer)))
+    (values))
+  (:method ((queue render-queue) (camera camera))
+    ;; no-op
     (values)))
 
 (defgeneric render-queue-remove (render-queue game-object)

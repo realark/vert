@@ -180,6 +180,7 @@ On the next render frame, the objects will be given a chance to load and this li
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (update overlay delta-t-ms game-scene)
              (render-queue-add queue overlay))
+        (render-queue-add queue camera)
         (when bg
           (update bg delta-t-ms game-scene))
         (loop :for i :from 0 :below update-queue-fill-pointer :do
