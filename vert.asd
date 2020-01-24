@@ -18,7 +18,8 @@
                          (:file "config")
                          (:file "clos-events")
                          (:file "game-object")
-                         (:file "resource")))
+                         (:file "resource")
+                         (:file "scheduler")))
                (:module memory
                         :depends-on (:core)
                         :pathname "src/memory"

@@ -15,13 +15,6 @@
                      :initarg :background
                      :type scene-background
                      :accessor scene-background)
-   (scene-ticks :initform 0
-                :reader scene-ticks
-                :documentation "Amount of milliseconds passed in the game scene.
-Will be incremented by the update timestep after every update frame.")
-   (scheduled-tasks :initform (make-array 0 :fill-pointer 0 :adjustable T)
-                    :documentation "key-value plist-vector of (timestamp zero-arg-fn). When SCENE-TICKS equal or exceed the timestamp, the lambda will be invoked.
-List is ascending timestamp ordered.")
    (scene-music :initarg :music
                 :initform nil
                 :accessor scene-music
@@ -103,9 +96,8 @@ On the next render frame, the objects will be given a chance to load and this li
        (when (eq object removed)
          (return t))))
 
-(defmethod update ((game-scene game-scene) delta-t-ms (null null))
-  (declare (optimize (speed 3))
-           (ignore null))
+(defmethod update ((game-scene game-scene) delta-t-ms (context null))
+  (declare (optimize (speed 3)))
   (with-slots (update-area
                (queue render-queue)
                update-queue
@@ -133,8 +125,10 @@ On the next render frame, the objects will be given a chance to load and this li
           (render-queue-add queue bg))
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (pre-update overlay))
-        ;; run scheduler
-        (%run-scheduled-callbacks game-scene)
+
+        ;; call super
+        (call-next-method game-scene delta-t-ms context)
+
         ;; update frame
         (let* ((render-delta 16.0) ; TODO this value could be smaller
                (render-x-min (- (x camera) render-delta))
@@ -187,7 +181,6 @@ On the next render frame, the objects will be given a chance to load and this li
              (let ((game-object (elt update-queue i)))
                (found-object-to-update game-scene game-object)
                (update game-object delta-t-ms game-scene)))
-        (incf (slot-value game-scene 'scene-ticks) delta-t-ms)
         (values)))))
 
 (defmethod render ((game-scene game-scene) update-percent (camera simple-camera) renderer)
@@ -207,45 +200,12 @@ On the next render frame, the objects will be given a chance to load and this li
 (defevent-callback killed ((object obb) (game-scene game-scene))
   (remove-from-scene game-scene object))
 
+;; TODO: remove this fn and use scheduler util directly
 @export
 (defun schedule (game-scene timestamp zero-arg-fn)
   "When the value returned by SCENE-TICKS of GAME-SCENE equals or exceeds TIMESTAMP the ZERO-ARG-FN callback will be invoked."
-  (declare (game-scene game-scene)
-           (optimize (speed 3))
-           )
-  (with-slots ((tasks scheduled-tasks)) game-scene
-    (declare (vector tasks))
-    (loop :for i :from 0 :below (length tasks) :by 2 :do
-         (unless (elt tasks i)
-           (setf (elt tasks i) timestamp
-                 (elt tasks (+ i 1)) zero-arg-fn)
-           (return))
-       :finally
-         (vector-push-extend timestamp tasks)
-         (vector-push-extend zero-arg-fn tasks))
-    (values)))
-
-@export
-(defun cancel-scheduled-callback (zero-arg-fn &key (error-if-not-scheduled T))
-  (declare (ignore zero-arg-fn error-if-not-scheduled))
-  (error "TODO"))
-
-(defun %run-scheduled-callbacks (game-scene)
-  (declare (optimize (speed 3))
-           (game-scene game-scene))
-  (with-slots ((tasks scheduled-tasks) (now scene-ticks)) game-scene
-    (declare (vector tasks))
-    (loop :for i :from 0 :below (length tasks) :by 2 :do
-         (when (elt tasks i)
-           (let ((time-to-run (elt tasks i))
-                 (callback (elt tasks (+ i 1))))
-             (declare ((function ()) callback)
-                      (fixnum time-to-run now))
-             (when (>= now time-to-run)
-               (funcall callback)
-               (setf (elt tasks i) nil
-                     (elt tasks (+ 1 i)) nil)))))
-    (values)))
+  (scheduler-add game-scene timestamp zero-arg-fn)
+  (values))
 
 @export
 (defun get-object-by-id (scene id)

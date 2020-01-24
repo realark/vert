@@ -2,7 +2,7 @@
 
 (in-package :recurse.vert)
 
-(defclass scene (event-publisher)
+(defclass scene (event-publisher scheduler)
   ((camera :initarg :camera
            :initform (make-instance 'camera
                                     :width 100
@@ -10,11 +10,21 @@
                                     :screen-width 100
                                     :screen-height 100)
            :accessor camera)
+   (scene-ticks :initform 0
+                :reader scene-ticks
+                :documentation "Amount of milliseconds passed in the this scene.
+Will be incremented by the update timestep after every update frame.")
    (scene-overlays :initform (make-array 1 :adjustable T :fill-pointer 0))
    (scene-input :initform (make-array 4 :adjustable T :fill-pointer 0)
                 :accessor scene-input
                 :documentation "list of input-devices hooked up to the scene"))
   (:documentation "Generic scene class."))
+
+(defmethod initialize-instance :after ((scene scene) &rest args)
+  (declare (ignore args))
+  (with-slots (timer-fn) scene
+    (setf timer-fn
+          (lambda () (scene-ticks scene)))))
 
 (defun add-scene-input (scene input)
   "Hook up INPUT to SCENE"
@@ -36,6 +46,13 @@
 (defmethod update ((scene scene) (delta-t-ms real) (null null))
   (declare (ignore scene delta-t-ms null)))
 
+(defmethod update :after ((scene scene) delta-t-ms context)
+  (loop :for device :across (scene-input scene) :do
+       (after-input-update device))
+  ;; run scheduler then advance scene time
+  (scheduler-run-callbacks scene)
+  (incf (slot-value scene 'scene-ticks) delta-t-ms))
+
 (defmethod render ((scene scene) update-percent (null null) rendering-context)
   (declare (ignore null))
   (render scene update-percent (slot-value scene 'camera) rendering-context))
@@ -49,7 +66,3 @@
 (defmethod release-resources ((scene scene))
   ;; no-op
   )
-
-(defmethod update :after ((scene scene) delta-t-ms context)
-  (loop for device across (scene-input scene) do
-       (after-input-update device)))
