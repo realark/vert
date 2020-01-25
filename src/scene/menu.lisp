@@ -260,7 +260,8 @@
       (render node 0.0 camera renderer)
       (loop for child in (slot-value node 'children) do
            (render child 0.0 camera renderer))
-      (render (slot-value menu 'selection-marker) update-percent camera renderer))))
+      (render (slot-value menu 'selection-marker) update-percent camera renderer)))
+  (render (camera menu) update-percent camera renderer))
 
 ;; Menu Builder DSL
 
