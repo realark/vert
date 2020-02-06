@@ -24,10 +24,16 @@ Must be called before any sounds will play."))
 ;;;; audio player api
 
 (defgeneric play-sound-effect (audio-player path-to-sfx-file &key rate volume)
-  (:documentation "Play the audio in PATH-TO-SFX-FILE as a sound effect on the audio player."))
+  (:documentation "Play the audio in PATH-TO-SFX-FILE as a sound effect on the audio player.")
+  (:method ((null-audio null) path-to-sfx &key rate volume)
+    (declare (ignore null-audio path-to-sfx rate volume))
+    'noop))
 
 (defgeneric play-music (audio-player path-to-music-file &key num-plays)
-  (:documentation "Play the given song. If NUM-REPEATS is -1 the song will loop forever."))
+  (:documentation "Play the given song. If NUM-REPEATS is -1 the song will loop forever.")
+  (:method ((null-audio null) path-to-music-file &key num-plays)
+    (declare (ignore null-audio path-to-music-file num-plays))
+    'noop))
 
 (defmethod (setf music-state) :around (new-state audio-player)
   (with-slots (current-music) audio-player
