@@ -108,7 +108,8 @@
         (a to-color) (or a (a from-color)))
   to-color)
 
-;; TODO: allow for fixed colors in random
+;;;; color utils
+
 @export
 (defun make-random-color-rgba (&optional random-alpha)
   (make-color-rgba :r (random 256)
@@ -116,6 +117,26 @@
                    :b (random 256)
                    :a (if random-alpha (random 256) 255)))
 
+@export
+(defun color* (color color-or-scalar &key (output-color (make-color)))
+  "Multiply COLOR by COLOR-OR-SCALAR, store result in OUTPUT-COLOR and return it."
+  (cond ((typep color-or-scalar 'color)
+         (setf (r output-color) (* (r color) (r color-or-scalar))
+               (g output-color) (* (g color) (g color-or-scalar))
+               (b output-color) (* (b color) (b color-or-scalar))
+               (a output-color) (* (a color) (a color-or-scalar))))
+        ((numberp color-or-scalar)
+         (setf (r output-color) (* (r color) color-or-scalar)
+               (g output-color) (* (g color) color-or-scalar)
+               (b output-color) (* (b color) color-or-scalar)
+               (a output-color) (* (a color) color-or-scalar)))
+        (t (error
+            "unsupported type for COLOR-OR-SCALAR: ~A"
+            (type-of color-or-scalar))))
+
+  output-color)
+
+;;;; basic color globals
 @export
 (defparameter *black* (make-immutable-color-rgba :r 0 :g 0 :b 0 :a 255))
 @export
