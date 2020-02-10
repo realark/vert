@@ -118,7 +118,13 @@ LABEL must be symbol. Previously bound label code will be replaced if the same l
 
 ;;;; array utils
 
-(defun simple-array-double-size (array &key initial-element)
+(defun simple-array-double-size (array
+                                 &key initial-element
+                                   (new-array
+                                    (make-array (* 2 (length array))
+                                                :adjustable nil
+                                                :element-type (array-element-type array)
+                                                :initial-element initial-element)))
   "Return a new simple array twice the size of ARRAY with the same elements in the first half of the new array.
 The second half will be populated with INITIAL-ELEMENT."
   (when (log:debug)
@@ -132,15 +138,10 @@ The second half will be populated with INITIAL-ELEMENT."
     (error "Cannot double array. Initial-element ~A is not of type ~A"
            initial-element
            (array-element-type array)))
-  (let ((new-array (make-array (* 2 (length array))
-                               :adjustable nil
-                               :element-type (array-element-type array)
-                               :initial-element initial-element)))
-    (declare (simple-array array new-array))
-    (loop :for i :from 0 :below (length array) :do
-         (setf (elt new-array i)
-               (elt array i)))
-    new-array))
+  (loop :for i :from 0 :below (length array) :do
+       (setf (elt new-array i)
+             (elt array i)))
+  new-array)
 
 (defun simple-array-left-shift (array starting-index ending-index)
   "Starting from (+ 1 STARTING-INDEX) and up to ENDING-INDEX, move every element in ARRAY one place to the left."
