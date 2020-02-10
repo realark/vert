@@ -2,7 +2,7 @@
 (in-package :recurse.vert)
 
 (defclass event-publisher ()
-  ((event-subscribers :documentation "event-name-symbol -> array of subs"))
+  ((event-subscribers :documentation "event-name-symbol -> (weak) array of subs"))
   (:documentation "Event publisher class."))
 
 ;; lazy initialize event map
@@ -17,17 +17,15 @@
        (loop :for event-name :across #(,@event-names) :do
             (let ((sub-list (gethash event-name event-subscribers)))
               (unless sub-list
-                (setf sub-list (make-array 5
-                                           :element-type '(or null event-publisher)
-                                           :initial-element nil)
+                (setf sub-list (sb-ext:make-weak-vector 1 :initial-element nil)
                       (gethash event-name event-subscribers) sub-list))
-              (let ((first-null-index nil))
-                (declare ((simple-array) sub-list))
-                (loop :for i :from 0 :below (length sub-list) :do
+              (locally (declare ((simple-array) sub-list))
+                (loop :with first-null-index = nil
+                   :for i :from 0 :below (length sub-list) :do
                      (let ((sub (elt sub-list i)))
-                       (cond ((null sub)
-                              (unless first-null-index
-                                (setf first-null-index i)))
+                       (cond ((and (null first-null-index)
+                                   (null sub))
+                              (setf first-null-index i))
                              ((eq sub ,subscriber)
                               ;; already in sub list. Stop.
                               (return))))
@@ -36,8 +34,12 @@
                      (unless first-null-index
                        ;; resize list if no empty spaces
                        (setf first-null-index (length sub-list)
-                             sub-list (simple-array-double-size sub-list)))
-                     (setf (elt sub-list first-null-index) ,subscriber))))))))
+                             sub-list (simple-array-double-size
+                                       sub-list
+                                       :new-array (sb-ext:make-weak-vector (* 2 (length sub-list))
+                                                                           :initial-element nil))))
+                     (setf (elt sub-list first-null-index)
+                           ,subscriber))))))))
 
 (defmacro remove-subscriber (publisher subscriber &rest event-names)
   "Stop notifying SUBSCRIBER of PUBLISHER's events."
