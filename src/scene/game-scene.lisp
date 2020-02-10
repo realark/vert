@@ -19,10 +19,6 @@
                 :initform nil
                 :accessor scene-music
                 :documentation "Music which will play when the scene initializes.")
-   (unloaded-game-objects :initform (list)
-                          :accessor unloaded-game-objects
-                          :documentation "Game-Objects which have been added but not yet loaded.
-On the next render frame, the objects will be given a chance to load and this list will be emptied.")
    (width :initarg :width
           :initform (error ":width required")
           :reader width)
@@ -56,17 +52,14 @@ On the next render frame, the objects will be given a chance to load and this li
   (:method ((scene scene) (overlay overlay))
     (with-slots (scene-overlays) scene
       (unless (find overlay scene-overlays)
-        (vector-push-extend overlay scene-overlays)
-        (push overlay (unloaded-game-objects scene)))))
+        (vector-push-extend overlay scene-overlays))))
   (:method ((scene game-scene) (overlay overlay))
     (with-slots (scene-overlays) scene
       (unless (find overlay scene-overlays)
-        (vector-push-extend overlay scene-overlays)
-        (push overlay (unloaded-game-objects scene)))))
+        (vector-push-extend overlay scene-overlays))))
   (:method ((scene game-scene) (object game-object))
     (when (start-tracking (spatial-partition scene) object)
-      (add-subscriber object scene killed)
-      (push object (unloaded-game-objects scene)))))
+      (add-subscriber object scene killed))))
 
 @export
 (defgeneric remove-from-scene (scene object)
@@ -187,13 +180,10 @@ On the next render frame, the objects will be given a chance to load and this li
   (declare (optimize (speed 3)))
   (with-slots ((bg scene-background)
                spatial-partition
-               unloaded-game-objects
                ;; TODO: queue renders during update iteration
                (queue render-queue)
                scene-overlays)
       game-scene
-    (loop :while unloaded-game-objects :do
-         (load-resources (pop unloaded-game-objects) renderer))
     (render queue update-percent camera renderer))
   (values))
 
