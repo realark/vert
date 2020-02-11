@@ -65,7 +65,9 @@
             zoom zoom))
     (with-slots (screen-width screen-height) camera
       (multiple-value-bind (w h)
-          (window-size-pixels (application-window *engine-manager*))
+          (if *engine-manager*
+              (window-size-pixels (application-window *engine-manager*))
+              (values 100 100))
         (setf screen-width w
               screen-height h)))
     (fire-event camera camera-screen-resized)))
@@ -246,12 +248,14 @@ Used to favor areas of the screen where the upcoming action will be.")
 
   (defmethod (setf target) :before (new-target (camera target-tracking-camera))
              (with-slots (target) camera
-               (unless (eq new-target target)
-                 (when new-target
-                   (add-subscriber new-target camera object-moved)
-                   (camera-track-target camera))
-                 (when target
-                   (remove-subscriber target camera object-moved)))))
+               (if (eq new-target target)
+                   (camera-track-target camera)
+                   (progn
+                     (when new-target
+                       (add-subscriber new-target camera object-moved)
+                       (camera-track-target camera))
+                     (when target
+                       (remove-subscriber target camera object-moved))))))
 
   @export
   (defmethod camera-get-offset ((camera target-tracking-camera))

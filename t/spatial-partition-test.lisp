@@ -125,3 +125,40 @@
        :finally
          (is objects-in-wrong-place nil
              "All objects should have an x/y matching their index."))))
+
+(deftest quadtree-track-object-movement
+  (let ((qtree (make-instance 'recurse.vert::quadtree
+                              :min-node-size (vector2 1.0 1.0)
+                              :initial-size (vector2 100.0 100.0)))
+        (object (make-instance 'obb
+                               :x 10
+                               :y 10
+                               :z 0
+                               :width 10
+                               :height 10)))
+    (labels ((find-object (min-x max-x)
+               (block search
+                 (do-spatial-partition (obj
+                                        qtree
+                                        :min-x (float min-x)
+                                        :max-x (float max-x)
+                                        :static-iteration-p t)
+                   (when (eq obj object)
+                     (return-from search t))))))
+      (loop :for i :from 0 :below 1000 :do
+           (start-tracking qtree
+                           (make-instance 'obb
+                                          :x 10
+                                          :y 10)))
+      (start-tracking qtree object)
+      (isnt (find-object 0 15)
+            nil
+            "found object in qtree before move")
+      (setf (x object) 100
+            (y object) 100)
+      (is (find-object 0 15)
+          nil
+          "object not fond in x partition search parameters")
+      (isnt (find-object 90 110)
+            nil
+            "found object in qtree after move"))))

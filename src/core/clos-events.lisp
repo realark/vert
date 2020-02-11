@@ -37,7 +37,8 @@
                              sub-list (simple-array-double-size
                                        sub-list
                                        :new-array (sb-ext:make-weak-vector (* 2 (length sub-list))
-                                                                           :initial-element nil))))
+                                                                           :initial-element nil))
+                             (gethash event-name event-subscribers) sub-list))
                      (setf (elt sub-list first-null-index)
                            ,subscriber))))))))
 

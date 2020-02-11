@@ -274,7 +274,6 @@ OBJECT may or may not be present in the quadtree."
             (start-tracking (slot-value node 'quadtree) object))
           (progn
             (log:debug "Adding object ~A to node ~A" object node)
-            ;; (break "Adding object ~A to node ~A" object node)
             (%%quadtree-node-insert-objects-array node object)
             (add-subscriber object node object-moved))))
     ;; return non-nil to indicate the object was added instead of skipped for already existing in node
@@ -342,10 +341,12 @@ OBJECT may or may not be present in the quadtree."
 ;;; implement spatial-partition
 
 (defevent-callback object-moved ((object game-object) (node %quadtree-node))
+  (log:trace "~A : ~A moved" node object)
   (unless (%%overlaps-boundary-p object
                                (x node) (+ (x node) (width node))
                                (y node) (+ (y node) (height node))
                                nil nil)
+    (log:debug "~A : ~A out of bounds" node object)
     (%quadtree-node-remove-object node object)
     (start-tracking (slot-value node 'quadtree) object)))
 
