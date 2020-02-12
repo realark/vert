@@ -14,8 +14,7 @@
                                       (dev-mode nil)
                                       (audio-player (make-instance 'sdl-audio-player))
                                       (config *default-config*))
-  "Start the game engine. No effect if the engine is already started.
-If BLOCK is non-nil, the calling thread will block until the game finishes."
+  "Start the game engine. No effect if the engine is already started."
   (declare (config config)
            ((or null config) dev-mode)
            (audio-player audio-player)
@@ -52,7 +51,7 @@ If BLOCK is non-nil, the calling thread will block until the game finishes."
                        *vert-thread* nil
                        *dev-mode* nil)
                  (garbage-collect-hint))))
-      (if block
+      (if t ; TODO: remove block parameter entirely
           (run-engine)
           (make-thread #'run-engine :name "vert-game-loop")))))
 

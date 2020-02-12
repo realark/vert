@@ -142,15 +142,16 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           (setf pending-scene-changes nil)
           (funcall pending))))
     ;; then any pending dev actions
-    (with-slots (pending-action) engine-manager
-      (unless (eq 'no-action pending-action)
-        (let ((pending pending-action))
-          (declare (function pending))
-          (sb-ext:atomic-update pending-action
-                                (lambda (previous-action)
-                                  (declare (ignore previous-action))
-                                  'no-action))
-          (funcall pending))))
+    ;; (with-slots (pending-action) engine-manager
+    ;;   (unless (eq 'no-action pending-action)
+    ;;     (let ((pending pending-action))
+    ;;       (declare (function pending))
+    ;;       (sb-ext:atomic-update pending-action
+    ;;                             (lambda (previous-action)
+    ;;                               (declare (ignore previous-action))
+    ;;                               'no-action))
+    ;;       (funcall pending))))
+    (update-swank)
     ;; I've considered wrapping this methig in (sb-sys:without-gcing)
     ;; to prevent short GCs from dropping the FPS.
     ;; But it seems like that could deadlock if the game is multithreaded.
@@ -256,6 +257,17 @@ It is invoked after the engine is fully started.")
     (do-cache (*engine-caches* cache-name cache)
       (clear-cache cache))
     (format t "~%~%")))
+
+;;;; live coding
+
+(defun update-swank ()
+  "Update swank events."
+  (declare (optimize (speed 3)))
+  #+swank
+  (let ((connection (or swank::*emacs-connection*
+                        (swank::default-connection))))
+    (when connection
+      (swank::handle-requests connection t))))
 
 ;;;; on-game-thread macro
 
