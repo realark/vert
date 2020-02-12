@@ -114,6 +114,15 @@
 
 @export
 @inline
+(defun vector= (vector1 vector2)
+  "T if values of vector1 and vector2 are equal (as specified by FLOAT= function)."
+  (declare (optimize (speed 3))
+           (vector2 vector1 vector2))
+  (and (float= (x vector1) (x vector2))
+       (float= (y vector1) (y vector2))))
+
+@export
+@inline
 (defun normalized-vector3 (p1 p2)
   "Construct a normalized vector2 (= magnitude 1) which points from p1 towards p2."
   (with-accessors ((x1 x) (y1 y) (z1 z)) p1
