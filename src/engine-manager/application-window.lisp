@@ -99,10 +99,10 @@
                         pre-fs-y y)))
               (resize-window application-window max-screen-width max-screen-height)
               (sdl2:set-window-fullscreen win T)
-              (sdl2:hide-cursor)
               ;; put mouse in window center to avoid triggering corner effects
               ;; on certain desktops
               (sdl2:warp-mouse-in-window
                win
                (floor max-screen-width 2)
-               (floor max-screen-height 2))))))))
+               (floor max-screen-height 2))
+              (sdl2:hide-cursor)))))))
