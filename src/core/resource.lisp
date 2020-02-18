@@ -111,8 +111,8 @@ This means game code will simply define load/release resource methods and not ha
 
 (defun resource-autoloader-reload-all (resource-autoloader)
   (bt:with-recursive-lock-held ((slot-value resource-autoloader 'lock))
-    (resource-autoloader-load-all resource-autoloader)
-    (resource-autoloader-release-all resource-autoloader)))
+    (resource-autoloader-release-all resource-autoloader)
+    (resource-autoloader-load-all resource-autoloader)))
 
 (defun resource-autoloader-prune-empty-refs (resource-autoloader)
   (with-slots (lock objects) resource-autoloader
