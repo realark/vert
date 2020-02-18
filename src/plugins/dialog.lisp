@@ -42,6 +42,8 @@
                                 :element-type 'font-drawable))
    (background :initarg :background
                :initform nil)
+   (outline :initarg :outline
+            :initform nil)
    (auto-resize-background-p
     :initarg :auto-resize-background-p
     :initform t
@@ -53,7 +55,7 @@
 
 (defmethod initialize-instance :after ((hud dialog-hud) &rest args)
   (declare (ignore args))
-  (with-slots (window-position window-size window-padding background font-size) hud
+  (with-slots (window-position window-size window-padding outline background font-size) hud
     (unless window-size
       (setf window-size (vector2 100.0 10.0)))
     (unless window-position
@@ -61,13 +63,34 @@
             (vector2
              (- (/ (width hud) 2.0)
                 (/ (x window-size) 2.0))
-             0.0)))
+             2.0)))
     (when background
+      (when outline
+        ;; TODO outline must be added as child first so it renders below.
+        ;; z layer priority is not being respected here
+        (setf (parent outline) hud))
       (setf (parent background) hud
             (width background) (x window-size)
             (height background) (y window-size)
             (x background) (x window-position)
-            (y background) (y window-position)))))
+            (y background) (y window-position))
+      (%resize-dialog-box hud (width background) (height background)))))
+
+(defun %resize-dialog-box (dialog-hud new-width new-height)
+  (with-slots (background outline auto-resize-background-p window-padding) dialog-hud
+    (when auto-resize-background-p
+      (setf (width background) new-width
+            (height background) new-height))
+    (let ((outline-thickness 2))
+      (setf (x outline)
+            (- (x background) outline-thickness)
+            (y outline)
+            (- (y background) outline-thickness)
+            (z outline) (- (z background) 1.0)
+            (width outline)
+            (+ (width background) (* 2 outline-thickness))
+            (height outline)
+            (+ (height background) (* 2 outline-thickness))))))
 
 (defmethod (setf dialog-hud-initiator) :after (new-initiator (hud dialog-hud))
   (with-slots (advance-prompt) hud
@@ -195,12 +218,12 @@
                 :finally
                   (let ((last-line (elt (slot-value dialog-hud 'lines) (- current-line 1))))
                     ;; resize bg
-                    (with-slots (background auto-resize-background-p window-padding) dialog-hud
-                      (when auto-resize-background-p
-                        (setf (height background)
-                              (+ (y last-line)
-                                 (height last-line)
-                                 (* 8 window-padding)))))
+                    (with-slots (background window-padding) dialog-hud
+                      (%resize-dialog-box dialog-hud
+                                          (width background)
+                                          (+ (y last-line)
+                                             (height last-line)
+                                             (* 8 window-padding))))
                     ;; show button prompt
                     (with-slots (background advance-prompt) dialog-hud
                       (when advance-prompt
