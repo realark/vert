@@ -208,6 +208,7 @@ It is invoked after the engine is fully started.")
   (:method ((engine-manager engine-manager) initial-scene-creator)
     (unwind-protect
          (progn
+           (setup-live-coding)
            (do-cache (*engine-caches* cache-name cache)
              (clear-cache cache))
            ;; start services
@@ -240,6 +241,7 @@ It is invoked after the engine is fully started.")
 (defgeneric cleanup-engine (engine-manager)
   (:documentation "Called once at engine shutdown. Clean up engine state.")
   (:method ((engine-manager engine-manager))
+    (stop-live-coding)
     (change-scene engine-manager nil)
     (with-slots (pending-scene-changes) engine-manager
       (when pending-scene-changes
@@ -260,14 +262,30 @@ It is invoked after the engine is fully started.")
 
 ;;;; live coding
 
+(defun setup-live-coding ()
+  "Enable live coding (if swank is present)"
+  (eval
+   '(defun update-swank ()
+     "Update swank events."
+     (declare (optimize (speed 3)))
+     #+swank
+     (let ((connection (or swank::*emacs-connection*
+                           (swank::default-connection))))
+       (when connection
+         (swank::handle-requests connection t))))))
+
+(defun stop-live-coding ()
+  "Disable live coding"
+  (eval '(defun update-swank ()
+          "Update swank events."
+          nil)))
+
 (defun update-swank ()
   "Update swank events."
-  (declare (optimize (speed 3)))
-  #+swank
-  (let ((connection (or swank::*emacs-connection*
-                        (swank::default-connection))))
-    (when connection
-      (swank::handle-requests connection t))))
+  ;; noop placeholder. Will be redfined when engine starts up
+  nil)
+
+
 
 ;;;; on-game-thread macro
 
