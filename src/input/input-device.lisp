@@ -19,6 +19,17 @@
                (sdl2-ffi.functions:sdl-game-controller-get-string-for-button button-id)))
     htable))
 
+(defparameter *keyboard-human-readable-names*
+  (let ((htable (make-hash-table :test #'eq)))
+    (loop :for button-id :from 0 :below 15 :do
+         (setf (gethash (alexandria:make-keyword (write-to-string button-id))
+                        htable)
+               (case button-id
+                 (2 "keyboard-z")
+                 (otherwise
+                  (sdl2-ffi.functions:sdl-game-controller-get-string-for-button button-id)))))
+    htable))
+
 (defparameter *dualshock-human-readable-names*
   (let ((htable (make-hash-table :test #'eq)))
     ;; start with generic buttons
@@ -70,6 +81,19 @@
     :documentation "Map of :SDL-BUTTON-OR-JOYSTICK-KEYWORD -> human-readable-string"))
   (:documentation "Single source of external input. E.g. keyboard, mouse, controller."))
 
+;; TODO: update input-device accessors/readers to standard slot values
+@export
+(defmethod input-device-name ((input-device input-device))
+  (slot-value input-device 'input-name))
+
+@export
+(defmethod input-device-type ((input-device input-device))
+  (slot-value input-device 'type))
+
+@export
+(defmethod input-device-id ((input-device input-device))
+  (slot-value input-device 'device-id))
+
 (defmethod initialize-instance :after ((input-device input-device) &rest args)
   (declare (ignore args))
   ;; TODO: generalize human-readable input name mapping and expose config option(s)
@@ -77,6 +101,8 @@
            (with-slots (input-name human-readable-input-names) input-device
              (setf human-readable-input-names
                    (cond
+                     ((eq :keyboard (input-device-type input-device))
+                      *keyboard-human-readable-names*)
                      ((or (equalp "PS4 Controller" input-name)
                           (equalp "PS3 Controller" input-name))
                       *dualshock-human-readable-names*)
