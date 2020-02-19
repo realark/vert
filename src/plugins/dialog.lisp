@@ -48,10 +48,16 @@
     :initarg :auto-resize-background-p
     :initform t
     :documentation "When T, automatically resize the height of the text window background to the end of the text.")
+   (reading-speed-wpm :initarg :reading-speed-wpm
+                      :initform 150
+                      :accessor dialog-hud-reading-speed-wpm
+                      :documentation "WPM to show in the dialog box (1 word == 5 chars). Nil to show all text instantly.")
+   (next-char-appear-timestamp :initform nil
+                               :documentation "Internal timestamp for showing text at a reading speed. Timestamp of next char to reveal")
    (advance-delay :initarg :advance-delay
                   :initform 0
                   :documentation "time (ms) before player is allowed to advance the dialog.")))
-(export '(dialog-hud-initiator dialog-hud-speaker))
+(export '(dialog-hud-initiator dialog-hud-speaker dialog-hud-reading-speed-wpm))
 
 (defmethod initialize-instance :after ((hud dialog-hud) &rest args)
   (declare (ignore args))
@@ -66,7 +72,7 @@
              2.0)))
     (when background
       (when outline
-        ;; TODO outline must be added as child first so it renders below.
+        ;; FIXME outline must be added as child first so it renders below.
         ;; z layer priority is not being respected here
         (setf (parent outline) hud))
       (setf (parent background) hud
@@ -75,6 +81,41 @@
             (x background) (x window-position)
             (y background) (y window-position))
       (%resize-dialog-box hud (width background) (height background)))))
+
+(defun %wpm-ms-between-chars (wpm)
+  "Compute (approximate) milliseconds between chars for the given WPM"
+  (let ((avg-word-length 5)
+        (ms-per-minute #.(* 1000 60)))
+    (round ms-per-minute
+           (* wpm avg-word-length))))
+
+(defmethod update ((hud dialog-hud) timestep scene)
+  (with-slots (reading-speed-wpm next-char-appear-timestamp lines) hud
+    (when (and next-char-appear-timestamp
+               (>= (scene-ticks *scene*) next-char-appear-timestamp))
+      (loop :for line :across lines :do
+           (when (font-drawable-text-end line)
+             (if (>= (font-drawable-text-end line)
+                     (length (text line)))
+                 ;; text ending is already at max.
+                 ;;Unset and move to next line.
+                 (setf (font-drawable-text-end line) nil)
+                 ;; reveal another char then stop until next reveal timestamp.
+                 (progn
+                   (incf (font-drawable-text-end line))
+                   (setf next-char-appear-timestamp
+                         (+ next-char-appear-timestamp
+                            (%wpm-ms-between-chars reading-speed-wpm)))
+                   (log:trace "~A :: Revealed char. next-char-appear: ~A"
+                              (scene-ticks *scene*)
+                              next-char-appear-timestamp)
+                   (return))))
+         :finally
+         ;; no more chars to reveal
+           (log:trace "~A :: All chars revealed" (scene-ticks *scene*))
+           (setf next-char-appear-timestamp
+                 nil))))
+  (call-next-method hud timestep scene))
 
 (defun %resize-dialog-box (dialog-hud new-width new-height)
   (with-slots (background outline auto-resize-background-p window-padding) dialog-hud
@@ -109,7 +150,7 @@
 @export
 (defmethod quit-dialog (dialog-hud)
   (declare (dialog-hud dialog-hud))
-  (with-slots (show-p initiator speaker advance-prompt) dialog-hud
+  (with-slots (show-p initiator speaker advance-prompt next-char-appear-timestamp) dialog-hud
     (when initiator
       (setf (active-input-device initiator) (active-input-device dialog-hud)
             initiator nil))
@@ -118,6 +159,7 @@
       (recycle advance-prompt))
     (setf (active-input-device dialog-hud) *no-input-id*
           speaker nil
+          next-char-appear-timestamp nil
           advance-prompt nil
           show-p nil)))
 
@@ -130,7 +172,6 @@
                                     ;; temporary font drawable to measure potential line lengths
                                     :text ""
                                     :font-size (slot-value dialog-hud 'font-size)))
-
           ;; we'll likely want to alter text for display purposes (e.g. add a hyphen for line breaks)
           ;; copy the text so the underlying content is unchanged
           (text (copy-seq text)))
@@ -182,11 +223,15 @@
                                                          :text content)))
                             (vector-push-extend new-line lines)))
                         (let ((line (elt lines line-number)))
-                          (with-slots (window-position window-size window-padding background font-size)
+                          (with-slots (window-position window-size window-padding background font-size reading-speed-wpm)
                               dialog-hud
                             (let ((text-x (+ (x window-position) window-padding))
                                   (text-y (+ (y window-position) window-padding)))
                               (setf (text line) content
+                                    (font-drawable-text-end line)
+                                    (if reading-speed-wpm
+                                        0 ; hide text initially if a reading speed is set
+                                        nil)
                                     (font-size line) (slot-value dialog-hud 'font-size)
                                     (color line) (slot-value dialog-hud 'color)
                                     (x line) text-x
@@ -207,7 +252,9 @@
                     ;; create speaker name
                     (when (and (= 0 current-line) speaker)
                       (let ((speaker-line (get-or-create-line current-line (format nil "~A:" (object-name speaker)))))
-                        (setf (font-size speaker-line) (- font-size 2)))
+                        (setf (font-size speaker-line) (- font-size 2)
+                              ;; instantly reveal the speaker name
+                              (font-drawable-text-end speaker-line) nil))
                       (incf current-line)))
                   (setf current-line-ending
                         (compute-current-line-ending current-line-beginning dialog-hud))
@@ -232,6 +279,12 @@
                               (z advance-prompt) 1.0
                               (width advance-prompt) 8.0
                               (height advance-prompt) 8.0))))
+                  (with-slots (reading-speed-wpm next-char-appear-timestamp) dialog-hud
+                    (when reading-speed-wpm
+                      (setf next-char-appear-timestamp
+                            (+ (scene-ticks *scene*)
+                               (%wpm-ms-between-chars reading-speed-wpm)))))
+
                 ;; release excess lines
                   (with-slots (lines) dialog-hud
                     (loop :for i :from current-line :below (length lines) :do
