@@ -339,7 +339,7 @@
   (declare (optimize (speed 3)))
   (with-slots (font-drawable shader vao vbo vertices vertices-byte-size vertices-pointer-offset text-atlas)
       gl-font
-    (with-accessors ((color color) (text text))
+    (with-accessors ((color color) (text text) (text-end font-drawable-text-end))
         font-drawable
       (gl-use-shader renderer shader)
 
@@ -361,7 +361,17 @@
       (when (slot-value font-drawable 'dirty-p)
         (local-to-world-matrix font-drawable)
         (%set-font-vbo-contents font-drawable renderer))
-      (n-draw-arrays :triangles 0 (* 6 (length (the vector text)))))))
+      (let* ((total-text-length (length (the vector text)))
+             (custom-ending (and text-end
+                                 ;; don't let custom ending exceed total length
+                                 (min (the fixnum text-end)
+                                      total-text-length))))
+        (declare ((or null fixnum) total-text-length custom-ending))
+        (n-draw-arrays :triangles
+                       0
+                       (* 6
+                          (or custom-ending
+                              total-text-length)))))))
 
 (defun %create-font-shader ()
   (make-instance 'shader
@@ -386,7 +396,7 @@
 
 ;;;; Font-Drawable (Game object drawn with a gl-font draw-component)
 
-@export
+@export-class
 (defclass font-drawable (drawable obb)
   ;; duplicate slots to use for defaults of cached characters
   ((draw-component :initform nil)
@@ -406,7 +416,11 @@
    (font-dpi :initform 72
              :initarg :font-dpi
              :reader font-dpi
-             :documentation "Pixel depth of the font."))
+             :documentation "Pixel depth of the font.")
+   (text-end :initarg :text-end
+             :initform nil
+             :accessor font-drawable-text-end
+             :documentation "When non-nil render from the text's beginning up to but not including this index. Width of the font-drawable will be unchanged by this value."))
   (:documentation "A drawable which loads pixels from a font and user-defined text"))
 
 (defmethod initialize-instance :after ((font-drawable font-drawable) &rest args)
