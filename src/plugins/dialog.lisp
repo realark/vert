@@ -369,8 +369,8 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
 (defclass cutscene-hud (dialog-hud)
   ((active-node :initarg :active-node
                 :initform nil)
-   (on-quit-callback :initform nil
-                     :documentation "zero-arg function to run when the cutscene finishes."))
+   (on-quit-callbacks :initform nil
+                      :documentation "list of zero-arg fns to run when the cutscene finishes."))
   (:documentation "A more advanced dialog hud which may run arbitrary actions along with presenting text"))
 
 (defmethod update ((hud cutscene-hud) timestep scene)
@@ -382,9 +382,16 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
   (call-next-method hud timestep scene))
 
 @export
+(defun cutscene-hud-add-callback (cutscene-hud zero-arg-fn)
+  "instruct CUTSCENE-HUD to run ZERO-ARG-FN when its cutscene completes."
+  (with-slots (on-quit-callbacks) cutscene-hud
+    (push zero-arg-fn on-quit-callbacks))
+  (values))
+
+@export
 (defmethod play-cutscene ((hud cutscene-hud) new-node &key on-quit)
   "Play a cutscene starting with NEW-NODE. ON-QUIT is an optional zero-arg fn to invoke when the cutscene finishes."
-  (with-slots ((current-node active-node) on-quit-callback) hud
+  (with-slots ((current-node active-node) on-quit-callbacks) hud
     (unless (eq new-node current-node)
       (when current-node
         (cutscene-node-on-deactivate current-node hud))
@@ -392,16 +399,18 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
         (cutscene-node-on-activate new-node hud))
       (setf current-node new-node)
       (when on-quit
-        (when on-quit-callback
-          (log:error "cutscene clobbering existing callback: old: ~A new:~A" on-quit-callback on-quit))
-        (setf on-quit-callback on-quit))
+        (push on-quit on-quit-callbacks)
+        (log:debug "cutscene adding on-quit callback: ~A. ~A total"
+                   on-quit
+                   (length on-quit-callbacks)))
       (when (null current-node)
         (quit-dialog hud)
-        (let ((callback on-quit-callback))
-          (setf on-quit-callback nil)
-          (when callback
-            (locally (declare ((function ()) callback))
-              (funcall callback))))))))
+        (loop :while on-quit-callbacks :do
+             (handler-bind ((error
+                             (lambda (e)
+                               (log:error "cutscene callback error: ~A"
+                                          e))))
+               (funcall (the (function ()) (pop on-quit-callbacks)))))))))
 
 (defmethod advance-dialog ((hud cutscene-hud))
     (with-slots (active-node on-quit-callback) hud
@@ -587,6 +596,7 @@ The NEXT value of each node defaults to the next line in BODY. "
     (when (funcall one-arg-fn hud)
       (setf (cutscene-node-next-node-index node) 0))))
 
+@export
 (defun cutscene-run-action-with-hud (one-arg-fn)
   (make-instance 'cutscene-node-run-action-with-hud :one-arg-fn one-arg-fn))
 
