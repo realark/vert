@@ -261,18 +261,18 @@ It is invoked after the engine is fully started.")
     (format t "~%~%")))
 
 ;;;; live coding
-
 (defun setup-live-coding ()
   "Enable live coding (if swank is present)"
   (eval
-   '(defun update-swank ()
-     "Update swank events."
-     (declare (optimize (speed 3)))
-     #+swank
-     (let ((connection (or swank::*emacs-connection*
-                           (swank::default-connection))))
-       (when connection
-         (swank::handle-requests connection t))))))
+   (read-from-string
+    "(defun vert::update-swank ()
+      \"Update swank events.\"
+      (declare (optimize (speed 3)))
+      #+swank
+      (let ((connection (or swank::*emacs-connection*
+                            (swank::default-connection))))
+        (when connection
+          (swank::handle-requests connection t))))")))
 
 (defun stop-live-coding ()
   "Disable live coding"
