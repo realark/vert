@@ -49,11 +49,14 @@
     :initform t
     :documentation "When T, automatically resize the height of the text window background to the end of the text.")
    (reading-speed-wpm :initarg :reading-speed-wpm
-                      :initform 150
+                      :initform 230
                       :accessor dialog-hud-reading-speed-wpm
                       :documentation "WPM to show in the dialog box (1 word == 5 chars). Nil to show all text instantly.")
    (next-char-appear-timestamp :initform nil
                                :documentation "Internal timestamp for showing text at a reading speed. Timestamp of next char to reveal")
+   (reading-sfx :initarg :reading-sfx
+                :initform nil)
+   (last-sfx-ts :initform nil)
    (advance-delay :initarg :advance-delay
                   :initform 0
                   :documentation "time (ms) before player is allowed to advance the dialog.")))
@@ -90,10 +93,14 @@
            (* wpm avg-word-length))))
 
 (defmethod update ((hud dialog-hud) timestep scene)
-  (with-slots (reading-speed-wpm next-char-appear-timestamp lines) hud
+  (with-slots (reading-speed-wpm next-char-appear-timestamp lines reading-sfx last-sfx-ts) hud
     (when (and next-char-appear-timestamp
                (>= (scene-ticks *scene*) next-char-appear-timestamp))
-      (loop :for line :across lines :do
+      (loop :with reveal-count = 0
+         :for line :across lines :do
+           (incf reveal-count
+                 (or (font-drawable-text-end line)
+                     (length (text line))))
            (when (font-drawable-text-end line)
              (if (>= (font-drawable-text-end line)
                      (length (text line)))
@@ -102,10 +109,19 @@
                  (setf (font-drawable-text-end line) nil)
                  ;; reveal another char then stop until next reveal timestamp.
                  (progn
+                   ;; (incf reveal-count)
                    (incf (font-drawable-text-end line))
                    (setf next-char-appear-timestamp
                          (+ next-char-appear-timestamp
                             (%wpm-ms-between-chars reading-speed-wpm)))
+                   (let ((min-sfx-gap 80))
+                     (when (and reading-sfx
+                                ;; (= 0 (mod reveal-count 1))
+                                (or (null last-sfx-ts)
+                                    (>= (- (scene-ticks *scene*) last-sfx-ts)
+                                        min-sfx-gap)))
+                       (setf last-sfx-ts (scene-ticks *scene*))
+                       (play-sound-effect *audio* reading-sfx :volume 0.5)))
                    (log:trace "~A :: Revealed char. next-char-appear: ~A"
                               (scene-ticks *scene*)
                               next-char-appear-timestamp)
@@ -113,8 +129,8 @@
          :finally
          ;; no more chars to reveal
            (log:trace "~A :: All chars revealed" (scene-ticks *scene*))
-           (setf next-char-appear-timestamp
-                 nil))))
+           (setf last-sfx-ts nil
+                 next-char-appear-timestamp nil))))
   (call-next-method hud timestep scene))
 
 (defun %resize-dialog-box (dialog-hud new-width new-height)
@@ -150,7 +166,7 @@
 @export
 (defmethod quit-dialog (dialog-hud)
   (declare (dialog-hud dialog-hud))
-  (with-slots (show-p initiator speaker advance-prompt next-char-appear-timestamp) dialog-hud
+  (with-slots (show-p initiator speaker advance-prompt next-char-appear-timestamp last-sfx-ts) dialog-hud
     (when initiator
       (setf (active-input-device initiator) (active-input-device dialog-hud)
             initiator nil))
@@ -160,6 +176,7 @@
     (setf (active-input-device dialog-hud) *no-input-id*
           speaker nil
           next-char-appear-timestamp nil
+          last-sfx-ts nil
           advance-prompt nil
           show-p nil)))
 
