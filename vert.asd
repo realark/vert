@@ -147,7 +147,7 @@
                          (:file "main")))
                (:module dialog
                         :pathname "src/plugins"
-                        :depends-on (:scene)
+                        :depends-on (:scene :state-machine)
                         :serial T
                         :components
                         ((:file "dialog"))))

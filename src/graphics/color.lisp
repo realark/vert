@@ -97,7 +97,8 @@
 @export
 (defun color-copy (from-color &key r g b a (to-color (make-color)))
   "Copy FROM-COLOR to TO-COLOR (optional).
- Any provided RRBA values (optional) shall be used in place of copying."
+ Any provided RRBA values (optional) shall be used in place of copying.
+ Immutable colors will be copied into mutable colors."
   (declare (optimize (speed 3))
            (color from-color)
            ((or null color) to-color)

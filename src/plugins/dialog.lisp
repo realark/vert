@@ -1,5 +1,7 @@
 (in-package :recurse.vert)
 
+;;;; dialog speaker
+
 @export
 (defclass dialog-speaker (game-object)
   ((object-name :initarg :object-name
@@ -13,8 +15,10 @@
   (:documentation "An optional icon to show to prompt dialog advancement.")
   (:method (dialog-speaker) nil))
 
+;;;; basic dialog hud
+
 @export
-(defclass dialog-hud (overlay input-handler)
+(defclass dialog-hud (overlay input-handler stateful)
   ((show-p :initform nil)
    (initiator :initform nil
               :accessor dialog-hud-initiator
@@ -52,11 +56,14 @@
                       :initform 230
                       :accessor dialog-hud-reading-speed-wpm
                       :documentation "WPM to show in the dialog box (1 word == 5 chars). Nil to show all text instantly.")
+   (reading-speed-mod :initform 1
+                      :documentation "Reading speed will be multipled by this number. Use to speed up or slow down the text.")
    (next-char-appear-timestamp :initform nil
                                :documentation "Internal timestamp for showing text at a reading speed. Timestamp of next char to reveal")
    (reading-sfx :initarg :reading-sfx
                 :initform nil)
    (last-sfx-ts :initform nil)
+   (advance-prompt-next-flash-ts :initform nil)
    (advance-delay :initarg :advance-delay
                   :initform 0
                   :documentation "time (ms) before player is allowed to advance the dialog.")))
@@ -92,46 +99,69 @@
     (round ms-per-minute
            (* wpm avg-word-length))))
 
-(defmethod update ((hud dialog-hud) timestep scene)
-  (with-slots (reading-speed-wpm next-char-appear-timestamp lines reading-sfx last-sfx-ts) hud
-    (when (and next-char-appear-timestamp
-               (>= (scene-ticks *scene*) next-char-appear-timestamp))
-      (loop :with reveal-count = 0
-         :for line :across lines :do
-           (incf reveal-count
-                 (or (font-drawable-text-end line)
-                     (length (text line))))
-           (when (font-drawable-text-end line)
-             (if (>= (font-drawable-text-end line)
-                     (length (text line)))
-                 ;; text ending is already at max.
-                 ;;Unset and move to next line.
-                 (setf (font-drawable-text-end line) nil)
-                 ;; reveal another char then stop until next reveal timestamp.
-                 (progn
-                   ;; (incf reveal-count)
-                   (incf (font-drawable-text-end line))
-                   (setf next-char-appear-timestamp
-                         (+ next-char-appear-timestamp
-                            (%wpm-ms-between-chars reading-speed-wpm)))
-                   (let ((min-sfx-gap 80))
-                     (when (and reading-sfx
-                                ;; (= 0 (mod reveal-count 1))
-                                (or (null last-sfx-ts)
-                                    (>= (- (scene-ticks *scene*) last-sfx-ts)
-                                        min-sfx-gap)))
-                       (setf last-sfx-ts (scene-ticks *scene*))
-                       (play-sound-effect *audio* reading-sfx :volume 0.5)))
-                   (log:trace "~A :: Revealed char. next-char-appear: ~A"
-                              (scene-ticks *scene*)
-                              next-char-appear-timestamp)
-                   (return))))
-         :finally
-         ;; no more chars to reveal
-           (log:trace "~A :: All chars revealed" (scene-ticks *scene*))
-           (setf last-sfx-ts nil
-                 next-char-appear-timestamp nil))))
-  (call-next-method hud timestep scene))
+(defstate ((hud dialog-hud) :text-state delta-t-ms scene :initial-state :no-text)
+  (:no-text)
+  (:revealing-text
+   (:while-active
+    ;; keep revealing text
+    (with-slots (reading-speed-wpm reading-speed-mod next-char-appear-timestamp lines reading-sfx last-sfx-ts) hud
+      (when (and next-char-appear-timestamp
+                 (>= (scene-ticks *scene*) next-char-appear-timestamp))
+        (loop :with reveal-count = 0
+           :for line :across lines :do
+             (incf reveal-count
+                   (or (font-drawable-text-end line)
+                       (length (text line))))
+             (when (font-drawable-text-end line)
+               (if (>= (font-drawable-text-end line)
+                       (length (text line)))
+                   ;; text ending is already at max.
+                   ;;Unset and move to next line.
+                   (setf (font-drawable-text-end line) nil)
+                   ;; reveal another char then stop until next reveal timestamp.
+                   (progn
+                     ;; (incf reveal-count)
+                     (incf (font-drawable-text-end line))
+                     (setf next-char-appear-timestamp
+                           (+ next-char-appear-timestamp
+                              (%wpm-ms-between-chars (round (* reading-speed-wpm
+                                                               reading-speed-mod)))))
+                     (let ((min-sfx-gap 80))
+                       (when (and reading-sfx
+                                  ;; (= 0 (mod reveal-count 1))
+                                  (or (null last-sfx-ts)
+                                      (>= (- (scene-ticks *scene*) last-sfx-ts)
+                                          min-sfx-gap)))
+                         (setf last-sfx-ts (scene-ticks *scene*))
+                         (play-sound-effect *audio* reading-sfx :volume 0.5)))
+                     (log:trace "~A :: Revealed char. next-char-appear: ~A"
+                                (scene-ticks *scene*)
+                                next-char-appear-timestamp)
+                     (return))))
+           :finally
+           ;; no more chars to reveal
+             (log:trace "~A :: All chars revealed" (scene-ticks *scene*))
+             (setf last-sfx-ts nil
+                   next-char-appear-timestamp nil)
+             (change-state hud 0 *scene* :text-state :all-text-revealed))))))
+  (:all-text-revealed
+   (:on-activate
+    (with-slots (advance-prompt advance-prompt-next-flash-ts) hud
+      (when advance-prompt
+        (setf (a (color advance-prompt)) 1.0
+              advance-prompt-next-flash-ts (+ (scene-ticks *scene*) 500)))))
+   (:while-active
+    (with-slots (advance-prompt advance-prompt-next-flash-ts) hud
+      (when (and advance-prompt
+                 (>= (scene-ticks *scene*) advance-prompt-next-flash-ts))
+        (setf advance-prompt-next-flash-ts (+ (scene-ticks *scene*) 500))
+        (if (float= 1.0 (a (color advance-prompt)))
+            (setf (a (color advance-prompt)) 0.0)
+            (setf (a (color advance-prompt)) 1.0)))))
+   (:on-deactivate
+    (with-slots (advance-prompt) hud
+      (when advance-prompt
+        (setf (a (color advance-prompt)) 1.0))))))
 
 (defun %resize-dialog-box (dialog-hud new-width new-height)
   (with-slots (background outline auto-resize-background-p window-padding) dialog-hud
@@ -163,6 +193,9 @@
 (defmethod advance-dialog ((dialog-hud dialog-hud))
   (quit-dialog dialog-hud))
 
+(defmethod advance-dialog :before ((dialog-hud dialog-hud))
+  (change-state dialog-hud 0 *scene* :text-state :no-text))
+
 @export
 (defmethod quit-dialog (dialog-hud)
   (declare (dialog-hud dialog-hud))
@@ -183,6 +216,7 @@
 (defun %set-dialog-lines (dialog-hud)
   "Update hud's font-drawables to match the text and speaker content."
   (declare (dialog-hud dialog-hud))
+  (change-state dialog-hud 0 *scene* :text-state :revealing-text)
   ;; split text content into
   (with-slots (text) dialog-hud
     (let ((font-draw (make-instance 'font-drawable
@@ -291,11 +325,18 @@
                     ;; show button prompt
                     (with-slots (background advance-prompt) dialog-hud
                       (when advance-prompt
+                        (unless (color advance-prompt)
+                          (setf (color advance-prompt)
+                                (color-copy *white*)))
+                        (when (immutable-color-p (color advance-prompt))
+                          (setf (color advance-prompt)
+                                (color-copy (color advance-prompt))))
                         (setf (x advance-prompt) (+ (x background) (width last-line) 4.0)
                               (y advance-prompt) (+ (y last-line) (/ (height last-line) 2.0))
                               (z advance-prompt) 1.0
                               (width advance-prompt) 8.0
-                              (height advance-prompt) 8.0))))
+                              (height advance-prompt) 8.0
+                              (a (color advance-prompt)) 0.0))))
                   (with-slots (reading-speed-wpm next-char-appear-timestamp) dialog-hud
                     (when reading-speed-wpm
                       (setf next-char-appear-timestamp
@@ -318,10 +359,7 @@
                             *all-input-id*)))
       (when new-initiator
         (setf (active-input-device new-initiator) *no-input-id*))
-      (schedule *scene*
-                (+ (scene-ticks *scene*) advance-delay)
-                (lambda ()
-                  (setf (active-input-device hud) hud-input-id))))))
+      (setf (active-input-device hud) hud-input-id))))
 
 @export
 (defmethod show-dialog ((dialog-hud dialog-hud) text &key initiator speaker)
@@ -342,10 +380,30 @@
  (:keyboard
   (:scancode-z :advance-dialog)))
 
+(defmethod %advance-dialog-button ((dialog-hud dialog-hud) state)
+  (ecase state
+    (:activate
+     (case (current-state-for dialog-hud :text-state)
+       (:all-text-revealed
+        (advance-dialog dialog-hud))))
+    (:while-active
+     (case (current-state-for dialog-hud :text-state)
+       (:revealing-text
+        (let ((text-speedup-mod 2))
+          (unless (= text-speedup-mod (slot-value dialog-hud 'reading-speed-mod))
+            (setf (slot-value dialog-hud 'reading-speed-mod) text-speedup-mod))))))
+    (:deactivated
+     (setf (slot-value dialog-hud 'reading-speed-mod) 1))))
+
 (set-default-command-action-map
  dialog-hud
  (:advance-dialog
-  (on-activate (advance-dialog dialog-hud))))
+  (on-activate
+   (%advance-dialog-button dialog-hud :activate))
+  (while-active
+   (%advance-dialog-button dialog-hud :while-active))
+  (on-deactivate
+   (%advance-dialog-button dialog-hud :deactivated))))
 
 ;;;; cutscene node base class
 
@@ -768,7 +826,12 @@ The NEXT value of each node defaults to the next line in BODY. "
 (set-default-command-action-map
  cutscene-hud
  (:advance-dialog
-  (on-activate (advance-dialog cutscene-hud)))
+  (on-activate
+   (%advance-dialog-button cutscene-hud :activate))
+  (while-active
+   (%advance-dialog-button cutscene-hud :while-active))
+  (on-deactivate
+   (%advance-dialog-button cutscene-hud :deactivated)))
  (:select-right
   (on-activate
    (with-slots (active-node) cutscene-hud
