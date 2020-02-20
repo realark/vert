@@ -52,14 +52,17 @@
   (:method ((scene scene) (overlay overlay))
     (with-slots (scene-overlays) scene
       (unless (find overlay scene-overlays)
-        (vector-push-extend overlay scene-overlays))))
+        (vector-push-extend overlay scene-overlays)
+        overlay)))
   (:method ((scene game-scene) (overlay overlay))
     (with-slots (scene-overlays) scene
       (unless (find overlay scene-overlays)
-        (vector-push-extend overlay scene-overlays))))
+        (vector-push-extend overlay scene-overlays)
+        overlay)))
   (:method ((scene game-scene) (object game-object))
     (when (start-tracking (spatial-partition scene) object)
-      (add-subscriber object scene killed))))
+      (add-subscriber object scene killed)
+      object)))
 
 @export
 (defgeneric remove-from-scene (scene object)
@@ -67,18 +70,22 @@
   (:method ((scene scene) (overlay overlay))
     (with-slots (scene-overlays) scene
       (when (find overlay scene-overlays)
-        (setf scene-overlays (delete overlay scene-overlays)))))
+        (setf scene-overlays (delete overlay scene-overlays))
+        overlay)))
   (:method ((scene game-scene) (overlay overlay))
     (with-slots (scene-overlays) scene
       (when (find overlay scene-overlays)
         (setf scene-overlays (delete overlay scene-overlays))
-        (render-queue-remove (slot-value scene 'render-queue) overlay))))
+        (render-queue-remove (slot-value scene 'render-queue) overlay)
+        overlay)))
   (:method ((scene game-scene) (object game-object))
     ;; remove object at the start of the next frame to allow pending actions to finish
-    (remove-subscriber object scene killed)
-    (stop-tracking (spatial-partition scene) object)
-    (render-queue-remove (slot-value scene 'render-queue) object)
-    (vector-push-extend object (slot-value scene 'removed-objects))))
+    (when (in-scene-p scene object)
+      (remove-subscriber object scene killed)
+      (stop-tracking (spatial-partition scene) object)
+      (render-queue-remove (slot-value scene 'render-queue) object)
+      (vector-push-extend object (slot-value scene 'removed-objects))
+      object)))
 
 ;; for subclasses to hook object updates
 (defmethod found-object-to-update ((scene game-scene) game-object))
@@ -205,3 +212,13 @@
     (do-spatial-partition (game-object (spatial-partition scene) :static-iteration-p t)
       (when (equalp (object-id game-object) id)
         (return-from find-object game-object)))))
+
+@export
+(defun in-scene-p (scene object)
+  "Return OBJECT if OBJECT is in SCENE, nil otherwise."
+  (declare (optimize (speed 3))
+           (game-scene scene))
+  (block find-object
+    (do-spatial-partition (obj (spatial-partition scene) :static-iteration-p t)
+      (when (eq obj object)
+        (return-from find-object object)))))
