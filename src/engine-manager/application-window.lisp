@@ -98,7 +98,12 @@
                         pre-fs-x x
                         pre-fs-y y)))
               (resize-window application-window max-screen-width max-screen-height)
-              (sdl2:set-window-fullscreen win T)
+              (handler-case
+                  (sdl2:set-window-fullscreen win T)
+                (sdl2::sdl-error (sdl-error)
+                  (log:error "unable to set \"real\" fullscreen mode: ~A~%Falling back to :desktop. See https://wiki.libsdl.org/SDL_SetWindowFullscreen for details."
+                             sdl-error)
+                  (sdl2:set-window-fullscreen win :desktop)))
               ;; put mouse in window center to avoid triggering corner effects
               ;; on certain desktops
               (sdl2:warp-mouse-in-window

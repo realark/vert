@@ -116,6 +116,7 @@
        (handler-bind ((error
                        (lambda (e)
                          (declare (ignore e))
+                         ;; replace default error message with a more human-readable one
                          (error (format
                                  nil
                                  "event-callback method ~A is undefined."

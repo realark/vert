@@ -464,11 +464,10 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
       (when (null current-node)
         (quit-dialog hud)
         (loop :while on-quit-callbacks :do
-             (handler-bind ((error
-                             (lambda (e)
-                               (log:error "cutscene callback error: ~A"
-                                          e))))
-               (funcall (the (function ()) (pop on-quit-callbacks)))))))))
+             (handler-case
+                 (funcall (the (function ()) (pop on-quit-callbacks)))
+               (error (e)
+                 (log:error "cutscene callback error: ~A" e))))))))
 
 (defmethod advance-dialog ((hud cutscene-hud))
     (with-slots (active-node on-quit-callback) hud
