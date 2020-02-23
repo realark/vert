@@ -1,0 +1,85 @@
+* WORK IN PROGRESS
+This document is a work in progress. Please do not take it seriously.
+* Event System
+** Subscribing to a type of event
+** Subscribing to Events from a specific instance
+* Vert Systems
+** Config
+*** Interesting Globals
+** GL Context
+** Audio
+** Caches
+** Resource Autloader
+** Everything else
+* Game-Object and Scene
+** Game-Object
+** Game Components
+*** Transform
+*** 2D Physics
+*** Sprite Rendering
+*** Font Rendering
+*** Instanced Sprite Rendering
+*** State Machine util
+** Components which load external resources
+Scenario: your game component requires external resources (CFFI array, opengl bits, sfx bits).
+
+Your component must:
+1. Not attempt to load these bits when initialized. You should be able to create your component without a game window, gl-context, audio buffer, etc.
+2. When the engine starts, load the appropriate resources
+3. When the engine stops, release the appropriate resources
+4. When the component is garbage collected, release the appropriate resources
+
+*** Recommended Approach
+How resources are managed is ultimately up to the component developer, but it is highly recommended to do the following:
+1. Hook LOAD-RESOURCES and RELEASE-RESOURCES for your component (either use an :AROUND, :AFTER, or simpley CALL-NEXT-METHOD)
+2. When the object is initialized, register it with the *RESOURCE-AUTOLOADER*
+3. Add a finalizer on the component which frees its external resources
+
+As an example, we'll consider a bomb component. This is a contrived example for educational purposes. In practice the rendering and audio logic would be broken out into simpler utility components which manage the underlying bits.
+#+BEGIN_SRC lisp
+  (defclass bomb (game-object)
+    ((spritesheet :initform nil)
+     (explode-sfx :initform nil)))
+
+  (defmethod initialize-instance :after ((bomb bomb) &rest args)
+    (declare (ignore args))
+    'TODO-example-register)
+
+  ;; Note: Hooking :AROUND so that all initializations are complete before we potentially call LOAD-RESOURCES
+  (defmethod initialize-instance :around ((bomb bomb) &rest args)
+    (declare (optimize (speed 3)))
+    (let ((all-args (append (list bomb) args)))
+      (prog1 (apply #'call-next-method all-args)
+        (resource-autoloader-add-object
+         ,*resource-autoloader*
+         (tg:make-weak-pointer bomb)))))
+
+  (defun %release-bomb-resources (spritesheet explode-sfx)
+    (release-spritesheet spritesheet)
+    (release-sfx explode-sfx))
+
+  (defmethod load-resources ((bomb bomb))
+    ;; first make sure parent loading works
+    (prog1 (call-next-method bomb)
+      (let ((spritesheet (make-spritesheet *gl-context* (resource-path "./art/bomb.png")))
+            (explode-sfx (make-sfx *audio* (resource-path "./sfx/explode.wav"))))
+        (setf (slot-value bomb 'spritesheet) spritesheet
+              (slot-value bomb 'explode-sfx) explode-sfx)
+        (tg:finalize bomb
+                     ;; Note: It's really important to not reference BOMB instance in this lambda
+                     ;; because doing so creates a hard reference, meaning it will never be collected
+                     ;; and memory will slowly leak
+                     (lambda ()
+                       (%release-bomb-resources spritesheet explode-sfx))))))
+
+  (defmethod release-resources ((bomb bomb))
+    ;; FIXME: this is a bug because the finalizer will run on already released resources!
+    (%release-bomb-resources
+     (slot-value bomb 'spritesheet)
+     (slot-value bomb 'explode-sfx)))
+#+END_SRC
+** Scenes
+*** GAME-SCENE
+*** Menu
+*** Pause Scene
+*** Overlays
