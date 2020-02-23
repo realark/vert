@@ -19,13 +19,12 @@
                               :reader sprite-source-flip-vector)
    (sprite-source :initarg :sprite-source
                   :initform nil
-                  :reader sprite-source)))
-
-(defmethod color ((drawable instance-rendered-drawable))
-  (color (slot-value drawable 'instance-renderer)))
-
-(defmethod (setf color) (value (drawable instance-rendered-drawable))
-  (setf (color (slot-value drawable 'instance-renderer)) value))
+                  :reader sprite-source)
+   (color :initarg :color
+          :initform nil
+          :documentation "A color mod blended with the drawable. Nil has the same effect as *white*."
+          :accessor color))
+  (:documentation "A game object which uses an intance-renderer to draw itself."))
 
 (defmethod load-resources ((drawable instance-rendered-drawable) context))
 (defmethod release-resources ((drawable instance-rendered-drawable)))
@@ -69,17 +68,15 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
    (quad-vbo :initform 0)
    (transform-vbo :initform 0)
    (sprite-source-vbo :initform 0)
+   (sprite-color-vbo :initform 0)
    (fill-pointer :initform 0)
    (objects-to-render :initform nil)
    (c-transform-array :initform nil)
    (c-sprite-source-array :initform nil)
+   (c-sprite-color-array :initform nil)
    (buffers-dirty-p :initform nil
                     :documentation "When t, the c and gl buffers need to be refreshed to match the lisp buffer.")
    (cached-interpolation-value :initform 0.0)
-   (color :initarg :color
-          :initform nil
-          :documentation "A color mod blended with the drawable. Nil has the same effect as *white*."
-          :accessor color)
    (z :initarg :z
       :accessor z
       :initform 0.0
@@ -98,7 +95,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
 
 (defun %resize-sprite-instance-buffers (sprite-instance-renderer new-size)
   "Replace SPRITE-INSTANCE-RENDERER's internal buffers with buffers sized to NEW-SIZE. Existing elements will be copied over as long as new-size > old-size."
-  (with-slots ((objects objects-to-render) fill-pointer c-transform-array c-sprite-source-array) sprite-instance-renderer
+  (with-slots ((objects objects-to-render) fill-pointer c-transform-array c-sprite-source-array c-sprite-color-array) sprite-instance-renderer
     (declare ((or null (simple-array instance-rendered-drawable)) objects))
     ;; skip resize if new-size == current-size
     (unless (and objects (= (array-total-size objects) new-size))
@@ -115,7 +112,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                (setf (elt new i)
                      (elt objects i))))
         (setf objects new)
-        (when (or c-transform-array c-sprite-source-array)
+        (when (or c-transform-array c-sprite-source-array c-sprite-color-array)
           (%resize-c-buffers sprite-instance-renderer))
         (values)))))
 
@@ -132,7 +129,8 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
     (with-slots ((objects objects-to-render)
                  buffers-dirty-p
                  c-transform-array
-                 c-sprite-source-array)
+                 c-sprite-source-array
+                 c-sprite-color-array)
         sprite-instance-renderer
       (setf c-transform-array
             (resize c-transform-array
@@ -143,6 +141,11 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
             (resize c-sprite-source-array
                     :float
                     ;; each sprite-source is a vec4
+                    (* (array-total-size objects) 4))
+            c-sprite-color-array
+            (resize c-sprite-color-array
+                    :float
+                    ;; each color is a vec4
                     (* (array-total-size objects) 4)))
       (setf buffers-dirty-p t)
       (values))))
@@ -153,9 +156,8 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                vao quad-vbo
                transform-vbo
                sprite-source-vbo
-               (objects objects-to-render)
-               c-transform-array
-               c-sprite-source-array)
+               sprite-color-vbo
+               (objects objects-to-render))
       renderer
     (unless (/= 0 vao)
       (labels ((create-static-buffers (quad-padding)
@@ -186,37 +188,45 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                           (list vao quad-vbo))
                      (gl:free-gl-array c-vertices))))
                (create-instance-buffers (vao)
-                 (let ((transform-vbo (gl:gen-buffer)))
-                   ;; define transform buffer
-                   (gl-use-vao *gl-context* vao)
-                   (gl:bind-buffer :array-buffer transform-vbo)
-                   (gl:enable-vertex-attrib-array 2)
-                   ;; Note: max vertex attrib size is 4, so we have to break out the data into 4 separate attribs
-                   ;; inside the shader we can reference the first index as a mat4 and everything works
-                   ;; (gl:vertex-attrib-pointer 2 16 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 0 (cffi:foreign-type-size :float)))
-                   (gl:vertex-attrib-pointer 2 4 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 0 4 (cffi:foreign-type-size :float)))
-                   (gl:enable-vertex-attrib-array 3)
-                   (gl:vertex-attrib-pointer 3 4 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 1 4 (cffi:foreign-type-size :float)))
-                   (gl:enable-vertex-attrib-array 4)
-                   (gl:vertex-attrib-pointer 4 4 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 2 4 (cffi:foreign-type-size :float)))
-                   (gl:enable-vertex-attrib-array 5)
-                   (gl:vertex-attrib-pointer 5 4 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 3 4 (cffi:foreign-type-size :float)))
+                 (let ((transform-vbo nil)
+                       (sprite-source-vbo nil)
+                       (sprite-color-vbo nil))
+                   (block set-transform-vbo
+                     (setf transform-vbo (gl:gen-buffer))
+                     (gl-use-vao *gl-context* vao)
+                     (gl:bind-buffer :array-buffer transform-vbo)
+                     ;; Note: max vertex attrib size is 4, so we have to break out the data into 4 separate attribs
+                     ;; inside the shader we can reference the first index as a mat4 and everything works
+                     ;; (gl:vertex-attrib-pointer 2 16 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 0 (cffi:foreign-type-size :float)))
+                     (gl:enable-vertex-attrib-array 2)
+                     (gl:vertex-attrib-pointer 2 4 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 0 4 (cffi:foreign-type-size :float)))
+                     (gl:enable-vertex-attrib-array 3)
+                     (gl:vertex-attrib-pointer 3 4 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 1 4 (cffi:foreign-type-size :float)))
+                     (gl:enable-vertex-attrib-array 4)
+                     (gl:vertex-attrib-pointer 4 4 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 2 4 (cffi:foreign-type-size :float)))
+                     (gl:enable-vertex-attrib-array 5)
+                     (gl:vertex-attrib-pointer 5 4 :float 0 (* 16 (cffi:foreign-type-size :float)) (* 3 4 (cffi:foreign-type-size :float)))
 
-                   (gl:bind-buffer :array-buffer 0)
-                   (%gl:vertex-attrib-divisor 2 1)
-                   (%gl:vertex-attrib-divisor 3 1)
-                   (%gl:vertex-attrib-divisor 4 1)
-                   (%gl:vertex-attrib-divisor 5 1)
-
-                   (let ((sprite-source-vbo (gl:gen-buffer)))
-                     ;; define sprite-source buffer
+                     (gl:bind-buffer :array-buffer 0)
+                     (%gl:vertex-attrib-divisor 2 1)
+                     (%gl:vertex-attrib-divisor 3 1)
+                     (%gl:vertex-attrib-divisor 4 1)
+                     (%gl:vertex-attrib-divisor 5 1))
+                   (block set-sprite-source-vbo
+                     (setf sprite-source-vbo (gl:gen-buffer))
                      (gl:bind-buffer :array-buffer sprite-source-vbo)
                      (gl:enable-vertex-attrib-array 6)
                      (gl:vertex-attrib-pointer 6 4 :float 0 (* 4 (cffi:foreign-type-size :float)) (* 0 4 (cffi:foreign-type-size :float)))
                      (gl:bind-buffer :array-buffer 0)
-                     (%gl:vertex-attrib-divisor 6 1)
-
-                     (values transform-vbo sprite-source-vbo)))))
+                     (%gl:vertex-attrib-divisor 6 1))
+                   (block set-sprite-color-vbo
+                     (setf sprite-color-vbo (gl:gen-buffer))
+                     (gl:bind-buffer :array-buffer sprite-color-vbo)
+                     (gl:enable-vertex-attrib-array 7)
+                     (gl:vertex-attrib-pointer 7 4 :float 0 (* 4 (cffi:foreign-type-size :float)) (* 0 4 (cffi:foreign-type-size :float)))
+                     (gl:bind-buffer :array-buffer 0)
+                     (%gl:vertex-attrib-divisor 7 1))
+                   (values transform-vbo sprite-source-vbo sprite-color-vbo))))
         (getcache %instanced-sprite-key% *shader-cache*)
         (load-resources shader gl-context)
         (unless texture
@@ -232,26 +242,32 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
             (create-static-buffers (slot-value renderer 'quad-padding))
           (setf vao new-vao
                 quad-vbo new-quad-vbo))
-        (multiple-value-bind (t-vbo s-vbo) (create-instance-buffers vao)
+        (multiple-value-bind (t-vbo s-vbo c-vbo) (create-instance-buffers vao)
+          ;; add color to return value of CREATE-INSTANCE-BUFFERS and set it here
           (setf transform-vbo t-vbo
-                sprite-source-vbo s-vbo))
+                sprite-source-vbo s-vbo
+                sprite-color-vbo c-vbo))
         (%resize-c-buffers renderer))))
   (values))
 
 (defmethod release-resources ((renderer sprite-instance-renderer))
-  (with-slots (path-to-sprite shader texture vao quad-vbo transform-vbo sprite-source-vbo c-transform-array c-sprite-source-array) renderer
+  (with-slots (path-to-sprite shader texture vao quad-vbo transform-vbo sprite-source-vbo sprite-color-vbo c-transform-array c-sprite-source-array c-sprite-color-array) renderer
     (unless (= 0 vao)
       (stop-using-cached-resource texture path-to-sprite *texture-cache*)
       (remcache %instanced-sprite-key% *shader-cache*)
       (setf vao 0
             quad-vbo 0)
-      (gl:delete-buffers (list transform-vbo sprite-source-vbo))
+      (gl:delete-buffers (list transform-vbo sprite-source-vbo sprite-color-vbo))
       (setf transform-vbo 0
-            sprite-source-vbo 0)
+            sprite-source-vbo 0
+            sprite-color-vbo 0)
       (gl:free-gl-array c-transform-array)
       (gl:free-gl-array c-sprite-source-array)
+      (gl:free-gl-array c-sprite-color-array)
+      ;; free color buffer and then null it out
       (setf c-transform-array nil
-            c-sprite-source-array nil)))
+            c-sprite-source-array nil
+            c-sprite-color-array nil)))
   (values))
 
 (defmethod instance-renderer-queue ((renderer sprite-instance-renderer) (drawable instance-rendered-drawable))
@@ -283,7 +299,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
 
 (defmethod render ((renderer sprite-instance-renderer) update-percent camera gl-context)
   (declare (optimize (speed 3)))
-  (with-slots (shader texture vao fill-pointer cached-interpolation-value color buffers-dirty-p static-objects-p) renderer
+  (with-slots (shader texture vao fill-pointer cached-interpolation-value buffers-dirty-p static-objects-p) renderer
     (declare ((integer 0 #.+max-instance-size+) fill-pointer))
     (when (> fill-pointer 0)
       (gl-use-shader gl-context shader)
@@ -291,16 +307,6 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                               "worldProjection"
                               (interpolated-world-projection-matrix camera update-percent)
                               nil)
-      (if color
-          (set-uniformf shader
-                        "spriteColorMod"
-                        (r color)
-                        (g color)
-                        (b color)
-                        (a color))
-          (set-uniformf shader
-                        "spriteColorMod"
-                        1.0 1.0 1.0 1.0))
       (gl-bind-texture gl-context texture)
       (gl-use-vao gl-context vao)
       (unless (or static-objects-p
@@ -309,11 +315,28 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
       (setf cached-interpolation-value update-percent)
       (when buffers-dirty-p
         (log:trace "~A refresh gl buffers" renderer)
-        (with-slots ((objects objects-to-render) c-transform-array c-sprite-source-array transform-vbo sprite-source-vbo) renderer
+        (with-slots ((objects objects-to-render) c-transform-array c-sprite-source-array c-sprite-color-array transform-vbo sprite-source-vbo sprite-color-vbo) renderer
           (declare ((simple-array instance-rendered-drawable) objects))
+          ;; send lisp data to c-arrays
           (loop :for drawable-index :from 0 :below fill-pointer :do
                (locally (declare ((integer 0 #.+max-instance-size+) drawable-index))
-                 (let ((drawable (elt objects drawable-index)))
+                 (let ((drawable (elt objects drawable-index))
+                       (c-offset (* 4 drawable-index)))
+                   ;; color
+                   (let ((color (or (color drawable)
+                                    *white*)))
+                     (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-color-array)
+                                          :float c-offset)
+                           (r color)
+                           (cffi:mem-aref (gl::gl-array-pointer c-sprite-color-array)
+                                          :float (+ c-offset 1))
+                           (g color)
+                           (cffi:mem-aref (gl::gl-array-pointer c-sprite-color-array)
+                                          :float (+ c-offset 2))
+                           (b color)
+                           (cffi:mem-aref (gl::gl-array-pointer c-sprite-color-array)
+                                          :float (+ c-offset 3))
+                           (a color)))
                    (let* ((source (or (sprite-source drawable)
                                       *default-sprite-source*))
                           (flip-vector (the vector2 (sprite-source-flip-vector drawable)))
@@ -324,8 +347,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                           (total-w (texture-src-width texture))
                           (total-h (texture-src-height texture))
                           (w (or (sprite-source-w source) total-w))
-                          (h (or (sprite-source-h source) total-h))
-                          (c-offset (* 4 drawable-index)))
+                          (h (or (sprite-source-h source) total-h)))
                      (declare ((single-float -1.0 1.0) flip-x flip-y)
                               ((integer 0 *) x y w h total-w total-h))
                      ;; x y width height
@@ -346,6 +368,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                      (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-source-array)
                                           :float (+ c-offset 3))
                            (float (/ (* h flip-y) total-h))))
+
                    (loop :with model-matrix = (interpolated-sprite-matrix drawable update-percent)
                       :for c-index :from (* drawable-index 16)
                       :for i :from 0 :below 16 :do
@@ -358,7 +381,14 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                                                :float
                                                c-index)
                                 (elt model-matrix i)))))))
-          ;;  send c-arrays to opengl
+          (n-bind-buffer :array-buffer sprite-color-vbo)
+          (n-buffer-data :array-buffer
+                         (* 4
+                            (the (integer 1 256) (cffi:foreign-type-size :float))
+                            (the (integer 1 #.+max-instance-size+) fill-pointer))
+                         (gl::gl-array-pointer c-sprite-color-array)
+                         :dynamic-draw)
+          ;; send c sprite color array to GL
           (n-bind-buffer :array-buffer sprite-source-vbo)
           (n-buffer-data :array-buffer
                          (* 4
