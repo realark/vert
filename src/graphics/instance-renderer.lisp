@@ -81,7 +81,7 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
           :documentation "A color mod blended with the drawable. Nil has the same effect as *white*."
           :accessor color)
    (z :initarg :z
-      :reader z
+      :accessor z
       :initform 0.0
       :documentation "The z-layer this object is rendering to. All objects rendered by this instance-renderer must have the same z-layer")
    (quad-padding :initarg :quad-padding
