@@ -37,22 +37,37 @@ How resources are managed is ultimately up to the component developer, but it is
 
 As an example, we'll consider a bomb component. This is a contrived example for educational purposes. In practice the rendering and audio logic would be broken out into simpler utility components which manage the underlying bits.
 #+BEGIN_SRC lisp
+  ;;;; TODO: Add to resource file vv
+  (defclass %resource-releaser ()
+    ((label :initarg :label :initform (error ":label required"))))
+
+  (defmethod print-object ((resource-releaser %resource-releaser) out)
+    (with-slots (label) object
+      (print-unreadable-object (object out :type t)
+        (format out "~A" label))))
+
+  (defun make-resource-releaser (label)
+    "Create an object for the purposes "
+    (make-instance '%resource-releaser
+                   :object-name label))
+  ;;;; TODO
+
   (defclass bomb (game-object)
-    ((spritesheet :initform nil)
+    ((bomb-resource-releaser :initform nil)
+     (spritesheet :initform nil)
      (explode-sfx :initform nil)))
 
   (defmethod initialize-instance :after ((bomb bomb) &rest args)
     (declare (ignore args))
     'TODO-example-register)
 
-  ;; Note: Hooking :AROUND so that all initializations are complete before we potentially call LOAD-RESOURCES
+  ;; Note: Hooking :AROUND so that all initializations are complete before resource-autoloader potentially call LOAD-RESOURCES
   (defmethod initialize-instance :around ((bomb bomb) &rest args)
     (declare (optimize (speed 3)))
     (let ((all-args (append (list bomb) args)))
       (prog1 (apply #'call-next-method all-args)
-        (resource-autoloader-add-object
-         ,*resource-autoloader*
-         (tg:make-weak-pointer bomb)))))
+        (resource-autoloader-add-object *resource-autoloader*
+                                        (tg:make-weak-pointer bomb)))))
 
   (defun %release-bomb-resources (spritesheet explode-sfx)
     (release-spritesheet spritesheet)
@@ -61,22 +76,28 @@ As an example, we'll consider a bomb component. This is a contrived example for 
   (defmethod load-resources ((bomb bomb))
     ;; first make sure parent loading works
     (prog1 (call-next-method bomb)
-      (let ((spritesheet (make-spritesheet *gl-context* (resource-path "./art/bomb.png")))
-            (explode-sfx (make-sfx *audio* (resource-path "./sfx/explode.wav"))))
-        (setf (slot-value bomb 'spritesheet) spritesheet
-              (slot-value bomb 'explode-sfx) explode-sfx)
-        (tg:finalize bomb
-                     ;; Note: It's really important to not reference BOMB instance in this lambda
-                     ;; because doing so creates a hard reference, meaning it will never be collected
-                     ;; and memory will slowly leak
-                     (lambda ()
-                       (%release-bomb-resources spritesheet explode-sfx))))))
+      (unless (slot-value bomb 'bomb-resource-releaser)
+        (let ((spritesheet (make-spritesheet *gl-context* (resource-path "./art/bomb.png")))
+              (explode-sfx (make-sfx *audio* (resource-path "./sfx/explode.wav"))))
+          (setf (slot-value bomb 'spritesheet) spritesheet
+                (slot-value bomb 'explode-sfx) explode-sfx
+                (slot-value bomb 'resource-releaser) (make-resource-releaser "bomb-resource-releaser"))
+          (tg:finalize (slot-value bomb 'bomb-resource-releaser)
+                       ;; Note: It's really important to not reference BOMB instance or its BOMB-RESOURCE-RELEASER slot in this lambda
+                       ;; because doing so creates a hard reference, meaning it will never be collected
+                       ;; and memory will slowly leak
+                       (lambda ()
+                         (%release-bomb-resources spritesheet explode-sfx)))))))
 
   (defmethod release-resources ((bomb bomb))
-    ;; FIXME: this is a bug because the finalizer will run on already released resources!
-    (%release-bomb-resources
-     (slot-value bomb 'spritesheet)
-     (slot-value bomb 'explode-sfx)))
+    (with-slots (bomb-resource-releaser spritesheet explode-sfx) bomb
+      (prog1 (call-next-method bomb)
+        (when bomb-resource-releaser
+          (%release-bomb-resources spritesheet explode-sfx)
+          (tg:cancel-finalization bomb-resource-releaser)
+          (setf bomb-resource-releaser nil
+                spritesheet nil
+                explode-sfx nil)))))
 #+END_SRC
 ** Scenes
 *** GAME-SCENE
