@@ -59,10 +59,3 @@ Will be incremented by the update timestep after every update frame.")
 
 (defmethod render ((scene scene) update-percent (camera simple-camera) rendering-context)
   (declare (ignore camera scene update-percent camera rendering-context)))
-
-(defmethod load-resources ((scene scene) rendering-context)
-  ;; no-op
-  )
-(defmethod release-resources ((scene scene))
-  ;; no-op
-  )

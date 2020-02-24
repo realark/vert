@@ -35,9 +35,6 @@ User may provide this, but if they do so they are responsible for guaranteeing u
                   "")
               object-id))))
 
-(defmethod load-resources ((game-object game-object) context))
-(defmethod release-resources ((game-object game-object)))
-
 @export-class
 (defclass static-object ()
   ()
@@ -125,20 +122,6 @@ UPDATE-USER functionality.")
 UPDATE-PERCENT is percentage [0,1) between calls to the UPDATE method, with 0 being right at the update frame.")
   (:method ((game-object game-object) update-percent camera rendering-context)
     (declare (ignore game-object update-percent camera rendering-context))))
-
-@export
-(defgeneric load-resources (game-object rendering-context)
-  (:documentation "Called after the game window has been created, but before GAME-OBJECT has been added to the scene.
-Use this method to load/cache resources (e.g. opengl texture, audio sound effect, etc).")
-  (:method ((game-object game-object) rendering-context)
-    (declare (ignore game-object rendering-context))))
-
-@export
-(defgeneric release-resources (game-object)
-  (:documentation "GAME-OBJECT will no longer be rendered.
-Release any open resources and clean up state.")
-  (:method ((game-object game-object))
-    (declare (ignore game-object))))
 
 @export
 (defgeneric recycle (game-object)

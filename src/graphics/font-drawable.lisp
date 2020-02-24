@@ -54,7 +54,7 @@
                        :documentation "plist passed to (gl:tex-parameter KEY VAL)")
    (glyph-info :initform #())))
 
-(defmethod load-resources ((atlas text-atlas) (gl-context gl-context))
+(defmethod load-resources ((atlas text-atlas))
   (with-slots (path-to-font font-dpi char-code-beginning char-code-end) atlas
     (labels ((create-font-face (path-to-font font-dpi)
                "Create a freetype font-face for the given font and font-dpi."
@@ -184,7 +184,7 @@
                  (lambda ()
                    (%release-gl-font-resources buffer-cache-key path-to-font font-dpi vao vbo vertices text-atlas)))))
 
-(defmethod load-resources ((gl-font gl-font) (renderer gl-context))
+(defmethod load-resources ((gl-font gl-font))
   (with-slots (font-drawable text-atlas buffer-cache-key shader vao vbo vertices vertices-byte-size vertices-pointer-offset)
       gl-font
     (when (= 0 vao)
@@ -204,14 +204,14 @@
                                                             :font-dpi font-dpi
                                                             :char-code-beginning 0
                                                             :char-code-end 128)))
-                                  (load-resources atlas renderer)
+                                  (load-resources atlas)
                                   atlas))))
 
       (setf shader
             (getcache-default %font-key%
                               *shader-cache*
                               (let ((shader (%create-font-shader)))
-                                (load-resources shader renderer)
+                                (load-resources shader)
                                 shader)))
 
       (destructuring-bind (cached-vao cached-vbo)
@@ -220,7 +220,7 @@
                             (%create-font-buffers))
         (setf vao cached-vao
               vbo cached-vbo))
-      (%set-font-vbo-contents font-drawable renderer))))
+      (%set-font-vbo-contents font-drawable))))
 
 (defmethod release-resources ((gl-font gl-font))
   (with-slots (buffer-cache-key font-drawable shader vao vbo vertices text-atlas)
@@ -250,7 +250,7 @@
       (min (/ iw (%compute-text-width-for-atlas text-atlas (text font-drawable)))
            (/ ih (texture-src-height text-atlas)))))
 
-(defun %set-font-vbo-contents (font-drawable renderer)
+(defun %set-font-vbo-contents (font-drawable)
   (declare (optimize (speed 3)))
   (unless (on-game-thread-p)
     (warn "Font changes from outside of the game loop will not update GL Buffers~%"))
@@ -327,11 +327,11 @@
                             ;; Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
                             (incf x (* (ash (the fixnum (glyph-info-advance glyph-info)) -6) scale)))))
                    (unless (= 0 (the fixnum vao))
-                     (gl-use-vao renderer vao)
+                     (gl-use-vao *gl-context* vao)
                      (n-bind-buffer :array-buffer vbo)
                      (n-buffer-data :array-buffer vertices-byte-size (gl::gl-array-pointer vertices) :dynamic-draw)))))))
     (declare (inline scale-vertices-array send-vertices-to-gl))
-    (when (and renderer (slot-value (slot-value font-drawable 'font-draw-component) 'text-atlas))
+    (when (and *gl-context* (slot-value (slot-value font-drawable 'font-draw-component) 'text-atlas))
       (scale-vertices-array font-drawable)
       (send-vertices-to-gl font-drawable))))
 
@@ -360,7 +360,7 @@
       (gl-bind-texture renderer text-atlas)
       (when (slot-value font-drawable 'dirty-p)
         (local-to-world-matrix font-drawable)
-        (%set-font-vbo-contents font-drawable renderer))
+        (%set-font-vbo-contents font-drawable))
       (let* ((total-text-length (length (the vector text)))
              (custom-ending (and text-end
                                  ;; don't let custom ending exceed total length
@@ -441,7 +441,7 @@
                 (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
                   (setf (width font-drawable) fwidth
                         (height font-drawable) fheight)))
-              (%set-font-vbo-contents font-drawable *gl-context*))))))))
+              (%set-font-vbo-contents font-drawable))))))))
 
 (defmethod (setf font-size) :around (new-font-size (font-drawable font-drawable))
   (let ((old-font-size (font-size font-drawable)))
@@ -454,13 +454,13 @@
                 (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
                   (setf (width font-drawable) fwidth
                         (height font-drawable) fheight)))
-              (%set-font-vbo-contents font-drawable *gl-context*))))))))
+              (%set-font-vbo-contents font-drawable))))))))
 
-(defmethod load-resources ((font-drawable font-drawable) rendering-context)
+(defmethod load-resources ((font-drawable font-drawable))
   (with-slots (font-draw-component)
       font-drawable
-    (load-resources font-draw-component rendering-context)
-    (load-resources (draw-component font-drawable) rendering-context)
+    (load-resources font-draw-component)
+    (load-resources (draw-component font-drawable))
     (when (font-size font-drawable)
       (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
         (setf (width font-drawable) fwidth

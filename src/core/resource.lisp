@@ -1,6 +1,17 @@
 ;; Resource/Asset loading
 (in-package :recurse.vert)
 
+@export
+(defgeneric load-resources (object)
+  (:documentation "Tell OBJECT to load any external resources (e.g. opengl, audio sfx, etc).
+Idempotent. Will be called when all vert systems are initialized.")
+  (:method (object)))
+
+@export
+(defgeneric release-resources (game-object)
+  (:documentation "Tell OBJECT to release any external resources. Idempotent.")
+  (:method (object)))
+
 ;;;; getting the path to resources
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -52,8 +63,7 @@ This means game code will simply define load/release resource methods and not ha
     (bt:with-recursive-lock-held (lock)
       (vector-push-extend weak-obj-pointer objects))
     (when can-load-resources-p
-      (load-resources (tg:weak-pointer-value weak-obj-pointer)
-                      *gl-context*))))
+      (load-resources (tg:weak-pointer-value weak-obj-pointer)))))
 
 (defun resource-autoloader-remove-object (resource-autoloader weak-obj-pointer)
   "instruct RESOURCE-AUTOLOADER to stop managing the resources of the object pointed to by WEAK-OBJ-POINTER"
@@ -85,7 +95,7 @@ This means game code will simply define load/release resource methods and not ha
            :for pointer :across objects :do
              (let ((object (tg:weak-pointer-value pointer)))
                (if object
-                   (load-resources object *gl-context*)
+                   (load-resources object)
                    (setf empty-refs-p t
                          (elt objects i) nil)))
            :finally

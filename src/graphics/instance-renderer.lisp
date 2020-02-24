@@ -26,7 +26,7 @@
           :accessor color))
   (:documentation "A game object which uses an intance-renderer to draw itself."))
 
-(defmethod load-resources ((drawable instance-rendered-drawable) context))
+(defmethod load-resources ((drawable instance-rendered-drawable)))
 (defmethod release-resources ((drawable instance-rendered-drawable)))
 
 (declaim (ftype (function (instance-renderer instance-rendered-drawable) (integer 0 #.+max-instance-size+)) instance-renderer-queue))
@@ -150,7 +150,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
       (setf buffers-dirty-p t)
       (values))))
 
-(defmethod load-resources ((renderer sprite-instance-renderer) gl-context)
+(defmethod load-resources ((renderer sprite-instance-renderer))
   (with-slots (path-to-sprite
                shader texture
                vao quad-vbo
@@ -228,7 +228,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                      (%gl:vertex-attrib-divisor 7 1))
                    (values transform-vbo sprite-source-vbo sprite-color-vbo))))
         (getcache %instanced-sprite-key% *shader-cache*)
-        (load-resources shader gl-context)
+        (load-resources shader)
         (unless texture
           (setf texture
                 (getcache-default path-to-sprite
@@ -236,7 +236,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                                   (let ((texture (make-instance
                                                   'texture
                                                   :path-to-texture path-to-sprite)))
-                                    (load-resources texture gl-context)
+                                    (load-resources texture)
                                     texture))))
         (destructuring-bind (new-vao new-quad-vbo)
             (create-static-buffers (slot-value renderer 'quad-padding))

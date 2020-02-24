@@ -169,19 +169,19 @@
                                        (gl:delete-buffers (list cached-vbo))))))
   "Cache of gl-sprie's VAO and VBO")
 
-(defmethod load-resources ((drawable gl-sprite) gl-context)
+(defmethod load-resources ((drawable gl-sprite))
   (with-slots (static-sprite shader texture vao vbo)
       drawable
     (unless (/= 0 vao)
       (getcache %sprite-key% *shader-cache*)
-      (load-resources shader gl-context)
+      (load-resources shader)
       (setf texture
             (getcache-default (path-to-sprite static-sprite)
                               *texture-cache*
                               (let ((texture (make-instance
                                               'texture
                                               :path-to-texture (path-to-sprite static-sprite))))
-                                (load-resources texture gl-context)
+                                (load-resources texture)
                                 texture))))
     (destructuring-bind (cached-vao cached-vbo)
         (getcache-default %sprite-key%
@@ -298,13 +298,13 @@ Nil to render the entire sprite."
       (unless (or (equal old-path (path-to-sprite static-sprite))
                   (null *engine-manager*))
         (release-resources static-sprite)
-        (load-resources static-sprite (rendering-context *engine-manager*))))))
+        (load-resources static-sprite)))))
 
-(defmethod load-resources ((sprite static-sprite) rendering-context)
+(defmethod load-resources ((sprite static-sprite))
   (with-slots (sprite-draw-component path-to-sprite wrap-width wrap-height)
       sprite
-    (load-resources sprite-draw-component rendering-context)
-    (load-resources (draw-component sprite) rendering-context)
+    (load-resources sprite-draw-component)
+    (load-resources (draw-component sprite))
 
     (with-accessors ((sprite-source sprite-source)
                      (width width) (height height))

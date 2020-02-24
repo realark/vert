@@ -38,10 +38,10 @@
                  (lambda ()
                    (%release-polygon-draw-resources shader vao vbo)))))
 
-(defmethod load-resources ((polygon-draw polygon-draw) context)
+(defmethod load-resources ((polygon-draw polygon-draw))
   (with-slots (shader vao vbo) polygon-draw
     (when (= 0 vao)
-      (load-resources shader context)
+      (load-resources shader)
       (let ((buffers (%create-polygon-vao)))
         (setf vao (first buffers))
         (setf vbo (second buffers))))))

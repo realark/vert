@@ -157,8 +157,7 @@ For example, the "
       (when geometry-source
         (setf geometry-source (make-shader-source geometry-source))))))
 
-(defmethod load-resources ((shader shader) context)
-  (declare (ignore context))
+(defmethod load-resources ((shader shader))
   ;; compile and link the shader if not already done
   (flet ((assert-no-shader-errors (shader-id)
            (assert (/= 0 shader-id))
@@ -244,7 +243,7 @@ For example, the "
   "Reload a shader's source. No effect if the shader is not already loaded."
   (unless (= 0 (slot-value shader 'program-id))
     (release-resources shader)
-    (load-resources shader t)))
+    (load-resources shader)))
 
 (defun set-uniformf (shader uniform-name x &optional y z w)
   (declare (optimize (speed 3))
@@ -298,7 +297,7 @@ For example, the "
       (error "texture ~A is not loaded" texture))
     texture-src-height))
 
-(defmethod load-resources ((texture texture) (renderer gl-context))
+(defmethod load-resources ((texture texture))
   (with-slots (path-to-texture
                texture-id
                texture-src-width
