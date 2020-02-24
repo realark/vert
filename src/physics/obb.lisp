@@ -14,10 +14,11 @@
 (defmethod print-object ((obb obb) out)
   (print-unreadable-object (obb out :type t)
     (format out
-            "(~A,~A,~A)(~Ax~A)(r~A-degrees)"
+            "(~A,~A,~A)(~Ax~A)(r~A-degrees){~A}"
             (x obb) (y obb) (z obb)
             (width obb) (height obb)
-            (rotation obb))))
+            (rotation obb)
+            (object-id obb))))
 
 (defun %set-local-points (obb)
   (declare (optimize (speed 3))

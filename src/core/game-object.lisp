@@ -25,6 +25,16 @@ User may provide this, but if they do so they are responsible for guaranteeing u
                      (lambda ()
                        (resource-autoloader-remove-object *resource-autoloader* weak-obj-pointer)))))))
 
+(defmethod print-object ((object game-object) out)
+  (with-slots (object-name object-id) object
+    (print-unreadable-object (object out :type t)
+      (format out
+              "~A{~A}"
+              (if object-name
+                  (format nil "~A::" object-name)
+                  "")
+              object-id))))
+
 (defmethod load-resources ((game-object game-object) context))
 (defmethod release-resources ((game-object game-object)))
 
