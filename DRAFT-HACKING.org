@@ -1,5 +1,37 @@
 * WORK IN PROGRESS
 This document is a work in progress. Please do not take it seriously.
+* Units
+** Distance
+** Time
+Unless otherwise stated in the variable name, all time units are assumed to be milliseconds.
+
+#+BEGIN_SRC lisp
+*start-time* ; assumed to be milliseconds
+*start-time-ms* ; explicitly milliseconds
+*start-time-seconds* ; explicitly seconds
+#+END_SRC
+*** Wallclock time
+TICKS and TICKS-NANOS return a millisecond and nanosecond timestamp respectively. This timestamp begins counting from an arbitrary point in time.
+
+#+BEGIN_SRC lisp
+(ticks) ; -> ms timestamp
+(ticks-nanos) ; -> nanosecond timestamp
+#+END_SRC
+*** Scene Time / Game Time
+The amount of wallclock time passed will often not equal the amount of "game time" elapsed. For example, if the game is paused while an attack is charging, the amount of time paused must not affect the game-object's charge time.
+
+Each scene has a SCENE-TICKS function, which returns the amount of milliseconds elapsed since the scene began running.
+
+You will almost always want to use SCENE-TICKS to implement in-game timers.
+#+BEGIN_SRC lisp
+;; *scene* begins running
+(scene-ticks *scene*) ; -> 0
+;; 4 seconds of game time have elapsed
+(scene-ticks *scene*) ; -> 4000
+;; game is paused for 5 minutes, then unpaused
+;; *scene* internal timer is the same because it was not recieveing updates while paused.
+(scene-ticks *scene*) ; -> 4000
+#+END_SRC
 * Event System
 ** Subscribing to a type of event
 ** Subscribing to Events from a specific instance
