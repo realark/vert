@@ -256,6 +256,7 @@ It is invoked after the engine is fully started.")
        :do
          (log:info "-- stop hook: ~A" label)
          (funcall hook))
+    (garbage-collect-hint) ; run any resource finalizers
     (do-cache (*engine-caches* cache-name cache)
       (clear-cache cache))
     (format t "~%~%")))

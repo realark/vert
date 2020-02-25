@@ -51,19 +51,22 @@
             :accessor gl-sprite-texture
             :documentation "opengl texture. Loaded from location specified by static-sprite slot.")
    (vao :initform 0)
-   (vbo :initform 0))
+   (vbo :initform 0)
+   (releaser :initform nil))
   (:documentation "A draw component which renders a portion of a sprite to the screen using opengl."))
 
-(defmethod initialize-instance :after ((sprite gl-sprite) &rest args)
-  (declare (ignore args))
-  ;; note: using let instead of with-slots to avoid reference circularity
-  (let ((path-to-sprite (path-to-sprite (slot-value sprite 'static-sprite)))
-        (texture (slot-value sprite 'texture))
-        (vao (slot-value sprite 'vao))
-        (vbo (slot-value sprite 'vbo)))
-    (tg:finalize sprite
-                 (lambda ()
-                   (%release-gl-sprite-resources path-to-sprite texture vao vbo)))))
+(defmethod initialize-instance :around ((gl-sprite gl-sprite) &rest args)
+  ;; TODO use push instead of append
+  (let ((all-args (append (list gl-sprite) args)))
+    (prog1 (apply #'call-next-method all-args)
+      (with-slots (static-sprite) gl-sprite
+        (resource-autoloader-add-object
+         *resource-autoloader*
+         (tg:make-weak-pointer gl-sprite)
+         ;; static-sprite may still be initializing.
+         ;; if so, skip the load. static-sprite will load the gl-sprite
+         ;; when it finishes initializing
+         :skip-object-load (null (path-to-sprite static-sprite)))))))
 
 @inline
 (defun gl-sprite-set-base-sprite-data (gl-sprite static-sprite update-percent camera)
@@ -170,9 +173,9 @@
   "Cache of gl-sprie's VAO and VBO")
 
 (defmethod load-resources ((drawable gl-sprite))
-  (with-slots (static-sprite shader texture vao vbo)
-      drawable
-    (unless (/= 0 vao)
+  (unless (slot-value drawable 'releaser)
+    (with-slots (static-sprite shader texture vao vbo)
+        drawable
       (getcache %sprite-key% *shader-cache*)
       (load-resources shader)
       (setf texture
@@ -182,20 +185,35 @@
                                               'texture
                                               :path-to-texture (path-to-sprite static-sprite))))
                                 (load-resources texture)
-                                texture))))
-    (destructuring-bind (cached-vao cached-vbo)
-        (getcache-default %sprite-key%
-                          *sprite-buffer-cache*
-                          (%create-sprite-vao))
-      (setf vao cached-vao
-            vbo cached-vbo))))
+                                texture)))
+      (destructuring-bind (cached-vao cached-vbo)
+          (getcache-default %sprite-key%
+                            *sprite-buffer-cache*
+                            (%create-sprite-vao))
+        (setf vao cached-vao
+              vbo cached-vbo)))
+    ;; note: using let instead of with-slots to avoid reference circularity
+    (let ((path-to-sprite (path-to-sprite (slot-value drawable 'static-sprite)))
+          (texture (slot-value drawable 'texture))
+          (vao (slot-value drawable 'vao))
+          (vbo (slot-value drawable 'vbo)))
+      (setf (slot-value drawable 'releaser)
+            (make-resource-releaser (drawable)
+              (%release-gl-sprite-resources
+               path-to-sprite
+               texture
+               vao
+               vbo))))))
 
 (defmethod release-resources ((drawable gl-sprite))
-  (with-slots (static-sprite shader texture vao vbo)
-      drawable
-    (%release-gl-sprite-resources (path-to-sprite static-sprite) texture vao vbo)
-    (setf vao 0
-          vbo 0)))
+    (with-slots (releaser static-sprite shader texture vao vbo)
+        drawable
+      (when releaser
+        (cancel-resource-releaser releaser)
+        (%release-gl-sprite-resources (path-to-sprite static-sprite) texture vao vbo)
+        (setf vao 0
+              vbo 0
+              releaser nil))))
 
 (defun %release-gl-sprite-resources (path-to-sprite texture vao vbo)
   (declare (ignorable vbo))
@@ -253,7 +271,8 @@
      ;; static-sprite needs a sprite-draw-component to get texture width.
      ;; it's possible for subclasses to replace the draw-component so we'll store the sprite
      ;; component in a separate slot to be safe.
-     (sprite-draw-component :initform nil)
+     (sprite-draw-component :initarg :sprite-draw-component
+                            :initform nil)
      (path-to-sprite :initarg :path-to-sprite
                      :initform (error ":path-to-sprite must be specified")
                      :accessor path-to-sprite
@@ -273,7 +292,8 @@ Nil to render the entire sprite."
                   :initarg :wrap-height)
      ;; TODO: consting vv
      (flip-list :initform (list)
-                :accessor flip-list))
+                :accessor flip-list)
+     (releaser :initform nil))
     (:documentation "A game-object which loads pixels from an image resource for rendering."))
 
   (export '(sprite-source sprite-source-x sprite-source-y sprite-source-width sprite-source-height)))
@@ -286,11 +306,20 @@ Nil to render the entire sprite."
                wrap-width
                wrap-height)
       sprite
-    (setf sprite-draw-component (make-instance 'gl-sprite :static-sprite sprite)
-          (draw-component sprite) sprite-draw-component)
+    (unless (eq :skip sprite-draw-component )
+      (setf sprite-draw-component (make-instance 'gl-sprite :static-sprite sprite)
+            (draw-component sprite) sprite-draw-component))
     (when (and (or wrap-width wrap-height)
                sprite-source)
       (error "using wrap-width/height with sprite-source not supported. ~A" sprite))))
+
+;; register with resource-autoloader
+(defmethod initialize-instance :around ((static-sprite static-sprite) &rest args)
+  (let ((all-args (append (list static-sprite) args)))
+    (prog1 (apply #'call-next-method all-args)
+      (resource-autoloader-add-object
+       *resource-autoloader*
+       (tg:make-weak-pointer static-sprite)))))
 
 (defmethod (setf path-to-sprite) :around (new-sprite-path (static-sprite static-sprite))
   (let ((old-path (path-to-sprite static-sprite)))
@@ -301,31 +330,43 @@ Nil to render the entire sprite."
         (load-resources static-sprite)))))
 
 (defmethod load-resources ((sprite static-sprite))
-  (with-slots (sprite-draw-component path-to-sprite wrap-width wrap-height)
-      sprite
-    (load-resources sprite-draw-component)
-    (load-resources (draw-component sprite))
-
-    (with-accessors ((sprite-source sprite-source)
-                     (width width) (height height))
+  (unless (slot-value sprite 'releaser)
+    (with-slots (sprite-draw-component path-to-sprite wrap-width wrap-height)
         sprite
-      (with-accessors ((texture gl-sprite-texture))
-          sprite-draw-component
-        (when (or wrap-width wrap-height)
-          (setf sprite-source
-                (make-sprite-source 0
-                                    0
-                                    (round
-                                     (* (texture-src-width texture)
-                                        (/ width (or wrap-width width))))
-                                    (round
-                                     (* (texture-src-height texture)
-                                        (/ height (or wrap-height height)))))))))))
+      (load-resources sprite-draw-component)
+      (load-resources (draw-component sprite))
+
+      (with-accessors ((sprite-source sprite-source)
+                       (width width) (height height))
+          sprite
+        (with-accessors ((texture gl-sprite-texture))
+            sprite-draw-component
+          (when (or wrap-width wrap-height)
+            (setf sprite-source
+                  (make-sprite-source 0
+                                      0
+                                      (round
+                                       (* (texture-src-width texture)
+                                          (/ width (or wrap-width width))))
+                                      (round
+                                       (* (texture-src-height texture)
+                                          (/ height (or wrap-height height))))))))))
+    (let ((sprite-draw-component (slot-value sprite 'sprite-draw-component))
+          (generic-draw-component (draw-component sprite)))
+      ;; Generic and sprite-draw components will often be the same instance.
+      ;; It's okay to call release multiple times since the method is idempotent.
+      (setf (slot-value sprite 'releaser)
+            (make-resource-releaser (sprite)
+              (release-resources sprite-draw-component)
+              (release-resources generic-draw-component))))))
 
 (defmethod release-resources ((sprite static-sprite))
-  (with-slots (sprite-draw-component) sprite
-    (release-resources sprite-draw-component)
-    (release-resources (draw-component sprite))))
+  (with-slots (releaser sprite-draw-component) sprite
+    (when releaser
+      (release-resources sprite-draw-component)
+      (release-resources (draw-component sprite))
+      (cancel-resource-releaser releaser)
+      (setf releaser nil))))
 
 @export
 (defun add-color-map (static-sprite color-map)

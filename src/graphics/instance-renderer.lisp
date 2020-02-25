@@ -26,6 +26,7 @@
           :accessor color))
   (:documentation "A game object which uses an intance-renderer to draw itself."))
 
+;; override less specific methods
 (defmethod load-resources ((drawable instance-rendered-drawable)))
 (defmethod release-resources ((drawable instance-rendered-drawable)))
 
@@ -87,11 +88,20 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
 Currently used to workaround bugs where a temporary gap can appear between adjacent objects due to float rounding")
    (static-objects-p :initarg :static-objects-p
                      :initform nil
-                     :documentation "Optimization hint. Inform the renderer it will be rendering static objects."))
+                     :documentation "Optimization hint. Inform the renderer it will be rendering static objects.")
+   (releaser :initform nil))
   (:documentation "An object which renders a large number of STATIC-SPRITEs using instanced rendering."))
 
 (defmethod initialize-instance :after ((renderer sprite-instance-renderer) &key (initial-buffer-size 100))
   (%resize-sprite-instance-buffers renderer initial-buffer-size))
+
+(defmethod initialize-instance :around ((renderer sprite-instance-renderer) &rest args)
+  ;; TODO use push instead of append
+  (let ((all-args (append (list renderer) args)))
+    (prog1 (apply #'call-next-method all-args)
+      (resource-autoloader-add-object
+       *resource-autoloader*
+       (tg:make-weak-pointer renderer)))))
 
 (defun %resize-sprite-instance-buffers (sprite-instance-renderer new-size)
   "Replace SPRITE-INSTANCE-RENDERER's internal buffers with buffers sized to NEW-SIZE. Existing elements will be copied over as long as new-size > old-size."
@@ -151,15 +161,15 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
       (values))))
 
 (defmethod load-resources ((renderer sprite-instance-renderer))
-  (with-slots (path-to-sprite
-               shader texture
-               vao quad-vbo
-               transform-vbo
-               sprite-source-vbo
-               sprite-color-vbo
-               (objects objects-to-render))
-      renderer
-    (unless (/= 0 vao)
+  (unless (slot-value renderer 'releaser)
+    (with-slots (path-to-sprite
+                 shader texture
+                 vao quad-vbo
+                 transform-vbo
+                 sprite-source-vbo
+                 sprite-color-vbo
+                 (objects objects-to-render))
+        renderer
       (labels ((create-static-buffers (quad-padding)
                  (log:info "creating gl buffers for instanced sprite rendering")
                  (let ((vao 0)
@@ -170,7 +180,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                                                     (+ 0.0 quad-padding)   (- -1 quad-padding)  0.0          1.0 -1.0 ; bottom right
                                                     (- -1 quad-padding)    (- -1 quad-padding)  0.0          0.0 -1.0 ; bottom left
                                                     (- -1 quad-padding)    (+ 0.0 quad-padding)  0.0          0.0  0.0 ; top left
-                                                   )))
+                                                    )))
                    (unwind-protect
                         (progn
                           (setf vao (gl:gen-vertex-array)
@@ -247,27 +257,55 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
           (setf transform-vbo t-vbo
                 sprite-source-vbo s-vbo
                 sprite-color-vbo c-vbo))
-        (%resize-c-buffers renderer))))
+        (%resize-c-buffers renderer)))
+    (let ((texture (slot-value renderer 'texture))
+          (path-to-sprite (slot-value renderer 'path-to-sprite))
+          (vao (slot-value renderer 'vao))
+          (quad-vbo (slot-value renderer 'quad-vbo))
+          (transform-vbo (slot-value renderer 'transform-vbo))
+          (sprite-source-vbo (slot-value renderer 'sprite-source-vbo))
+          (sprite-color-vbo (slot-value renderer 'sprite-color-vbo))
+          (c-transform-array (slot-value renderer 'c-transform-array))
+          (c-sprite-source-array (slot-value renderer 'c-sprite-source-array))
+          (c-sprite-color-array (slot-value renderer 'c-sprite-color-array)))
+      (setf (slot-value renderer 'releaser)
+            (make-resource-releaser (renderer)
+              (%release-sprite-instance-renderer-resources texture path-to-sprite
+                                                           vao quad-vbo
+                                                           transform-vbo sprite-source-vbo sprite-color-vbo
+                                                           c-transform-array c-sprite-source-array c-sprite-color-array)))))
   (values))
 
 (defmethod release-resources ((renderer sprite-instance-renderer))
-  (with-slots (path-to-sprite shader texture vao quad-vbo transform-vbo sprite-source-vbo sprite-color-vbo c-transform-array c-sprite-source-array c-sprite-color-array) renderer
-    (unless (= 0 vao)
-      (stop-using-cached-resource texture path-to-sprite *texture-cache*)
-      (remcache %instanced-sprite-key% *shader-cache*)
+  (with-slots (releaser path-to-sprite shader texture vao quad-vbo transform-vbo sprite-source-vbo sprite-color-vbo c-transform-array c-sprite-source-array c-sprite-color-array) renderer
+    (when releaser
+      (%release-sprite-instance-renderer-resources texture path-to-sprite
+                                                   vao quad-vbo
+                                                   transform-vbo sprite-source-vbo sprite-color-vbo
+                                                   c-transform-array c-sprite-source-array c-sprite-color-array)
+      (cancel-resource-releaser releaser)
       (setf vao 0
-            quad-vbo 0)
-      (gl:delete-buffers (list transform-vbo sprite-source-vbo sprite-color-vbo))
-      (setf transform-vbo 0
+            quad-vbo 0
+            transform-vbo 0
             sprite-source-vbo 0
-            sprite-color-vbo 0)
-      (gl:free-gl-array c-transform-array)
-      (gl:free-gl-array c-sprite-source-array)
-      (gl:free-gl-array c-sprite-color-array)
-      ;; free color buffer and then null it out
-      (setf c-transform-array nil
+            sprite-color-vbo 0
+            c-transform-array nil
             c-sprite-source-array nil
-            c-sprite-color-array nil)))
+            c-sprite-color-array nil
+            releaser nil)))
+  (values))
+
+(defun %release-sprite-instance-renderer-resources (texture path-to-sprite
+                                                    vao quad-vbo
+                                                    transform-vbo sprite-source-vbo sprite-color-vbo
+                                                    c-transform-array c-sprite-source-array c-sprite-color-array
+                                                    )
+  (stop-using-cached-resource texture path-to-sprite *texture-cache*)
+  (remcache %instanced-sprite-key% *shader-cache*)
+  (gl:delete-buffers (list vao quad-vbo transform-vbo sprite-source-vbo sprite-color-vbo))
+  (gl:free-gl-array c-transform-array)
+  (gl:free-gl-array c-sprite-source-array)
+  (gl:free-gl-array c-sprite-color-array)
   (values))
 
 (defmethod instance-renderer-queue ((renderer sprite-instance-renderer) (drawable instance-rendered-drawable))

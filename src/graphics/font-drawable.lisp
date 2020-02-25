@@ -167,27 +167,27 @@
      (vbo :initform 0)
      (vertices-byte-size :initform 0)
      (vertices-pointer-offset :initform 0)
-     (vertices :initform nil)))
+     (vertices :initform nil)
+     (releaser :initform nil)))
   (export '(text)))
 
-(defmethod initialize-instance :after ((gl-font gl-font) &rest args)
-  (declare (ignore args))
-  ;; note: using let instead of with-slots to avoid reference circularity
-  (let ((buffer-cache-key (slot-value gl-font 'buffer-cache-key))
-        (path-to-font (slot-value (slot-value gl-font 'font-drawable) 'path-to-font))
-        (font-dpi (slot-value (slot-value gl-font 'font-drawable) 'font-dpi))
-        (vao (slot-value gl-font 'vao))
-        (vbo (slot-value gl-font 'vbo))
-        (vertices (slot-value gl-font 'vertices))
-        (text-atlas (slot-value gl-font 'text-atlas)))
-    (tg:finalize gl-font
-                 (lambda ()
-                   (%release-gl-font-resources buffer-cache-key path-to-font font-dpi vao vbo vertices text-atlas)))))
+(defmethod initialize-instance :around ((gl-font gl-font) &rest args)
+  ;; TODO use push instead of append
+  (let ((all-args (append (list gl-font) args)))
+    (prog1 (apply #'call-next-method all-args)
+      (with-slots (font-drawable) gl-font
+        (resource-autoloader-add-object
+         *resource-autoloader*
+         (tg:make-weak-pointer gl-font)
+         ;; font-drawable may still be initializing.
+         ;; if so, skip the load. font-drawable will load the gl-font
+         ;; when it finishes initializing
+         :skip-object-load (null (draw-component font-drawable)))))))
 
 (defmethod load-resources ((gl-font gl-font))
-  (with-slots (font-drawable text-atlas buffer-cache-key shader vao vbo vertices vertices-byte-size vertices-pointer-offset)
-      gl-font
-    (when (= 0 vao)
+  (unless (slot-value gl-font 'releaser)
+    (with-slots (font-drawable text-atlas buffer-cache-key shader vao vbo vertices vertices-byte-size vertices-pointer-offset)
+        gl-font
       (with-slots (path-to-font font-dpi) font-drawable
         (setf text-atlas
               ;; cache by FONT -> FONT-DPI -> text-atlas
@@ -220,26 +220,46 @@
                             (%create-font-buffers))
         (setf vao cached-vao
               vbo cached-vbo))
-      (%set-font-vbo-contents font-drawable))))
+      (%set-font-vbo-contents font-drawable))
+    ;; note: using let instead of with-slots to avoid reference circularity
+    (let ((buffer-cache-key (slot-value gl-font 'buffer-cache-key))
+          (path-to-font (slot-value (slot-value gl-font 'font-drawable) 'path-to-font))
+          (font-dpi (slot-value (slot-value gl-font 'font-drawable) 'font-dpi))
+          (vao (slot-value gl-font 'vao))
+          (vbo (slot-value gl-font 'vbo))
+          (vertices (slot-value gl-font 'vertices))
+          (text-atlas (slot-value gl-font 'text-atlas)))
+      (setf (slot-value gl-font 'releaser)
+            (make-resource-releaser (gl-font)
+              (%release-gl-font-resources buffer-cache-key path-to-font font-dpi vao vbo vertices text-atlas))))))
 
 (defmethod release-resources ((gl-font gl-font))
-  (with-slots (buffer-cache-key font-drawable shader vao vbo vertices text-atlas)
+  (with-slots (releaser buffer-cache-key font-drawable shader vao vbo vertices text-atlas)
       gl-font
-    (with-slots (path-to-font font-dpi) font-drawable
-      (%release-gl-font-resources buffer-cache-key path-to-font font-dpi vao vbo vertices text-atlas))
-    (setf shader nil
-          vao 0
-          vbo 0
-          vertices nil)))
+    (when releaser
+      (with-slots (path-to-font font-dpi) font-drawable
+        (%release-gl-font-resources buffer-cache-key path-to-font font-dpi vao vbo vertices text-atlas))
+      (cancel-resource-releaser releaser)
+      (setf shader nil
+            text-atlas nil
+            vao 0
+            vbo 0
+            vertices nil
+            releaser nil))))
 
 (defun %release-gl-font-resources (buffer-cache-key path-to-font font-dpi vao vbo vertices text-atlas)
-  (declare (ignorable vbo))
-  (unless (= 0 vao)
-    (remcache %font-key% *shader-cache*)
-    (remcache buffer-cache-key %font-buffer-cache%)
-    (gl:free-gl-array vertices)
-    (remcache font-dpi (getcache path-to-font %text-atlas-cache%))
-    (setf text-atlas nil)))
+  (declare (ignorable vao vbo text-atlas))
+  (remcache %font-key% *shader-cache*)
+  (remcache buffer-cache-key %font-buffer-cache%)
+  (gl:free-gl-array vertices)
+
+  (let ((dpi-cache (getcache path-to-font %text-atlas-cache%)))
+    (when dpi-cache
+      (remcache font-dpi dpi-cache)
+      ;; once for the get in load-resources
+      (remcache path-to-font %text-atlas-cache%)
+      ;; again for the get in this function
+      (remcache path-to-font %text-atlas-cache%))))
 
 (defun %compute-text-scale (font-drawable text-atlas iw ih)
   "Return the scaling factor to apply to FONT-DRAWABLE's text glyphs to fit inside its rectangle."
@@ -420,7 +440,8 @@
    (text-end :initarg :text-end
              :initform nil
              :accessor font-drawable-text-end
-             :documentation "When non-nil render from the text's beginning up to but not including this index. Width of the font-drawable will be unchanged by this value."))
+             :documentation "When non-nil render from the text's beginning up to but not including this index. Width of the font-drawable will be unchanged by this value.")
+   (releaser :initform nil))
   (:documentation "A drawable which loads pixels from a font and user-defined text"))
 
 (defmethod initialize-instance :after ((font-drawable font-drawable) &rest args)
@@ -429,6 +450,14 @@
     (setf font-draw-component (make-instance 'gl-font
                                              :font-drawable font-drawable)
           (draw-component font-drawable) font-draw-component)))
+
+(defmethod initialize-instance :around ((font-drawable font-drawable) &rest args)
+  ;; TODO use push instead of append
+  (let ((all-args (append (list font-drawable) args)))
+    (prog1 (apply #'call-next-method all-args)
+      (resource-autoloader-add-object
+       *resource-autoloader*
+       (tg:make-weak-pointer font-drawable)))))
 
 (defmethod (setf text) :around (new-text (font-drawable font-drawable))
   (let ((old-text (text font-drawable)))
@@ -457,19 +486,29 @@
               (%set-font-vbo-contents font-drawable))))))))
 
 (defmethod load-resources ((font-drawable font-drawable))
-  (with-slots (font-draw-component)
-      font-drawable
-    (load-resources font-draw-component)
-    (load-resources (draw-component font-drawable))
-    (when (font-size font-drawable)
-      (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
-        (setf (width font-drawable) fwidth
-              (height font-drawable) fheight)))))
+  (unless (slot-value font-drawable 'releaser)
+    (with-slots (font-draw-component)
+        font-drawable
+      (load-resources font-draw-component)
+      (load-resources (draw-component font-drawable))
+      (when (font-size font-drawable)
+        (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
+          (setf (width font-drawable) fwidth
+                (height font-drawable) fheight))))
+    (let ((font-draw-component (slot-value font-drawable 'font-draw-component))
+          (generic-draw-component (draw-component font-drawable)))
+      (setf (slot-value font-drawable 'releaser)
+            (make-resource-releaser (font-drawable)
+              (release-resources font-draw-component)
+              (release-resources generic-draw-component))))))
 
 (defmethod release-resources ((font-drawable font-drawable))
-  (with-slots (font-draw-component) font-drawable
-    (release-resources font-draw-component)
-    (release-resources (draw-component font-drawable))))
+  (with-slots (releaser font-draw-component) font-drawable
+    (when releaser
+      (release-resources font-draw-component)
+      (release-resources (draw-component font-drawable))
+      (cancel-resource-releaser releaser)
+      (setf releaser nil))))
 
 (defun font-dimensions (font-drawable)
   (declare (font-drawable font-drawable))

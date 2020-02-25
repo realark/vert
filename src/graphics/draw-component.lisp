@@ -23,34 +23,40 @@
                                                       :fragment-source
                                                       (get-builtin-shader-source 'polygon-shader.frag))))
    (vao :initform 0)
-   (vbo :initform 0))
+   (vbo :initform 0)
+   (releaser :initform 0))
   (:documentation "A draw component which renders a solid color polygon."))
 
-(defmethod initialize-instance :after ((polygon-draw polygon-draw) &rest args)
-  (declare (ignore args))
-  (let ((shader (slot-value polygon-draw 'shader))
-        (vao (slot-value polygon-draw 'vao))
-        (vbo (slot-value polygon-draw 'vbo))
-        (weak-pointer (tg:make-weak-pointer polygon-draw)))
-    (resource-autoloader-add-object *resource-autoloader* weak-pointer)
-    ;; note: using LET instead of WITH-SLOTS to avoid reference to polygon-draw in finalizer
-    (tg:finalize polygon-draw
-                 (lambda ()
-                   (%release-polygon-draw-resources shader vao vbo)))))
+(defmethod initialize-instance :around ((polygon-draw polygon-draw) &rest args)
+  ;; TODO use push instead of append
+  (let ((all-args (append (list polygon-draw) args)))
+    (prog1 (apply #'call-next-method all-args)
+      (resource-autoloader-add-object
+       *resource-autoloader*
+       (tg:make-weak-pointer polygon-draw)))))
 
 (defmethod load-resources ((polygon-draw polygon-draw))
-  (with-slots (shader vao vbo) polygon-draw
-    (when (= 0 vao)
+  (unless (slot-value polygon-draw 'releaser)
+    (with-slots (shader vao vbo) polygon-draw
       (load-resources shader)
       (let ((buffers (%create-polygon-vao)))
         (setf vao (first buffers))
-        (setf vbo (second buffers))))))
+        (setf vbo (second buffers))))
+    (let ((shader (slot-value polygon-draw 'shader))
+          (vao (slot-value polygon-draw 'vao))
+          (vbo (slot-value polygon-draw 'vbo)))
+      (setf (slot-value polygon-draw 'releaser)
+            (make-resource-releaser (polygon-draw)
+              (%release-polygon-draw-resources shader vao vbo))))))
 
 (defmethod release-resources ((polygon-draw polygon-draw))
-    (with-slots (shader vao vbo) polygon-draw
+  (with-slots (releaser shader vao vbo) polygon-draw
+    (when releaser
       (%release-polygon-draw-resources shader vao vbo)
+      (cancel-resource-releaser releaser)
       (setf vao 0
-            vbo 0)))
+            vbo 0
+            releaser nil))))
 
 (defun %release-polygon-draw-resources (shader vao vbo)
   (unless (= 0 vao)

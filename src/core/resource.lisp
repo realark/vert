@@ -166,7 +166,13 @@ Idempotent. Will be called when all vert systems are initialized.")
                                            ,label
                                            ))
                     (lambda ()
-                      ,@body)))))
+                      (handler-case
+                          (progn
+                            ,@body)
+                        (error (e)
+                          (log:error "error running <~A> finalizer: ~A"
+                                     ,label
+                                     e))))))))
 
 @export
 (defun cancel-resource-releaser (resource-releaser)
