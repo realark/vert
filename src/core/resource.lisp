@@ -8,7 +8,7 @@ Idempotent. Will be called when all vert systems are initialized.")
   (:method (object)))
 
 @export
-(defgeneric release-resources (game-object)
+(defgeneric release-resources (object)
   (:documentation "Tell OBJECT to release any external resources. Idempotent.")
   (:method (object)))
 
@@ -49,11 +49,9 @@ Idempotent. Will be called when all vert systems are initialized.")
                          :accessor resource-autoloader-can-load-resources-p
                          :documentation "When T, foreign resources may be loaded")
    (objects :initform (make-array 100 :fill-pointer 0)))
-  (:documentation "Tracks all objects with external resources and calls (LOAD|RELEASE)-RESOURCES at the appropriate times.
-All GAME-OBJECTs automatically use the resource-autoloader (see game-object for details).
-This means game code will simply define load/release resource methods and not have to worry about calling them."))
+  (:documentation "Tracks all objects with external resources and calls (LOAD|RELEASE)-RESOURCES at the appropriate times."))
 
-(defun resource-autoloader-add-object (resource-autoloader weak-obj-pointer)
+(defun resource-autoloader-add-object (resource-autoloader weak-obj-pointer &key skip-object-load)
   "instruct RESOURCE-AUTOLOADER to manage the resources of the object pointed to by WEAK-OBJ-POINTER"
   (unless (tg:weak-pointer-p weak-obj-pointer)
     (error "Resource Manager requires a weak pointer. Given ~A" weak-obj-pointer))
@@ -62,7 +60,7 @@ This means game code will simply define load/release resource methods and not ha
                (tg:weak-pointer-value weak-obj-pointer))
     (bt:with-recursive-lock-held (lock)
       (vector-push-extend weak-obj-pointer objects))
-    (when can-load-resources-p
+    (when (and can-load-resources-p (not skip-object-load))
       (load-resources (tg:weak-pointer-value weak-obj-pointer)))))
 
 (defun resource-autoloader-remove-object (resource-autoloader weak-obj-pointer)
@@ -146,3 +144,31 @@ This means game code will simply define load/release resource methods and not ha
 (on-engine-stop ('resource-autoloader-load)
   (sb-ext:gc :full t)
   (setf (resource-autoloader-can-load-resources-p *resource-autoloader*) nil))
+
+;;;; resource releaser util
+
+(defclass %resource-releaser ()
+  ((label :initarg :label :initform (error ":label required"))))
+
+(defmethod print-object ((resource-releaser %resource-releaser) out)
+  (with-slots (label) resource-releaser
+    (print-unreadable-object (resource-releaser out :type t)
+      (format out "~A" label))))
+
+@export
+(defmacro make-resource-releaser ((&optional object) &body body)
+  "Return an object with a gc finalizer which executes BODY."
+  (alexandria:with-gensyms (label)
+    `(let ((,label (format nil "releaser<~A>" ,object)))
+       (tg:finalize (make-instance '%resource-releaser
+                                   :label (format
+                                           nil
+                                           ,label
+                                           ))
+                    (lambda ()
+                      ,@body)))))
+
+@export
+(defun cancel-resource-releaser (resource-releaser)
+  "Cancel RESOURCE-RELEASER's pending gc action."
+  (tg:cancel-finalization resource-releaser))

@@ -89,10 +89,6 @@ As an example, we'll consider a bomb component. This is a contrived example for 
      (spritesheet :initform nil)
      (explode-sfx :initform nil)))
 
-  (defmethod initialize-instance :after ((bomb bomb) &rest args)
-    (declare (ignore args))
-    'TODO-example-register)
-
   ;; Note: Hooking :AROUND so that all initializations are complete before resource-autoloader potentially call LOAD-RESOURCES
   (defmethod initialize-instance :around ((bomb bomb) &rest args)
     (declare (optimize (speed 3)))
