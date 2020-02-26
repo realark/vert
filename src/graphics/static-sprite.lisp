@@ -351,14 +351,8 @@ Nil to render the entire sprite."
                                       (round
                                        (* (texture-src-height texture)
                                           (/ height (or wrap-height height))))))))))
-    (let ((sprite-draw-component (slot-value sprite 'sprite-draw-component))
-          (generic-draw-component (draw-component sprite)))
-      ;; Generic and sprite-draw components will often be the same instance.
-      ;; It's okay to call release multiple times since the method is idempotent.
-      (setf (slot-value sprite 'releaser)
-            (make-resource-releaser (sprite)
-              (release-resources sprite-draw-component)
-              (release-resources generic-draw-component))))))
+    (setf (slot-value sprite 'releaser)
+          (make-resource-releaser (sprite)))))
 
 (defmethod release-resources ((sprite static-sprite))
   (with-slots (releaser sprite-draw-component) sprite

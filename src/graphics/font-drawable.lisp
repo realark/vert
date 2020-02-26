@@ -495,12 +495,8 @@
         (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
           (setf (width font-drawable) fwidth
                 (height font-drawable) fheight))))
-    (let ((font-draw-component (slot-value font-drawable 'font-draw-component))
-          (generic-draw-component (draw-component font-drawable)))
-      (setf (slot-value font-drawable 'releaser)
-            (make-resource-releaser (font-drawable)
-              (release-resources font-draw-component)
-              (release-resources generic-draw-component))))))
+    (setf (slot-value font-drawable 'releaser)
+          (make-resource-releaser (font-drawable)))))
 
 (defmethod release-resources ((font-drawable font-drawable))
   (with-slots (releaser font-draw-component) font-drawable
