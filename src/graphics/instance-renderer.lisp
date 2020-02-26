@@ -58,11 +58,7 @@ Returns the instanced-id of drawables (i.e. its position in the instance queue w
                    :initform (error ":path-to-sprite must be specified")
                    :reader path-to-sprite
                    :documentation "Path to the sprite file.")
-   (shader :initform (getcache-default %instanced-sprite-key%
-                                       *shader-cache*
-                                       (make-instance 'shader
-                                                      :vertex-source (get-builtin-shader-source 'instanced-sprite-shader.vert)
-                                                      :fragment-source (get-builtin-shader-source 'instanced-sprite-shader.frag)))
+   (shader :initform nil
            :documentation "Shader used to draw the sprite.")
    (texture :initform nil
             :documentation "opengl texture.")
@@ -238,17 +234,18 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                      (gl:bind-buffer :array-buffer 0)
                      (%gl:vertex-attrib-divisor 7 1))
                    (values transform-vbo sprite-source-vbo sprite-color-vbo))))
-        (getcache %instanced-sprite-key% *shader-cache*)
+        (setf shader
+              (getcache-default %instanced-sprite-key%
+                                *shader-cache*
+                                (make-instance 'shader
+                                               :vertex-source (get-builtin-shader-source 'instanced-sprite-shader.vert)
+                                               :fragment-source (get-builtin-shader-source 'instanced-sprite-shader.frag))))
         (load-resources shader)
-        (unless texture
-          (setf texture
-                (getcache-default path-to-sprite
-                                  *texture-cache*
-                                  (let ((texture (make-instance
-                                                  'texture
-                                                  :path-to-texture path-to-sprite)))
-                                    (load-resources texture)
-                                    texture))))
+        (setf texture
+              (getcache-default path-to-sprite
+                                *texture-cache*
+                                (make-instance 'texture :path-to-texture path-to-sprite)))
+        (load-resources texture)
         (destructuring-bind (new-vao new-quad-vbo)
             (create-static-buffers (slot-value renderer 'quad-padding))
           (setf vao new-vao
@@ -290,6 +287,8 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
             transform-vbo 0
             sprite-source-vbo 0
             sprite-color-vbo 0
+            shader nil
+            texture nil
             c-transform-array nil
             c-sprite-source-array nil
             c-sprite-color-array nil
@@ -299,11 +298,11 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
 (defun %release-sprite-instance-renderer-resources (texture path-to-sprite
                                                     vao quad-vbo
                                                     transform-vbo sprite-source-vbo sprite-color-vbo
-                                                    c-transform-array c-sprite-source-array c-sprite-color-array
-                                                    )
-  (stop-using-cached-resource texture path-to-sprite *texture-cache*)
-  (remcache %instanced-sprite-key% *shader-cache*)
-  (gl:delete-buffers (list vao quad-vbo transform-vbo sprite-source-vbo sprite-color-vbo))
+                                                    c-transform-array c-sprite-source-array c-sprite-color-array)
+  (when *gl-context*
+    (stop-using-cached-resource texture path-to-sprite *texture-cache*)
+    (remcache %instanced-sprite-key% *shader-cache*)
+    (gl:delete-buffers (list vao quad-vbo transform-vbo sprite-source-vbo sprite-color-vbo)))
   (gl:free-gl-array c-transform-array)
   (gl:free-gl-array c-sprite-source-array)
   (gl:free-gl-array c-sprite-color-array)

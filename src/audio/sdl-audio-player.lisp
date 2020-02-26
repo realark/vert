@@ -124,42 +124,45 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (declare (ignore rate)
            ;; TODO: volume above 1.0 will not have additional affect
            ((single-float 0.0 10.0) volume))
-  (setf volume (min 1.0 volume))
-  (let ((chunk (%get-sound-effect audio-player path-to-sfx-file)))
-    (sdl2-ffi.functions:mix-volume-chunk chunk (floor (* volume 128)))
-    (sdl2-ffi.functions:mix-play-channel-timed
-     +first-free-channel+
-     chunk
-     ;; hardcoding a one-time play
-     0 -1)))
+  (unless (getconfig 'use-dummy-audio-output *config*)
+    (setf volume (min 1.0 volume))
+    (let ((chunk (%get-sound-effect audio-player path-to-sfx-file)))
+      (sdl2-ffi.functions:mix-volume-chunk chunk (floor (* volume 128)))
+      (sdl2-ffi.functions:mix-play-channel-timed
+       +first-free-channel+
+       chunk
+       ;; hardcoding a one-time play
+       0 -1))))
 
 
 (defmethod play-music ((audio-player sdl-audio-player) path-to-music-file &key (num-plays 1))
-  (with-slots (num-music-plays
-               current-music)
-      audio-player
-    (setf (music-state audio-player) :stopped
-          num-music-plays num-plays
-          current-music path-to-music-file
-          (music-state audio-player) :playing)))
+  (unless (getconfig 'use-dummy-audio-output *config*)
+    (with-slots (num-music-plays
+                 current-music)
+        audio-player
+      (setf (music-state audio-player) :stopped
+            num-music-plays num-plays
+            current-music path-to-music-file
+            (music-state audio-player) :playing))))
 
 (defmethod (setf music-state) (new-value (audio-player sdl-audio-player))
-  (let ((result (call-next-method new-value audio-player)))
-    (with-slots (music-count music-queue)
-        audio-player
-      (ecase (music-state audio-player)
-        (:playing
-         (if (= 1 (sdl2-ffi.functions:mix-playing-music))
-             (progn
-               (sdl2-ffi.functions:mix-resume-music)
-               (sdl2-ffi.functions:mix-resume +all-channels+))
-             (unless (= 0 (sdl2-mixer:play-music
-                           (%get-music audio-player (current-music audio-player)) 1))
-               (error "sdl-mixer unable to play music: ~A"
-                      (sdl2-ffi.functions:sdl-get-error)))))
-        (:paused
-         (sdl2-ffi.functions:mix-pause +all-channels+)
-         (sdl2-ffi.functions:mix-pause-music))
-        (:stopped
-         (sdl2-mixer:halt-music))))
-    result))
+  (unless (getconfig 'use-dummy-audio-output *config*)
+    (let ((result (call-next-method new-value audio-player)))
+      (with-slots (music-count music-queue)
+          audio-player
+        (ecase (music-state audio-player)
+          (:playing
+           (if (= 1 (sdl2-ffi.functions:mix-playing-music))
+               (progn
+                 (sdl2-ffi.functions:mix-resume-music)
+                 (sdl2-ffi.functions:mix-resume +all-channels+))
+               (unless (= 0 (sdl2-mixer:play-music
+                             (%get-music audio-player (current-music audio-player)) 1))
+                 (error "sdl-mixer unable to play music: ~A"
+                        (sdl2-ffi.functions:sdl-get-error)))))
+          (:paused
+           (sdl2-ffi.functions:mix-pause +all-channels+)
+           (sdl2-ffi.functions:mix-pause-music))
+          (:stopped
+           (sdl2-mixer:halt-music))))
+      result)))

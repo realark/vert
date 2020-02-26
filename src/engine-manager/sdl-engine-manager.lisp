@@ -138,7 +138,8 @@
             (loop for i from 0 below (sdl2:joystick-count) do
                  (initialize-sdl-controller engine-manager i))
 
-            (call-next-method)))))))
+            (prog1 (call-next-method)
+              (log:info "destroying sdl context"))))))))
 
 (defmethod cleanup-engine :before ((engine-manager sdl-engine-manager))
   (with-slots (sdl-controllers) engine-manager
@@ -147,9 +148,6 @@
 
 (defmethod quit-engine ((engine-manager sdl-engine-manager))
   (sdl2:push-event :quit))
-
-(on-engine-stop ('clear-gl-context)
-  (setf *gl-context* nil))
 
 (defun sdl-key-down (keyboard keysym)
   (log:trace "SDL keyboard down: ~A" (sdl2:scancode keysym))

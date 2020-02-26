@@ -18,8 +18,7 @@
 ;;;; Context Manager
 
 (defstruct gl-context
-  "Stores and sets options for the underlying opengl context with various optimizations.
-For example, the "
+  "Stores and sets options for the underlying opengl context with various optimizations. "
   (wrapper (error ":wrapper required") :type sdl2-ffi::sdl-glcontext)
   (shader nil :type (or null shader))
   (texture nil :type (or null texture))

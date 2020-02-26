@@ -15,13 +15,7 @@
 ;;;; GL Polygon Drawer
 
 (defclass polygon-draw (draw-component)
-  ((shader :initform (getcache-default 'polygon-shader
-                                       *shader-cache*
-                                       (make-instance 'shader
-                                                      :vertex-source
-                                                      (get-builtin-shader-source 'polygon-shader.vert)
-                                                      :fragment-source
-                                                      (get-builtin-shader-source 'polygon-shader.frag))))
+  ((shader :initform nil)
    (vao :initform 0)
    (vbo :initform 0)
    (releaser :initform 0))
@@ -38,6 +32,13 @@
 (defmethod load-resources ((polygon-draw polygon-draw))
   (unless (slot-value polygon-draw 'releaser)
     (with-slots (shader vao vbo) polygon-draw
+      (setf shader (getcache-default 'polygon-shader
+                                     *shader-cache*
+                                     (make-instance 'shader
+                                                    :vertex-source
+                                                    (get-builtin-shader-source 'polygon-shader.vert)
+                                                    :fragment-source
+                                                    (get-builtin-shader-source 'polygon-shader.frag))))
       (load-resources shader)
       (let ((buffers (%create-polygon-vao)))
         (setf vao (first buffers))
@@ -59,7 +60,7 @@
             releaser nil))))
 
 (defun %release-polygon-draw-resources (shader vao vbo)
-  (unless (= 0 vao)
+  (when *gl-context*
     (release-resources shader)
     (gl:delete-vertex-arrays (list vao))
     (gl:delete-buffers (list vbo))))

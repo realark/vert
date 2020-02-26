@@ -45,12 +45,13 @@
                     (sdl2:make-this-thread-main
                      (lambda ()
                        (setf *vert-thread* (bt:current-thread))
-                       (run-game *engine-manager* scene-creator-function)))
+                       (run-game *engine-manager* scene-creator-function)
+                       (log:info "~A complete. Until next time."
+                                 (getconfig 'game-name *config*))))
                  (setf *engine-manager* nil
                        *config* nil
                        *vert-thread* nil
-                       *dev-mode* nil)
-                 (garbage-collect-hint))))
+                       *dev-mode* nil))))
       (if t ; TODO: remove block parameter entirely
           (run-engine)
           (make-thread #'run-engine :name "vert-game-loop")))))

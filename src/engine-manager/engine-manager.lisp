@@ -247,8 +247,6 @@ It is invoked after the engine is fully started.")
       (when pending-scene-changes
         (funcall pending-scene-changes)
         (setf pending-scene-changes nil)))
-    ;; stop services
-    (stop-audio-system)
     (fire-event engine-manager engine-stopped)
     (log:info "Running ~A engine stop hooks" (hash-table-size *engine-stop-hooks*))
     (loop :for label :being :the hash-keys :of *engine-stop-hooks*
@@ -256,9 +254,16 @@ It is invoked after the engine is fully started.")
        :do
          (log:info "-- stop hook: ~A" label)
          (funcall hook))
+    (log:info "running final GC")
     (garbage-collect-hint) ; run any resource finalizers
+    (log:info "clearing all caches")
     (do-cache (*engine-caches* cache-name cache)
+      (log:info " -- clearing ~A" cache-name)
       (clear-cache cache))
+    (log:info "stopping global services")
+    ;; stop services
+    (stop-audio-system)
+    (setf *gl-context* nil)
     (format t "~%~%")))
 
 ;;;; live coding

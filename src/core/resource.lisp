@@ -12,6 +12,16 @@ Idempotent. Will be called when all vert systems are initialized.")
   (:documentation "Tell OBJECT to release any external resources. Idempotent.")
   (:method (object)))
 
+(defmethod load-resources :around (object)
+  (log:debug "loading resources for: ~A" object)
+  (prog1 (call-next-method object)
+    (log:debug "successful load for: ~A" object)))
+
+(defmethod release-resources :around (object)
+  (log:debug "releasing resources for: ~A" object)
+  (prog1 (call-next-method object)
+    (log:debug "successful release for: ~A" object)))
+
 ;;;; getting the path to resources
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -141,8 +151,7 @@ Idempotent. Will be called when all vert systems are initialized.")
 (on-engine-start ('resource-autoloader-load)
  (setf (resource-autoloader-can-load-resources-p *resource-autoloader*) t))
 
-(on-engine-stop ('resource-autoloader-load)
-  (sb-ext:gc :full t)
+(on-engine-stop ('resource-autoloader-release)
   (setf (resource-autoloader-can-load-resources-p *resource-autoloader*) nil))
 
 ;;;; resource releaser util

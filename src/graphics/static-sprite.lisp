@@ -43,9 +43,7 @@
   ((static-sprite :initarg :static-sprite
                   :initform (error ":static-sprite required")
                   :documentation "game-object being drawn by this gl-sprite")
-   (shader :initform (getcache-default %sprite-key%
-                                       *shader-cache*
-                                       (%create-sprite-shader))
+   (shader :initform nil
            :documentation "Shader used to draw the sprite.")
    (texture :initform nil
             :accessor gl-sprite-texture
@@ -176,16 +174,18 @@
   (unless (slot-value drawable 'releaser)
     (with-slots (static-sprite shader texture vao vbo)
         drawable
-      (getcache %sprite-key% *shader-cache*)
+      (setf shader
+            (getcache-default %sprite-key%
+                              *shader-cache*
+                              (%create-sprite-shader)))
       (load-resources shader)
       (setf texture
             (getcache-default (path-to-sprite static-sprite)
                               *texture-cache*
-                              (let ((texture (make-instance
-                                              'texture
-                                              :path-to-texture (path-to-sprite static-sprite))))
-                                (load-resources texture)
-                                texture)))
+                              (make-instance
+                               'texture
+                               :path-to-texture (path-to-sprite static-sprite))))
+      (load-resources texture)
       (destructuring-bind (cached-vao cached-vbo)
           (getcache-default %sprite-key%
                             *sprite-buffer-cache*
@@ -209,15 +209,17 @@
     (with-slots (releaser static-sprite shader texture vao vbo)
         drawable
       (when releaser
-        (cancel-resource-releaser releaser)
         (%release-gl-sprite-resources (path-to-sprite static-sprite) texture vao vbo)
+        (cancel-resource-releaser releaser)
         (setf vao 0
               vbo 0
+              shader nil
+              texture nil
               releaser nil))))
 
 (defun %release-gl-sprite-resources (path-to-sprite texture vao vbo)
-  (declare (ignorable vbo))
-  (unless (= 0 vao)
+  (declare (ignorable vao vbo))
+  (when *gl-context*
     (stop-using-cached-resource texture path-to-sprite *texture-cache*)
     (remcache %sprite-key% *shader-cache*)
     (remcache %sprite-key% *sprite-buffer-cache*)))
@@ -306,7 +308,7 @@ Nil to render the entire sprite."
                wrap-width
                wrap-height)
       sprite
-    (unless (eq :skip sprite-draw-component )
+    (unless (eq :skip sprite-draw-component)
       (setf sprite-draw-component (make-instance 'gl-sprite :static-sprite sprite)
             (draw-component sprite) sprite-draw-component))
     (when (and (or wrap-width wrap-height)
@@ -353,15 +355,13 @@ Nil to render the entire sprite."
                                       (round
                                        (* (texture-src-height texture)
                                           (/ height (or wrap-height height))))))))))
-    (setf (slot-value sprite 'releaser)
-          (make-resource-releaser (sprite)))))
+    (setf (slot-value sprite 'releaser) t)))
 
 (defmethod release-resources ((sprite static-sprite))
   (with-slots (releaser sprite-draw-component) sprite
     (when releaser
       (release-resources sprite-draw-component)
       (release-resources (draw-component sprite))
-      (cancel-resource-releaser releaser)
       (setf releaser nil))))
 
 @export

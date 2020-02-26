@@ -210,9 +210,8 @@
       (setf shader
             (getcache-default %font-key%
                               *shader-cache*
-                              (let ((shader (%create-font-shader)))
-                                (load-resources shader)
-                                shader)))
+                              (%create-font-shader)))
+      (load-resources shader)
 
       (destructuring-bind (cached-vao cached-vbo)
           (getcache-default buffer-cache-key
@@ -249,17 +248,18 @@
 
 (defun %release-gl-font-resources (buffer-cache-key path-to-font font-dpi vao vbo vertices text-atlas)
   (declare (ignorable vao vbo text-atlas))
-  (remcache %font-key% *shader-cache*)
-  (remcache buffer-cache-key %font-buffer-cache%)
-  (gl:free-gl-array vertices)
+  (when *gl-context*
+    (remcache %font-key% *shader-cache*)
+    (remcache buffer-cache-key %font-buffer-cache%)
+    (gl:free-gl-array vertices)
 
-  (let ((dpi-cache (getcache path-to-font %text-atlas-cache%)))
-    (when dpi-cache
-      (remcache font-dpi dpi-cache)
-      ;; once for the get in load-resources
-      (remcache path-to-font %text-atlas-cache%)
-      ;; again for the get in this function
-      (remcache path-to-font %text-atlas-cache%))))
+    (let ((dpi-cache (getcache path-to-font %text-atlas-cache%)))
+      (when dpi-cache
+        (remcache font-dpi dpi-cache)
+        ;; once for the get in load-resources
+        (remcache path-to-font %text-atlas-cache%)
+        ;; again for the get in this function
+        (remcache path-to-font %text-atlas-cache%)))))
 
 (defun %compute-text-scale (font-drawable text-atlas iw ih)
   "Return the scaling factor to apply to FONT-DRAWABLE's text glyphs to fit inside its rectangle."
@@ -495,15 +495,13 @@
         (multiple-value-bind (fwidth fheight) (font-dimensions font-drawable)
           (setf (width font-drawable) fwidth
                 (height font-drawable) fheight))))
-    (setf (slot-value font-drawable 'releaser)
-          (make-resource-releaser (font-drawable)))))
+    (setf (slot-value font-drawable 'releaser) t)))
 
 (defmethod release-resources ((font-drawable font-drawable))
   (with-slots (releaser font-draw-component) font-drawable
     (when releaser
       (release-resources font-draw-component)
       (release-resources (draw-component font-drawable))
-      (cancel-resource-releaser releaser)
       (setf releaser nil))))
 
 (defun font-dimensions (font-drawable)
