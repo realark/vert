@@ -157,7 +157,8 @@ Idempotent. Will be called when all vert systems are initialized.")
 
 @export
 (defmacro make-resource-releaser ((&optional object) &body body)
-  "Return an object with a gc finalizer which executes BODY."
+  "Return an instance with a gc finalizer which executes BODY.
+OBJECT may be supplied to generate a human-readable name for what is being finalized."
   (alexandria:with-gensyms (label)
     `(let ((,label (format nil "releaser<~A>" ,object)))
        (tg:finalize (make-instance '%resource-releaser

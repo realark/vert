@@ -317,9 +317,11 @@ Nil to render the entire sprite."
 (defmethod initialize-instance :around ((static-sprite static-sprite) &rest args)
   (let ((all-args (append (list static-sprite) args)))
     (prog1 (apply #'call-next-method all-args)
-      (resource-autoloader-add-object
-       *resource-autoloader*
-       (tg:make-weak-pointer static-sprite)))))
+      (static-sprite-register-resource-autoload static-sprite))))
+
+(defmethod static-sprite-register-resource-autoload ((static-sprite static-sprite))
+  (resource-autoloader-add-object *resource-autoloader*
+                                  (tg:make-weak-pointer static-sprite)))
 
 (defmethod (setf path-to-sprite) :around (new-sprite-path (static-sprite static-sprite))
   (let ((old-path (path-to-sprite static-sprite)))

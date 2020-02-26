@@ -27,6 +27,7 @@
   (:documentation "A game object which uses an intance-renderer to draw itself."))
 
 ;; override less specific methods
+(defmethod static-sprite-register-resource-autoload ((drawable instance-rendered-drawable)))
 (defmethod load-resources ((drawable instance-rendered-drawable)))
 (defmethod release-resources ((drawable instance-rendered-drawable)))
 
