@@ -209,7 +209,7 @@ It is invoked after the engine is fully started.")
   (:method ((engine-manager engine-manager) initial-scene-creator)
     (unwind-protect
          (progn
-           (setup-live-coding)
+           (start-live-coding)
            (do-cache (*engine-caches* cache-name cache)
              (clear-cache cache))
            ;; start services
@@ -268,31 +268,41 @@ It is invoked after the engine is fully started.")
     (format t "~%~%")))
 
 ;;;; live coding
-(defun setup-live-coding ()
+(declaim ((or null (function () *)) *live-coding-fn*))
+(defvar *live-coding-fn*
+  nil)
+
+(defun start-live-coding ()
   "Enable live coding (if swank is present)"
-  (eval
-   (read-from-string
-    "(defun vert::update-swank ()
-      \"Update swank events.\"
-      (declare (optimize (speed 3)))
-      #+swank
-      (let ((connection (or swank::*emacs-connection*
-                            (swank::default-connection))))
-        (when connection
-          (swank::handle-requests connection t))))")))
+  ;; read-from string so this file will compile without swank
+  (setf *live-coding-fn*
+        (eval
+         (read-from-string
+          "#+swank
+           (lambda ()
+             (declare (optimize (speed 3)))
+             (let ((connection (or swank::*emacs-connection*
+                                   (swank::default-connection))))
+               (when connection
+                 (swank::handle-requests connection t))
+               (values)))")))
+  (if *live-coding-fn*
+      (log:info "Live coding started.")
+      (log:info "Live coding unavailable.")))
 
 (defun stop-live-coding ()
   "Disable live coding"
-  (eval '(defun update-swank ()
-          "Update swank events."
-          nil)))
+  (when *live-coding-fn*
+    (setf *live-coding-fn* nil)
+    (log:info "Live coding stopped.")))
 
 (defun update-swank ()
   "Update swank events."
-  ;; noop placeholder. Will be redfined when engine starts up
+  (declare (optimize (speed 3)))
+  (when *live-coding-fn*
+    (locally (declare ((function () *) *live-coding-fn*))
+      (funcall *live-coding-fn*)))
   nil)
-
-
 
 ;;;; on-game-thread macro
 
