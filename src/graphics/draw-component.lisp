@@ -18,7 +18,7 @@
   ((shader :initform nil)
    (vao :initform 0)
    (vbo :initform 0)
-   (releaser :initform 0))
+   (releaser :initform nil))
   (:documentation "A draw component which renders a solid color polygon."))
 
 (defmethod initialize-instance :around ((polygon-draw polygon-draw) &rest args)
