@@ -85,7 +85,8 @@
 (defun garbage-collect-hint ()
   "Hint to Vert that a costly GC may be run."
   (sb-ext:gc :full t)
-  (resource-autoloader-prune-empty-refs *resource-autoloader*))
+  (resource-autoloader-prune-empty-refs *resource-autoloader*)
+  (run-all-free-releasers))
 
 @export
 (defun change-scene (engine-manager new-scene &optional (release-existing-scene T) (run-full-gc nil) (preserve-audio nil))

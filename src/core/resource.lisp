@@ -241,7 +241,19 @@ OBJECT may be supplied to generate a human-readable name for what is being final
            (setf (elt *releaser-finalizers* (+ i 1)) nil)
            (funcall releaser-fn)))))
 
+(defun run-all-free-releasers ()
+  "Execute releaser code for releasers which have been dereferenced."
+  (loop :for i :from 0 :below (length *releaser-finalizers*) :by 2 :do
+       (let ((releaser (when (elt *releaser-finalizers* i)
+                         (tg:weak-pointer-value (elt *releaser-finalizers* i))))
+             (releaser-fn (elt *releaser-finalizers* (+ i 1))))
+         (when (and (null releaser) releaser-fn)
+           (setf (elt *releaser-finalizers* i) nil)
+           (setf (elt *releaser-finalizers* (+ i 1)) nil)
+           (funcall releaser-fn)))))
+
 (defun force-run-all-releasers ()
+  "Execute releaser code for all releasers, even live ones."
   ;; loop the table and run stuff
   (loop :for i :from 0 :below (length *releaser-finalizers*) :by 2 :do
        (let ((releaser-fn (elt *releaser-finalizers* (+ i 1))))
