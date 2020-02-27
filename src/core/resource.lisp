@@ -237,6 +237,7 @@ OBJECT may be supplied to generate a human-readable name for what is being final
            (setf (elt *releaser-finalizers* (+ i 1)) nil))
          (when (and (null releaser) releaser-fn)
            ;; releaser was GC'd
+           (log:info "running derefrenced releaser finalizer ~A" releaser-fn)
            (setf (elt *releaser-finalizers* i) nil)
            (setf (elt *releaser-finalizers* (+ i 1)) nil)
            (funcall releaser-fn)))))
@@ -256,8 +257,11 @@ OBJECT may be supplied to generate a human-readable name for what is being final
   "Execute releaser code for all releasers, even live ones."
   ;; loop the table and run stuff
   (loop :for i :from 0 :below (length *releaser-finalizers*) :by 2 :do
-       (let ((releaser-fn (elt *releaser-finalizers* (+ i 1))))
+       (let ((releaser (when (elt *releaser-finalizers* i)
+                         (tg:weak-pointer-value (elt *releaser-finalizers* i))))
+             (releaser-fn (elt *releaser-finalizers* (+ i 1))))
          (setf (elt *releaser-finalizers* i) nil)
          (setf (elt *releaser-finalizers* (+ i 1)) nil)
          (when releaser-fn
+           (log:warn "force running releaser ~A" releaser)
            (funcall releaser-fn)))))

@@ -257,13 +257,13 @@ It is invoked after the engine is fully started.")
          (funcall hook))
     (log:info "running final GC")
     (garbage-collect-hint) ; run any resource finalizers
+    (log:info "stopping audio system")
+    (stop-audio-system)
     (log:info "clearing all caches")
     (do-cache (*engine-caches* cache-name cache)
       (log:info " -- clearing ~A" cache-name)
       (clear-cache cache))
-    (log:info "stopping global services")
-    ;; stop services
-    (stop-audio-system)
+    (log:info "removing gl context")
     (setf *gl-context* nil)
     (format t "~%~%")))
 
