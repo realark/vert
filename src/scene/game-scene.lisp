@@ -36,9 +36,25 @@
                                        :element-type '(or null game-object)
                                        :initial-element nil))
    (update-queue-fill-pointer :initform 0)
+   (render-rebuild-radius
+    :initarg :render-rebuild-radius
+    :initform #.(* 20 16)
+    :documentation "Make a rect centered on camera.
+Each side of the rect will be at least as big as this slot.
+When camera moves outside this rect, rebuild the render queue.
+This is an optimization so we don't have to rebuild the render-queue every frame.")
+   (render-rebuild-camera-position
+    :initform (vector2)
+    :documentation "Centered camera position used to compute render-queue rebuilds.")
+   (reset-instance-renderers
+    :initform (make-array 5
+                          :adjustable t
+                          :fill-pointer 0)
+    :documentation "Bookkeeping sequence of instance renderers which have been reset in the current frame.")
    (spatial-partition :initform nil
+                      :documentation "Optimized spatial partition containing every object in the scene."
                       :reader spatial-partition))
-  (:documentation "A game world."))
+  (:documentation "A scene which updates and renders game-objects."))
 
 (defmethod initialize-instance :after ((game-scene game-scene) &rest args)
   (declare (ignore args))
@@ -101,8 +117,11 @@
   (declare (optimize (speed 3)))
   (with-slots (update-area
                (queue render-queue)
+               render-rebuild-radius
+               render-rebuild-camera-position
                update-queue
                update-queue-fill-pointer
+               reset-instance-renderers
                (bg scene-background)
                scene-overlays
                removed-objects
@@ -115,15 +134,30 @@
     (let* ((x-min (when update-area (active-area-min-x update-area)))
            (x-max (when update-area (active-area-max-x update-area)))
            (y-min (when update-area (active-area-min-y update-area)))
-           (y-max (when update-area (active-area-max-y update-area))))
+           (y-max (when update-area (active-area-max-y update-area)))
+           (rebuild-render-queue-p (block camera-moved-outside-render-area-p
+                                     (with-accessors ((c-x x) (c-y y) (c-w width) (c-h height)) camera
+                                       (declare (single-float c-x c-y c-w c-h))
+                                       (let* ((camera-centered-x (+ c-x (/ c-w 2.0)))
+                                              (camera-centered-y (+ c-y (/ c-h 2.0)))
+                                              (delta (max
+                                                      (abs (- camera-centered-x (x render-rebuild-camera-position)))
+                                                      (abs (- camera-centered-y (y render-rebuild-camera-position))))))
+                                         (when (>= delta render-rebuild-radius)
+                                           (setf (x render-rebuild-camera-position) camera-centered-x
+                                                 (y render-rebuild-camera-position) camera-centered-y)
+                                           t))))))
       (declare ((or null single-float) x-min x-max y-min y-max))
       (with-slots ((bg scene-background) scene-overlays) game-scene
-        (render-queue-reset queue)
+        (when rebuild-render-queue-p
+          (setf (fill-pointer reset-instance-renderers) 0)
+          (render-queue-reset queue))
         ;; pre-update frame to mark positions
         (pre-update (camera game-scene))
         (when bg
           (pre-update bg)
-          (render-queue-add queue bg))
+          (when rebuild-render-queue-p
+            (render-queue-add queue bg)))
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (pre-update overlay))
 
@@ -131,11 +165,26 @@
         (call-next-method game-scene delta-t-ms context)
 
         ;; update frame
-        (let* ((render-delta 16.0) ; TODO this value could be smaller
-               (render-x-min (- (x camera) render-delta))
-               (render-x-max (+ (x camera) (width camera) render-delta))
-               (render-y-min (- (y camera) render-delta))
-               (render-y-max (+ (y camera) (height camera) render-delta)))
+        (let* ((render-x-min (if rebuild-render-queue-p
+                                 (- (x render-rebuild-camera-position)
+                                    (width camera)
+                                    render-rebuild-radius)
+                                 0.0))
+               (render-x-max (if rebuild-render-queue-p
+                                 (+ (x render-rebuild-camera-position)
+                                    (width camera)
+                                    render-rebuild-radius)
+                                 0.0))
+               (render-y-min (if rebuild-render-queue-p
+                                 (- (y render-rebuild-camera-position)
+                                    (height camera)
+                                    render-rebuild-radius)
+                                 0.0))
+               (render-y-max (if rebuild-render-queue-p
+                                 (+ (y render-rebuild-camera-position)
+                                    (height camera)
+                                    render-rebuild-radius)
+                                 0.0)))
           (declare (single-float render-x-min render-x-max render-y-min render-y-max))
           (flet ((in-render-area-p (game-object)
                    (multiple-value-bind (x y z w h) (world-dimensions game-object)
@@ -168,14 +217,22 @@
                 (setf (elt update-queue update-queue-fill-pointer) game-object)
                 (incf update-queue-fill-pointer)
                 (pre-update game-object))
-              (when (and (in-render-area-p game-object)
+              (when (and rebuild-render-queue-p
+                         (in-render-area-p game-object)
                          (not (%object-was-removed-p game-scene game-object)))
+                (when (typep game-object 'instance-rendered-drawable)
+                  (with-slots ((instance-renderer instance-renderer)) game-object
+                    (unless (find instance-renderer reset-instance-renderers)
+                      (vector-push-extend instance-renderer reset-instance-renderers)
+                      (instance-renderer-reset instance-renderer))))
                 (render-queue-add queue game-object)))))
         (update (camera game-scene) delta-t-ms game-scene)
         (loop :for overlay :across (the (vector overlay) scene-overlays) :do
              (update overlay delta-t-ms game-scene)
-             (render-queue-add queue overlay))
-        (render-queue-add queue camera)
+             (when rebuild-render-queue-p
+               (render-queue-add queue overlay)))
+        (when rebuild-render-queue-p
+          (render-queue-add queue camera))
         (when bg
           (update bg delta-t-ms game-scene))
         (loop :for i :from 0 :below update-queue-fill-pointer :do
@@ -188,7 +245,6 @@
   (declare (optimize (speed 3)))
   (with-slots ((bg scene-background)
                spatial-partition
-               ;; TODO: queue renders during update iteration
                (queue render-queue)
                scene-overlays)
       game-scene
