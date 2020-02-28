@@ -87,8 +87,9 @@
       (vector-push-extend object (slot-value scene 'removed-objects))
       object)))
 
-;; for subclasses to hook object updates
-(defmethod found-object-to-update ((scene game-scene) game-object))
+(defgeneric found-object-to-update (game-scene game-object)
+  (:documentation "for subclasses to hook object updates")
+  (:method ((scene game-scene) game-object)))
 
 (defun %object-was-removed-p (scene object)
   (declare (optimize (speed 3)))
