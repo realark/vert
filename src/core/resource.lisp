@@ -234,15 +234,7 @@ OBJECT may be supplied to generate a human-readable name for what is being final
              (releaser-fn (elt *releaser-finalizers* (+ i 1))))
          (when (eq resource-releaser releaser)
            (setf (elt *releaser-finalizers* i) nil)
-           (setf (elt *releaser-finalizers* (+ i 1)) nil))
-         ;; while we're iterating, might as well check for dereferenced finalizers
-         (when (and (null releaser) releaser-fn)
-           ;; releaser was GC'd
-           (log:debug "running derefrenced releaser finalizer ~A" releaser-fn)
-           (setf (elt *releaser-finalizers* i) nil)
-           (setf (elt *releaser-finalizers* (+ i 1)) nil)
-           (funcall releaser-fn)
-           (log:debug "finished running derefrenced releaser finalizer ~A" releaser-fn)))))
+           (setf (elt *releaser-finalizers* (+ i 1)) nil)))))
 
 (defun run-all-free-releasers ()
   "Execute releaser code for releasers which have been dereferenced."
