@@ -155,8 +155,10 @@
         (gl-use-vao gl-context vao)))))
 
 (defmethod render ((gl-sprite gl-sprite) update-percent (camera simple-camera) context)
-  (gl-sprite-set-base-sprite-data gl-sprite (slot-value gl-sprite 'static-sprite) update-percent camera)
-  (n-draw-arrays :triangle-fan 0 4))
+  (unless (and (color (slot-value gl-sprite 'static-sprite))
+               (float= 0.0 (a (color (slot-value gl-sprite 'static-sprite)))))
+    (gl-sprite-set-base-sprite-data gl-sprite (slot-value gl-sprite 'static-sprite) update-percent camera)
+    (n-draw-arrays :triangle-fan 0 4)))
 
 (defvar *sprite-buffer-cache*
   (getcache-default "sprite-buffer-cache"
