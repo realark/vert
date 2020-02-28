@@ -78,6 +78,14 @@ but cannot be removed from the implementation due to iteration.")
              (%return-update-queue ,quadtree ,update-queue))
            (values)))))))
 
+(defmacro do-array-backed ((game-object-name array-backed) &body body)
+  (assert (symbolp game-object-name))
+  (alexandria:once-only (array-backed)
+    (alexandria:with-gensyms (obj)
+      `(loop :for ,obj :across (slot-value ,array-backed 'objects) :do
+            (let ((,game-object-name ,obj))
+              ,@body)))))
+
 (defmacro do-spatial-partition ((game-object-name spatial-partition &key min-x max-x min-y max-y min-z max-z static-iteration-p skip-static-objects-p) &body body)
   "Run BODY once over every element (bound to GAME-OBJECT-NAME) in SPATIAL-PARTION. Keyword args are optional optimization hints
 When supplied, MIN/MAX boundaries limit iteration to all objects which overlap the boundary.
@@ -96,6 +104,9 @@ STATIC-ITERATION-P optimization hint which tells the partition that no objects w
                           :max-z ,max-z
                           :static-iteration-p ,static-iteration-p
                           :skip-static-objects-p ,skip-static-objects-p)
+              ,@body))
+           ((typep ,spatial-partition 'array-backed)
+            (do-array-backed (,game-object-name ,spatial-partition)
               ,@body))
            (t (error "unsupported partition type: ~A" ,spatial-partition)))))
 
