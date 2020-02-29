@@ -153,6 +153,7 @@ Idempotent. Will be called when all vert systems are initialized.")
 
 (on-engine-stop ('resource-autoloader-release)
   (setf (resource-autoloader-can-load-resources-p *resource-autoloader*) nil)
+  (run-all-free-releasers)
   (force-run-all-releasers))
 
 ;;;; resource releaser util
@@ -175,41 +176,31 @@ Idempotent. Will be called when all vert systems are initialized.")
     (print-unreadable-object (resource-releaser out :type t)
       (format out "~A" label))))
 
+(defparameter %force-releaser-run-p% nil)
+
 @export
 (defmacro make-resource-releaser ((&optional object) &body body)
   "Return an instance with a gc finalizer which executes BODY.
 OBJECT may be supplied to generate a human-readable name for what is being finalized."
   (alexandria:with-gensyms (label releaser)
-    `(let ((,label (format nil "releaser<~A>" ,object)))
-       #+nil
-       (tg:finalize (make-instance '%resource-releaser
-                                   :label (format
-                                           nil
-                                           ,label
-                                           ))
-                    (lambda ()
-                      (handler-case
-                          (progn
-                            (log:info "running ~A" ,label)
-                            (prog1 (progn ,@body)
-                              (log:info "--> finish running ~A" ,label)))
-                        (error (e)
-                          (log:error "error running <~A> finalizer: ~A"
-                                     ,label
-                                     e)))))
-       (let ((,releaser (make-instance '%resource-releaser
-                                       :label (format nil ,label)
-                                       :finalizer
-                                       (lambda ()
-                                         (handler-case
-                                             (progn
-                                               (log:trace "---- running ~A ---- " ,label)
-                                               (prog1 (progn ,@body)
-                                                 (log:trace "---- /finish running ~A" ,label)))
-                                           (error (e)
-                                             (log:error "running <~A> finalizer: ~A"
-                                                        ,label
-                                                        e)))))))
+    `(let* ((,label (format nil "releaser<~A>" ,object))
+            (,releaser (make-instance '%resource-releaser
+                                      :label (format nil ,label)
+                                      :finalizer
+                                      (lambda ()
+                                        (handler-case
+                                            (progn
+                                              (if %force-releaser-run-p%
+                                                  (log:warn "---- force running ~A ---- " ,label)
+                                                  (log:trace "---- running ~A ---- " ,label))
+                                              (prog1 (progn ,@body)
+                                                (if %force-releaser-run-p%
+                                                    (log:warn "---- /finish running ~A" ,label)
+                                                    (log:trace "---- /finish running ~A" ,label))))
+                                          (error (e)
+                                            (log:error "running <~A> finalizer: ~A"
+                                                       ,label
+                                                       e)))))))
          (loop :for i :from 0 :below (length *releaser-finalizers*) :by 2 :do
               (when (null (elt *releaser-finalizers* i))
                 (setf (elt *releaser-finalizers* i)
@@ -220,7 +211,7 @@ OBJECT may be supplied to generate a human-readable name for what is being final
             :finally
               (vector-push-extend (tg:make-weak-pointer ,releaser) *releaser-finalizers*)
               (vector-push-extend (slot-value ,releaser 'finalizer) *releaser-finalizers*))
-         ,releaser))))
+         ,releaser)))
 
 @export
 (defun cancel-resource-releaser (resource-releaser)
@@ -252,12 +243,13 @@ OBJECT may be supplied to generate a human-readable name for what is being final
 (defun force-run-all-releasers ()
   "Execute releaser code for all releasers, even live ones."
   ;; loop the table and run stuff
-  (loop :for i :from 0 :below (length *releaser-finalizers*) :by 2 :do
-       (let ((releaser (when (elt *releaser-finalizers* i)
-                         (tg:weak-pointer-value (elt *releaser-finalizers* i))))
-             (releaser-fn (elt *releaser-finalizers* (+ i 1))))
-         (setf (elt *releaser-finalizers* i) nil)
-         (setf (elt *releaser-finalizers* (+ i 1)) nil)
-         (when releaser-fn
-           (log:warn "force running releaser ~A" releaser)
-           (funcall releaser-fn)))))
+  (let ((%force-releaser-run-p% t))
+    (loop :for i :from 0 :below (length *releaser-finalizers*) :by 2 :do
+         (let ((releaser (when (elt *releaser-finalizers* i)
+                           (tg:weak-pointer-value (elt *releaser-finalizers* i))))
+               (releaser-fn (elt *releaser-finalizers* (+ i 1))))
+           (setf (elt *releaser-finalizers* i) nil)
+           (setf (elt *releaser-finalizers* (+ i 1)) nil)
+           (when releaser-fn
+             (log:warn "force running releaser ~A" releaser)
+             (funcall releaser-fn))))))
