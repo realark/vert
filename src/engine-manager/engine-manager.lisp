@@ -278,14 +278,15 @@ It is invoked after the engine is fully started.")
   (setf *live-coding-fn*
         (eval
          (read-from-string
-          "#+swank
-           (lambda ()
-             (declare (optimize (speed 3)))
-             (let ((connection (or swank::*emacs-connection*
-                                   (swank::default-connection))))
-               (when connection
-                 (swank::handle-requests connection t))
-               (values)))")))
+          "(or #+swank
+               (lambda ()
+                 (declare (optimize (speed 3)))
+                 (let ((connection (or swank::*emacs-connection*
+                                       (swank::default-connection))))
+                   (when connection
+                     (swank::handle-requests connection t))
+                   (values)))
+               nil)")))
   (if *live-coding-fn*
       (log:info "Live coding started.")
       (log:info "Live coding unavailable.")))

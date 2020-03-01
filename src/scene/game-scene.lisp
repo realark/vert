@@ -238,7 +238,7 @@ All objects in this array will be removed from the scene at the start of the nex
                                  :min-x live-x-min :max-x live-x-max
                                  :min-y live-y-min :max-y live-y-max)
             (block found-object-to-render
-              ;; TODO: this is slightly inaccurate because spatial partitions may visit the same object twice
+              ;; TODO: counter is slightly inaccurate because spatial partitions may visit the same object twice
               ;; to fix this, the render queue should return different values if obj is already queued
               (incf num-objects-to-render)
               (block check-if-instance-rendered

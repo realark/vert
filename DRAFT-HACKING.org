@@ -78,6 +78,13 @@ Goals:
 
   ;; TODO how to subscribe to a particular instance
 
+  (progn
+
+    (add-subscriber wolf other-wolf 'howling
+      (howl other-wolf)
+      )
+
+    )
 #+END_SRC
 ** Subscribing to a type of event
 ** Subscribing to Events from a specific instance
