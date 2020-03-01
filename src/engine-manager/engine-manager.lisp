@@ -152,7 +152,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
     ;;                               (declare (ignore previous-action))
     ;;                               'no-action))
     ;;       (funcall pending))))
-    (update-swank)
+    (update-live-coding)
     ;; I've considered wrapping this methig in (sb-sys:without-gcing)
     ;; to prevent short GCs from dropping the FPS.
     ;; But it seems like that could deadlock if the game is multithreaded.
@@ -296,7 +296,7 @@ It is invoked after the engine is fully started.")
     (setf *live-coding-fn* nil)
     (log:info "Live coding stopped.")))
 
-(defun update-swank ()
+(defun update-live-coding ()
   "Update swank events."
   (declare (optimize (speed 3)))
   (when *live-coding-fn*

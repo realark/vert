@@ -33,6 +33,52 @@ You will almost always want to use SCENE-TICKS to implement in-game timers.
 (scene-ticks *scene*) ; -> 4000
 #+END_SRC
 * Event System
+** scratch
+Goals:
+- object instance can subscribe to another object instance
+  - e.g. scene subscribes to objects getting killed
+- object instance can subscribe to a type of event
+  - e.g. scene subscribes to a screen resize and pauses itself
+- anonymous callbacks to events
+  - e.g. on-engine-start event, set up the resource-autoloader
+
+#+BEGIN_SRC lisp
+  (publish-event GAME-WINDOW-RESIZED new-width new-height)
+  (publish-event GAME-WINDOW-MOVED new-x new-y)
+
+  ;;;; low level
+  (defparameter *pending-events*
+    (make-some-array)
+    "Events which will be published next frame.")
+
+  (defparameter *event-bus*
+    (make-some-array)
+    "Events which have been published in the previous update frame.")
+
+  (defun publish-event (event-name-symbol &rest event-args)
+    ;; push event name and all args to pending-events
+    )
+
+  ;;;; event api
+
+  ;; define a type of event
+  (defevent game-window-resized (old-width old-height new-width new-height)
+      "docstring")
+
+  ;; next frame run the game-window-resized event
+  (publish-event game-window-resized 100 75 200 150)
+
+  ;; how sprites will react to window resizes
+  (defevent-callback game-window-resized ((sprite static-sprite) old-width old-height new-width new-height)
+    )
+
+  ;; function which runs every time the window is resized
+  (on-event game-window-resized (old-width old-height new-width new-height)
+    (log:info "game window resized"))
+
+  ;; TODO how to subscribe to a particular instance
+
+#+END_SRC
 ** Subscribing to a type of event
 ** Subscribing to Events from a specific instance
 * Vert Systems
@@ -59,37 +105,23 @@ Your component must:
 1. Not attempt to load these bits when initialized. You should be able to create your component without a game window, gl-context, audio buffer, etc.
 2. When the engine starts, load the appropriate resources
 3. When the engine stops, release the appropriate resources
-4. When the component is garbage collected, release the appropriate resources
+4. When the component is dereferenced, release the appropriate resources before the engine shuts down
 
 *** Recommended Approach
 How resources are managed is ultimately up to the component developer, but it is highly recommended to do the following:
 1. Hook LOAD-RESOURCES and RELEASE-RESOURCES for your component (either use an :AROUND, :AFTER, or simpley CALL-NEXT-METHOD)
 2. When the object is initialized, register it with the *RESOURCE-AUTOLOADER*
-3. Add a finalizer on the component which frees its external resources
+3. When the object's resources are loaded, use the RESOURCE-RELEASER util to add a finalizer to the object's resources if it is dereferenced
+4. When the object's resources are released, cancel the resource releaser
 
 As an example, we'll consider a bomb component. This is a contrived example for educational purposes. In practice the rendering and audio logic would be broken out into simpler utility components which manage the underlying bits.
 #+BEGIN_SRC lisp
-  ;;;; TODO: Add to resource file vv
-  (defclass %resource-releaser ()
-    ((label :initarg :label :initform (error ":label required"))))
-
-  (defmethod print-object ((resource-releaser %resource-releaser) out)
-    (with-slots (label) object
-      (print-unreadable-object (object out :type t)
-        (format out "~A" label))))
-
-  (defun make-resource-releaser (label)
-    "Create an object for the purposes "
-    (make-instance '%resource-releaser
-                   :object-name label))
-  ;;;; TODO
-
   (defclass bomb (game-object)
-    ((bomb-resource-releaser :initform nil)
+    ((releaser :initform nil)
      (spritesheet :initform nil)
-     (explode-sfx :initform nil)))
+     (explode-sfx :initform nil)))))
 
-  ;; Note: Hooking :AROUND so that all initializations are complete before resource-autoloader potentially call LOAD-RESOURCES
+     ;; Note: Hooking :AROUND so that all initializations are complete before resource-autoloader potentially call LOAD-RESOURCES
   (defmethod initialize-instance :around ((bomb bomb) &rest args)
     (declare (optimize (speed 3)))
     (let ((all-args (append (list bomb) args)))
@@ -104,26 +136,23 @@ As an example, we'll consider a bomb component. This is a contrived example for 
   (defmethod load-resources ((bomb bomb))
     ;; first make sure parent loading works
     (prog1 (call-next-method bomb)
-      (unless (slot-value bomb 'bomb-resource-releaser)
+      (unless (slot-value bomb 'releaser)
         (let ((spritesheet (make-spritesheet *gl-context* (resource-path "./art/bomb.png")))
               (explode-sfx (make-sfx *audio* (resource-path "./sfx/explode.wav"))))
           (setf (slot-value bomb 'spritesheet) spritesheet
                 (slot-value bomb 'explode-sfx) explode-sfx
-                (slot-value bomb 'resource-releaser) (make-resource-releaser "bomb-resource-releaser"))
-          (tg:finalize (slot-value bomb 'bomb-resource-releaser)
-                       ;; Note: It's really important to not reference BOMB instance or its BOMB-RESOURCE-RELEASER slot in this lambda
-                       ;; because doing so creates a hard reference, meaning it will never be collected
-                       ;; and memory will slowly leak
-                       (lambda ()
-                         (%release-bomb-resources spritesheet explode-sfx)))))))
+                (slot-value bomb 'releaser)
+                ;; Note that passing BOMB will NOT create a hard ref.
+                (make-resource-releaser (bomb)
+                  (%release-bomb-resources spritesheet explode-sfx)))))))
 
   (defmethod release-resources ((bomb bomb))
-    (with-slots (bomb-resource-releaser spritesheet explode-sfx) bomb
+    (with-slots (releaser spritesheet explode-sfx) bomb
       (prog1 (call-next-method bomb)
-        (when bomb-resource-releaser
+        (when releaser
           (%release-bomb-resources spritesheet explode-sfx)
-          (tg:cancel-finalization bomb-resource-releaser)
-          (setf bomb-resource-releaser nil
+          (cancel-resource-releaser releaser)
+          (setf releaser nil
                 spritesheet nil
                 explode-sfx nil)))))
 #+END_SRC
