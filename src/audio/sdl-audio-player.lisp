@@ -48,18 +48,12 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (getcache-default path-to-music-file
                     (music-cache audio-player)
                     (let ((music (sdl2-mixer:load-music path-to-music-file)))
-                      ;; sdl2-mixer manually frees the underlying pointer in a finalizer by default.
-                      ;; Cancel it because we're handling that ourselves.
-                      (tg:cancel-finalization music)
                       music)))
 
 (defun %get-sound-effect (audio-player path-to-sound)
   (getcache-default path-to-sound
                     (chunk-cache audio-player)
                     (let ((chunk (sdl2-mixer:load-wav path-to-sound)))
-                      ;; sdl2-mixer manually frees the underlying pointer in a finalizer by default.
-                      ;; Cancel it because we're handling that ourselves.
-                      (tg:cancel-finalization chunk)
                       chunk)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -114,10 +108,10 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (sdl2-mixer:halt-music)
   (sdl2-mixer:halt-channel +all-channels+)
   (sdl2-mixer:close-audio)
-  (loop :while (/= 0 (sdl2-mixer:init 0)) :do
-       (sdl2-mixer:quit))
   (clear-cache (chunk-cache audio-player))
   (clear-cache (music-cache audio-player))
+  (loop :while (/= 0 (sdl2-mixer:init 0)) :do
+       (sdl2-mixer:quit))
   (values))
 
 (defmethod play-sound-effect ((audio-player sdl-audio-player) path-to-sfx-file &key (rate 1.0) (volume 1.0))
