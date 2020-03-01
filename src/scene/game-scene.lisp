@@ -79,15 +79,20 @@ All objects in this array will be removed from the scene at the start of the nex
         (render-queue-add render-queue overlay)
         overlay)))
   (:method ((scene game-scene) (object game-object))
-    (with-slots (spatial-partition render-queue updatable-objects) scene
-      (when (start-tracking spatial-partition object)
-        (when (and (log:debug)
-                   (not (typep object 'static-object)))
-          (log:debug "Adding ~A to scene" object))
-        (add-subscriber object scene killed)
-        (when (%in-live-object-area-p scene object)
-          (%force-rebuild-live-objects scene))
-        object))))
+    (with-slots (spatial-partition render-queue updatable-objects removed-objects) scene
+      (if (start-tracking spatial-partition object)
+          (progn
+            (when (and (log:debug)
+                       (not (typep object 'static-object)))
+              (log:debug "Adding ~A to scene" object))
+            (add-subscriber object scene killed)
+            (when (%in-live-object-area-p scene object)
+              (%force-rebuild-live-objects scene))
+            object)
+          (when (find object removed-objects)
+            (log:debug "~A re-added to scene. Cancel pending removal." object)
+            (setf removed-objects (delete object removed-objects))
+            object)))))
 
 @export
 (defgeneric remove-from-scene (scene object)
@@ -105,9 +110,14 @@ All objects in this array will be removed from the scene at the start of the nex
         overlay)))
   (:method ((scene game-scene) (object game-object))
     ;; remove object at the start of the next frame to allow pending actions to finish
-    (when (in-scene-p scene object)
-      (vector-push-extend object (slot-value scene 'removed-objects))
-      object)))
+    (if (in-scene-p scene object)
+        (progn
+          (log:debug "queuing ~A for scene removal" object)
+          (vector-push-extend object (slot-value scene 'removed-objects))
+          object)
+        (progn
+          (log:debug "Asked to remove object not in scene: ~A" object)
+          (values)))))
 
 (defgeneric found-object-to-update (game-scene game-object)
   (:documentation "for subclasses to hook object updates")

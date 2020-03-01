@@ -3,14 +3,17 @@
 (defconstant +max-render-queue-size+ (expt 2 32)
   "Performance optimization. The maximum number of objects an render-queue can render.")
 
+(defvar %render-dummy%
+  (make-instance 'game-object
+                 :object-id 'render-dummy) )
+
 @export
 (defclass render-queue ()
   ((fill-pointer :initform 0)
    (objects-to-render :initform (make-array 200
                                             :adjustable nil
                                             :element-type 'game-object
-                                            :initial-element (make-instance 'game-object
-                                                                            :object-id 'render-dummy))))
+                                            :initial-element %render-dummy%)))
   (:documentation "A self-sorting queue of objects to render."))
 
 @export
@@ -83,8 +86,10 @@ Object will be rendered the next time RENDER is invoked on the queue.")
              (when (eq (elt objects-to-render i)
                        game-object)
                (left-shift-array objects-to-render i fill-pointer)
+               (setf (elt objects-to-render fill-pointer) %render-dummy%)
                (decf fill-pointer)
-               (log:trace "QUEUE REMOVE: removed ~A from render queue" game-object))
+               (log:trace "QUEUE REMOVE: removed ~A from render queue" game-object)
+               (return))
              :finally
              (log:trace "QUEUE REMOVE: object not found for removal: ~A" game-object))))
     (values)))
