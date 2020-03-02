@@ -131,6 +131,8 @@
           :documentation "Max z value the camera will show."))
   (:documentation "A camera which will not move outside of a user-defined x-y-z boundary."))
 
+(export '(min-x max-x min-y max-y min-z max-z))
+
 (defmethod (setf x) (value (camera bounded-camera))
   (with-accessors ((min min-x) (max max-x) (w width)) camera
     (when (and min (< value min))

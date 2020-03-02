@@ -29,13 +29,19 @@ This is an optimization so we don't have to rebuild the render and update queues
                                             :fill-pointer 0
                                             :element-type '(or null game-object)
                                             :initial-element nil))
+   (updating-p :initform nil :reader updating-p)
+   (pending-adds :initform (make-array 10
+                                       :adjustable t
+                                       :fill-pointer 0
+                                       :element-type '(or null game-object)
+                                       :initial-element nil)
+                 :documentation "Objects to be added to scene at the start of the next frame.")
    (pending-removes :initform (make-array 10
                                           :adjustable t
                                           :fill-pointer 0
                                           :element-type '(or null game-object)
                                           :initial-element nil)
-                    :documentation "Objects removed in the current frame.
-All objects in this array will be removed from the scene at the start of the next frame.")
+                    :documentation "Objects to be removed from scene at the start of the next frame.")
    (live-object-rebuild-camera-position
     :initform (vector2)
     :documentation "Centered camera position used to compute render-queue rebuilds.")
@@ -70,20 +76,19 @@ All objects in this array will be removed from the scene at the start of the nex
         (render-queue-add render-queue overlay)
         overlay)))
   (:method ((scene game-scene) (object game-object))
-    (with-slots (spatial-partition render-queue updatable-objects pending-removes) scene
-      (if (start-tracking spatial-partition object)
-          (progn
-            (when (and (log:debug)
-                       (not (typep object 'static-object)))
-              (log:debug "Adding ~A to scene" object))
-            (add-subscriber object scene killed)
-            (when (%in-live-object-area-p scene object)
-              (%force-rebuild-live-objects scene))
-            object)
-          (when (find object pending-removes)
-            (log:debug "~A re-added to scene. Cancel pending removal." object)
-            (setf pending-removes (delete object pending-removes))
-            object)))))
+    (if (updating-p scene)
+        (with-slots (pending-adds pending-removes) scene
+          (if (in-scene-p scene object)
+              (when (find object pending-removes)
+                (log:debug "cancel ~A for scene remove" object)
+                (setf pending-removes (delete object pending-removes))
+                object)
+              (unless (find object pending-adds)
+                (log:debug "queuing ~A for scene add" object)
+                (vector-push-extend object pending-adds)
+                object)))
+        ;; fast path for adding objects outside of scene update (i.e. initialization)
+        (%%add-object-to-scene scene object))))
 
 @export
 (defgeneric remove-from-scene (scene object)
@@ -100,19 +105,50 @@ All objects in this array will be removed from the scene at the start of the nex
         (render-queue-remove (slot-value scene 'render-queue) overlay)
         overlay)))
   (:method ((scene game-scene) (object game-object))
-    ;; remove object at the start of the next frame to allow pending actions to finish
-    (if (in-scene-p scene object)
-        (progn
-          (log:debug "queuing ~A for scene removal" object)
-          (vector-push-extend object (slot-value scene 'pending-removes))
-          object)
-        (progn
-          (log:debug "Asked to remove object not in scene: ~A" object)
-          (values)))))
+    (with-slots (pending-adds pending-removes) scene
+      (if (in-scene-p scene object)
+          (unless (find object pending-removes)
+            (log:debug "queuing ~A for scene removal" object)
+            (vector-push-extend object pending-removes)
+            (unless (updating-p scene)
+              (%run-pending-removes scene))
+            object)
+          (when (find object pending-adds)
+            (log:debug "cancel ~A for scene add" object)
+            (setf pending-adds (delete object pending-adds))
+            object)))))
+
+@export
+(defun scene-teleport-object (scene object &optional new-x new-y new-z)
+  "Move OBJECT within SCENE to the new coordinates instantly. OBJECT's position will be recycled internally so it will instantly appear in the new position with no position interpolation."
+  (when new-x
+    (setf (x object) new-x))
+  (when new-y
+    (setf (y object) new-y))
+  (when new-z
+    (setf (z object) new-z))
+  (recycle object)
+  (when (%in-live-object-area-p scene object)
+    (with-slots (render-queue updatable-objects) scene
+      (render-queue-add render-queue object)
+      (vector-push-extend object updatable-objects)))
+  object)
 
 (defgeneric found-object-to-update (game-scene game-object)
   (:documentation "for subclasses to hook object updates")
   (:method ((scene game-scene) game-object)))
+
+(defun %%add-object-to-scene (scene object)
+  (declare (optimize (speed 3))
+           (game-scene scene)
+           (game-object object))
+  (with-slots (spatial-partition render-queue updatable-objects) scene
+    (when (start-tracking spatial-partition object)
+      (add-subscriber object scene killed)
+      (when (%in-live-object-area-p scene object)
+        (render-queue-add render-queue object)
+        (vector-push-extend object updatable-objects))
+      object)))
 
 (defun %run-pending-removes (scene)
   (declare (optimize (speed 3))
@@ -123,11 +159,22 @@ All objects in this array will be removed from the scene at the start of the nex
       (loop :for removed-object :across pending-removes :do
            (remove-subscriber removed-object scene killed)
            (stop-tracking spatial-partition removed-object)
-           (render-queue-remove render-queue removed-object)
-           (setf updatable-objects (delete removed-object updatable-objects))
+           (when (%in-live-object-area-p scene removed-object)
+             (render-queue-remove render-queue removed-object)
+             (setf updatable-objects (delete removed-object updatable-objects)))
+           (log:debug "removed ~A from scene" removed-object)
          :finally
            (setf (fill-pointer pending-removes) 0))))
   (values))
+
+(defun %run-pending-adds (scene)
+  (declare (optimize (speed 3))
+           (game-scene scene))
+  (with-slots (pending-adds spatial-partition render-queue updatable-objects) scene
+    (loop :for object :across pending-adds :do
+         (%%add-object-to-scene scene object)
+       :finally
+         (setf (fill-pointer pending-adds) 0))))
 
 (defun %force-rebuild-live-objects (scene)
   (log:debug "force live object rebuild.")
@@ -184,6 +231,13 @@ All objects in this array will be removed from the scene at the start of the nex
                   (y live-object-rebuild-camera-position) camera-centered-y)
             t))))))
 
+(defmethod update :around ((scene game-scene) delta-t-ms context)
+  (with-slots (updating-p) scene
+    (setf updating-p t)
+    (unwind-protect
+         (call-next-method scene delta-t-ms context)
+      (setf updating-p nil))))
+
 (defmethod update ((game-scene game-scene) delta-t-ms (context null))
   (declare (optimize (speed 3)))
   (with-slots (live-object-rebuild-camera-position
@@ -198,6 +252,7 @@ All objects in this array will be removed from the scene at the start of the nex
       game-scene
     (let ((rebuild-live-objects-p (%rebuild-live-object-area-p game-scene)))
       (%run-pending-removes game-scene)
+      (%run-pending-adds game-scene)
       (when rebuild-live-objects-p
         (setf (fill-pointer updatable-objects) 0)
         (render-queue-reset queue)
