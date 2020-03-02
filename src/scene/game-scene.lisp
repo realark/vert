@@ -1,15 +1,6 @@
 (in-package :recurse.vert)
 
 @export-class
-(defstruct active-area
-  "Defines an area in a game-scene (base world coords). Used to limit which objects are updated/rendered during a game loop."
-  (min-x nil :type (or null single-float))
-  (max-x nil :type (or null single-float))
-  (min-y nil :type (or null single-float))
-  (max-y nil :type (or null single-float)))
-(export 'make-active-area)
-
-@export-class
 (defclass game-scene (scene)
   ((scene-background :initform nil
                      :initarg :background
@@ -38,7 +29,7 @@ This is an optimization so we don't have to rebuild the render and update queues
                                             :fill-pointer 0
                                             :element-type '(or null game-object)
                                             :initial-element nil))
-   (removed-objects :initform (make-array 10
+   (pending-removes :initform (make-array 10
                                           :adjustable t
                                           :fill-pointer 0
                                           :element-type '(or null game-object)
@@ -79,7 +70,7 @@ All objects in this array will be removed from the scene at the start of the nex
         (render-queue-add render-queue overlay)
         overlay)))
   (:method ((scene game-scene) (object game-object))
-    (with-slots (spatial-partition render-queue updatable-objects removed-objects) scene
+    (with-slots (spatial-partition render-queue updatable-objects pending-removes) scene
       (if (start-tracking spatial-partition object)
           (progn
             (when (and (log:debug)
@@ -89,9 +80,9 @@ All objects in this array will be removed from the scene at the start of the nex
             (when (%in-live-object-area-p scene object)
               (%force-rebuild-live-objects scene))
             object)
-          (when (find object removed-objects)
+          (when (find object pending-removes)
             (log:debug "~A re-added to scene. Cancel pending removal." object)
-            (setf removed-objects (delete object removed-objects))
+            (setf pending-removes (delete object pending-removes))
             object)))))
 
 @export
@@ -113,7 +104,7 @@ All objects in this array will be removed from the scene at the start of the nex
     (if (in-scene-p scene object)
         (progn
           (log:debug "queuing ~A for scene removal" object)
-          (vector-push-extend object (slot-value scene 'removed-objects))
+          (vector-push-extend object (slot-value scene 'pending-removes))
           object)
         (progn
           (log:debug "Asked to remove object not in scene: ~A" object)
@@ -126,16 +117,16 @@ All objects in this array will be removed from the scene at the start of the nex
 (defun %run-pending-removes (scene)
   (declare (optimize (speed 3))
            (game-scene scene))
-  (with-slots (removed-objects spatial-partition render-queue updatable-objects) scene
-    (declare (vector removed-objects updatable-objects))
-    (when (> (length removed-objects) 0)
-      (loop :for removed-object :across removed-objects :do
+  (with-slots (pending-removes spatial-partition render-queue updatable-objects) scene
+    (declare (vector pending-removes updatable-objects))
+    (when (> (length pending-removes) 0)
+      (loop :for removed-object :across pending-removes :do
            (remove-subscriber removed-object scene killed)
            (stop-tracking spatial-partition removed-object)
            (render-queue-remove render-queue removed-object)
            (setf updatable-objects (delete removed-object updatable-objects))
          :finally
-           (setf (fill-pointer removed-objects) 0))))
+           (setf (fill-pointer pending-removes) 0))))
   (values))
 
 (defun %force-rebuild-live-objects (scene)
@@ -202,7 +193,7 @@ All objects in this array will be removed from the scene at the start of the nex
                reset-instance-renderers
                (bg scene-background)
                scene-overlays
-               removed-objects
+               pending-removes
                camera)
       game-scene
     (let ((rebuild-live-objects-p (%rebuild-live-object-area-p game-scene)))
