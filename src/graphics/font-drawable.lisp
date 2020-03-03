@@ -167,7 +167,9 @@
      (vbo :initform 0)
      (vertices-byte-size :initform 0)
      (vertices-pointer-offset :initform 0)
-     (vertices :initform nil)
+     ;; note: using a cons cell so we have a fixed memory location holding a pointer to foreign array
+     ;; this fixed memory allows the array to be updated and still work with a releaser
+     (vertices :initform (cons nil nil))
      (releaser :initform nil)))
   (export '(text)))
 
@@ -243,7 +245,6 @@
             text-atlas nil
             vao 0
             vbo 0
-            vertices nil
             releaser nil))))
 
 (defun %release-gl-font-resources (buffer-cache-key path-to-font font-dpi vao vbo vertices text-atlas)
@@ -251,7 +252,8 @@
   (when *gl-context*
     (remcache %font-key% *shader-cache*)
     (remcache buffer-cache-key %font-buffer-cache%)
-    (gl:free-gl-array vertices)
+    (gl:free-gl-array (car vertices))
+    (setf (car vertices) nil)
 
     (let ((dpi-cache (getcache path-to-font %text-atlas-cache%)))
       (when dpi-cache
@@ -277,15 +279,15 @@
   (labels ((scale-vertices-array (font-drawable)
              (with-slots ((gl-font font-draw-component)) font-drawable
                (with-slots (vertices vertices-byte-size vertices-pointer-offset) gl-font
-                 (when (or (null vertices) ; ensure vertices array is large enough for the text
+                 (when (or (null (car vertices)) ; ensure vertices array is large enough for the text
                            (> (the fixnum (* 6 4 (the fixnum (length (the vector (text font-drawable))))))
-                              (the fixnum (gl::gl-array-size vertices))))
-                   (when vertices
-                     (gl:free-gl-array vertices)
-                     (setf vertices nil))
-                   (setf vertices (gl:alloc-gl-array :float (* 6 4 (length (text font-drawable))))
-                         vertices-byte-size (gl::gl-array-byte-size vertices)
-                         vertices-pointer-offset (gl::gl-array-pointer-offset vertices 0))))))
+                              (the fixnum (gl::gl-array-size (car vertices)))))
+                   (when (car vertices)
+                     (gl:free-gl-array (car vertices))
+                     (setf (car vertices) nil))
+                   (setf (car vertices) (gl:alloc-gl-array :float (* 6 4 (length (text font-drawable))))
+                         vertices-byte-size (gl::gl-array-byte-size (car vertices))
+                         vertices-pointer-offset (gl::gl-array-pointer-offset (car vertices) 0))))))
            (send-vertices-to-gl (font-drawable)
              (multiple-value-bind (ix iy iz iw ih)
                  (world-dimensions font-drawable)
@@ -324,7 +326,7 @@
                             (macrolet ((set-vertices-data (&rest data)
                                          `(progn
                                             ,@(loop :for val :in data :collect
-                                                   `(setf (cffi:mem-aref (gl::gl-array-pointer vertices) :float i)
+                                                   `(setf (cffi:mem-aref (gl::gl-array-pointer (car vertices)) :float i)
                                                           ,val
                                                           i (+ i 1))))))
                               (set-vertices-data
@@ -349,7 +351,7 @@
                    (unless (= 0 (the fixnum vao))
                      (gl-use-vao *gl-context* vao)
                      (n-bind-buffer :array-buffer vbo)
-                     (n-buffer-data :array-buffer vertices-byte-size (gl::gl-array-pointer vertices) :dynamic-draw)))))))
+                     (n-buffer-data :array-buffer vertices-byte-size (gl::gl-array-pointer (car vertices)) :dynamic-draw)))))))
     (declare (inline scale-vertices-array send-vertices-to-gl))
     (when (and *gl-context* (slot-value (slot-value font-drawable 'font-draw-component) 'text-atlas))
       (scale-vertices-array font-drawable)
@@ -357,7 +359,7 @@
 
 (defmethod render ((gl-font gl-font) update-percent (camera simple-camera) (renderer gl-context))
   (declare (optimize (speed 3)))
-  (with-slots (font-drawable shader vao vbo vertices vertices-byte-size vertices-pointer-offset text-atlas)
+  (with-slots (font-drawable shader vao vbo text-atlas)
       gl-font
     (with-accessors ((color color) (text text) (text-end font-drawable-text-end))
         font-drawable
