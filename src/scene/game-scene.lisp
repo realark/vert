@@ -131,7 +131,8 @@ This is an optimization so we don't have to rebuild the render and update queues
   (when (%in-live-object-area-p scene object)
     (with-slots (render-queue updatable-objects) scene
       (render-queue-add render-queue object)
-      (vector-push-extend object updatable-objects)))
+      (unless (find object updatable-objects :test #'eq)
+        (vector-push-extend object updatable-objects))))
   object)
 
 (defgeneric found-object-to-update (game-scene game-object)
@@ -147,7 +148,8 @@ This is an optimization so we don't have to rebuild the render and update queues
       (add-subscriber object scene killed)
       (when (%in-live-object-area-p scene object)
         (render-queue-add render-queue object)
-        (vector-push-extend object updatable-objects))
+        (unless (find object updatable-objects :test #'eq)
+          (vector-push-extend object updatable-objects)))
       object)))
 
 (defun %run-pending-removes (scene)
@@ -306,7 +308,7 @@ This is an optimization so we don't have to rebuild the render and update queues
               (render-queue-add queue game-object))
             (block check-add-to-updatable-objects
               (when (and (not (typep game-object 'static-object))
-                         (not (find game-object updatable-objects)))
+                         (not (find game-object updatable-objects :test #'eq)))
                 (incf num-objects-to-update)
                 (vector-push-extend game-object updatable-objects))))
           (log:debug "Rebuild complete. Found ~A objects to render and ~A objects to update"
