@@ -66,6 +66,7 @@ for KEY (as long as there is no existing value)"
         (initialize-entry-metadata cache key value)
         (when old-entry
           (funcall on-evict-fn key (cdr old-entry)))
+        (log:debug "add cache ~A :: ~A" cache key)
         value))))
 
 (defmethod remcache (key (cache cache))
@@ -74,6 +75,7 @@ for KEY (as long as there is no existing value)"
       cache
     (let ((old-entry (gethash key table)))
       (when old-entry
+        (log:debug "remove cache ~A :: ~A" cache key)
         (funcall on-evict-fn key (cdr old-entry))))
     (remhash key table)))
 
@@ -82,6 +84,7 @@ for KEY (as long as there is no existing value)"
   (with-slots ((table htable) (on-evict-fn on-evict-fn))
       cache
     (maphash (lambda (key value)
+               (log:debug "remove cache ~A :: ~A" cache key)
                (remhash key table)
                (funcall on-evict-fn key (cdr value)))
              table)))
