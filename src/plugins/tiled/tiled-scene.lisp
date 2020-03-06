@@ -42,12 +42,16 @@
     (tile-height (error ":tile-height required"):type integer)
     (tile-objects ; hash TILE-ID -> Objects json
      (make-hash-table :test #'equalp)
+     :type hash-table)
+    (tile-properties ; hash TILE-ID -> (hash :prop-name -> "prop-val")
+     (make-hash-table :test #'equalp)
      :type hash-table))
-  (export 'tileset-image-source)
-  (export 'tileset-columns)
-  (export 'tileset-tile-width)
-  (export 'tileset-tile-height)
-  (export 'tileset-tile-objects))
+  (export '(tileset-image-source
+            tileset-columns
+            tileset-tile-width
+            tileset-tile-height
+            tileset-tile-objects
+            tileset-tile-properties)))
 
 (progn
   @export
@@ -72,7 +76,7 @@
 
 
 @export
-(defgeneric on-tile-read (tiled-scene layer-json tileset tile-number tile-map-col tile-map-row tile-source-col tile-source-row)
+(defgeneric on-tile-read (tiled-scene layer-json tileset tile-number tile-map-col tile-map-row tile-source-col tile-source-row source-tile-id)
   (:documentation "Invoked when a tiled tile is read. Implementers will add the appropriate game-object to TILED-SCENE."))
 
 @export
@@ -95,8 +99,22 @@
                       (image-path (concatenate 'string
                                                (directory-namestring tileset-path)
                                                (json-val json :image)))
+                      (tile-properties (make-hash-table :test #'equalp))
                       (tile-objects-hash (make-hash-table :test #'equalp)))
+                 (loop :for tile-props :in (json-val json :tileproperties) :do
+                      (when (> (length tile-props) 1)
+                        (let ((tile-id (first tile-props))
+                              (prop-hash (make-hash-table :test #'equalp)))
+                          (loop :for prop :in (rest tile-props) :do
+                               (let ((prop-key (car prop))
+                                     (prop-val (cdr prop)))
+                                 (setf (gethash prop-key prop-hash)
+                                       prop-val)))
+                          ;; add to tile-properties hash
+                          (setf (gethash tile-id tile-properties)
+                                prop-hash))))
                  (loop :for tile-json :in (json-val json :tiles) :do
+                      ;; read object group for object collisions
                       (when (and (listp tile-json)
                                  (json-val (cdr tile-json) :objectgroup)
                                  (json-val (json-val (cdr tile-json) :objectgroup) :objects))
@@ -114,7 +132,8 @@
                                :columns (json-val json :columns)
                                :tile-width (json-val json :tilewidth)
                                :tile-height (json-val json :tileheight)
-                               :tile-objects tile-objects-hash))))
+                               :tile-objects tile-objects-hash
+                               :tile-properties tile-properties))))
            (tileset-for-tile (tile-number tilesets-cache)
              "Returns values TILESET GID of the tileset for TILE-NUMBER"
              (loop :with active-gid = nil
@@ -159,15 +178,17 @@
                  (unless (= 0 tile-number)
                    (multiple-value-bind (tileset gid) (tileset-for-tile tile-number tilesets)
                      (multiple-value-bind (map-row map-col) (floor i map-num-cols)
-                       (multiple-value-bind (source-row source-col) (floor (- tile-number gid) (tileset-columns tileset))
-                         (on-tile-read tiled-scene
-                                       layer-json
-                                       tileset
-                                       (- tile-number gid)
-                                       map-col
-                                       map-row
-                                       source-col
-                                       source-row)))))))
+                       (let ((source-tile-id (- tile-number gid)))
+                         (multiple-value-bind (source-row source-col) (floor source-tile-id (tileset-columns tileset))
+                           (on-tile-read tiled-scene
+                                         layer-json
+                                         tileset
+                                         (- tile-number gid)
+                                         map-col
+                                         map-row
+                                         source-tile-id
+                                         source-col
+                                         source-row))))))))
               ("objectgroup"
                (loop :for object-json :in (json-val layer-json :objects):do
                  (on-object-read tiled-scene (make-tiled-object :props object-json))))))
