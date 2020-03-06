@@ -298,13 +298,14 @@ This is an optimization so we don't have to rebuild the render and update queues
             (block found-object-to-render
               ;; TODO: counter is slightly inaccurate because spatial partitions may visit the same object twice
               ;; to fix this, the render queue should return different values if obj is already queued
-              (incf num-objects-to-render)
               (block check-if-instance-rendered
-                (when (typep game-object 'instance-rendered-drawable)
+                (if (typep game-object 'instance-rendered-drawable)
                   (with-slots ((instance-renderer instance-renderer)) game-object
                     (unless (find instance-renderer reset-instance-renderers)
+                      (incf num-objects-to-render)
                       (vector-push-extend instance-renderer reset-instance-renderers)
-                      (instance-renderer-reset instance-renderer)))))
+                      (instance-renderer-reset instance-renderer)))
+                  (incf num-objects-to-render)))
               (render-queue-add queue game-object))
             (block check-add-to-updatable-objects
               (when (and (not (typep game-object 'static-object))
