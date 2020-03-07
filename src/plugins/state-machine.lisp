@@ -8,7 +8,7 @@
 (defclass stateful (game-object)
   ((state-machines :initform (make-hash-table)
                    :documentation ":state-machine-name -> :current-state"))
-  (:documentation "A game object with various states. Appropriate state actions will be invoked after UPDATE-USER on the game object."))
+  (:documentation "A game object which runs updates for code associated with its active states."))
 
 (defmethod initialize-instance :after ((stateful stateful) &rest args)
   (declare (ignore args))
@@ -36,10 +36,11 @@
 (defgeneric %state-machine-update (object state-name delta-t-ms scene)
   (:documentation "Run the :while-active body for the current state of OBJECT"))
 
-(defmethod update-user :after ((stateful stateful) delta-t-ms world-context)
-  (with-slots (state-machines) stateful
-    (loop :for state-machine-name :being :the hash-keys :of (slot-value stateful 'state-machines) :do
-         (%state-machine-update stateful state-machine-name delta-t-ms world-context))))
+(defmethod update ((stateful stateful))
+  (prog1 (call-next-method stateful)
+    (with-slots (state-machines) stateful
+      (loop :for state-machine-name :being :the hash-keys :of (slot-value stateful 'state-machines) :do
+           (%state-machine-update stateful state-machine-name *timestep* *scene*)))))
 
 ;; TODO: (defstate state-machine-name initial-state? (arg-lambda-list) body))
 ;; TODO: parent state?

@@ -22,14 +22,15 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
   (setf (slot-value sprite 'unparallax-position)
         (vector3 (x sprite) (y sprite) (z sprite))))
 
-(defmethod update :after ((sprite parallax-image) delta-t-ms (scene scene))
+(defmethod update ((sprite parallax-image))
   ;; move parallax's x-y to account for parallax factor
-  (let ((camera (camera scene)))
-    (with-slots (unparallax-position horizontal-parallax vertical-parallax) sprite
-      (with-accessors ((x x) (y y) (h height)) sprite
-        (with-accessors ((camera-x x) (camera-y y) (camera-h height)) camera
-          (setf x (- camera-x (* horizontal-parallax (- camera-x (x unparallax-position))))
-                y (- camera-y (* vertical-parallax (- camera-y (y unparallax-position))))))))))
+  (prog1 (call-next-method sprite)
+    (let ((camera (camera *scene*)))
+      (with-slots (unparallax-position horizontal-parallax vertical-parallax) sprite
+        (with-accessors ((x x) (y y) (h height)) sprite
+          (with-accessors ((camera-x x) (camera-y y) (camera-h height)) camera
+            (setf x (- camera-x (* horizontal-parallax (- camera-x (x unparallax-position))))
+                  y (- camera-y (* vertical-parallax (- camera-y (y unparallax-position)))))))))))
 
 @export-class
 (defclass scene-background (obb)
@@ -79,24 +80,26 @@ Smaller numbers will scroll slower, larger number will scroll faster. 1 will scr
     (loop :for layer :across (the (simple-array parallax-image) layers) :do
          (render layer update-percent camera rendering-context))))
 
-(defmethod update :after ((background scene-background) delta-t-ms world-context)
+(defmethod update ((background scene-background))
   (declare (optimize (speed 3)))
-  (with-slots (layers wrap-width orig-wrap-width wrap-height) background
-    (loop :for layer :across (the (simple-array parallax-image) layers) :do
-         #+nil
-         (update layer delta-t-ms world-context)
-         (with-accessors ((zoom zoom)) (camera world-context)
-           (let ((orig-zoom (zoom (camera world-context))))
-             (declare (single-float zoom orig-zoom))
-             (unless (= orig-zoom 1.0)
-               (setf zoom 1.0))
-             (unwind-protect
-                  (update layer delta-t-ms world-context)
-               (unless (= orig-zoom zoom)
-                 (setf zoom orig-zoom))))))))
+  (prog1 (call-next-method background)
+    (with-slots (layers wrap-width orig-wrap-width wrap-height) background
+      (loop :for layer :across (the (simple-array parallax-image) layers) :do
+           #+nil
+           (update layer delta-t-ms world-context)
+           (with-accessors ((zoom zoom)) (camera *scene*)
+             (let ((orig-zoom (zoom (camera *scene*))))
+               (declare (single-float zoom orig-zoom))
+               (unless (= orig-zoom 1.0)
+                 (setf zoom 1.0))
+               (unwind-protect
+                    (update layer)
+                 (unless (= orig-zoom zoom)
+                   (setf zoom orig-zoom)))))))))
 
-(defmethod pre-update :after ((background scene-background))
+(defmethod pre-update ((background scene-background))
   (declare (optimize (speed 3)))
-  (with-slots (layers wrap-width orig-wrap-width wrap-height) background
-    (loop :for layer :across (the (simple-array parallax-image) layers) :do
-         (pre-update layer))))
+  (prog1 (call-next-method background)
+    (with-slots (layers wrap-width orig-wrap-width wrap-height) background
+      (loop :for layer :across (the (simple-array parallax-image) layers) :do
+           (pre-update layer)))))

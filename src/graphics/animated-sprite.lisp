@@ -50,30 +50,31 @@
     (let ((frame (elt (animation-frames active-animation) active-animation-frame-index)))
       (setf (sprite-source animated-sprite) frame))))
 
-(defmethod update :after ((animated-sprite animated-sprite) delta-t-ms scene)
+(defmethod update ((animated-sprite animated-sprite))
   (declare (optimize (speed 3)))
-  (flet ((has-next-frame (animation current-frame-index)
-           (declare (animation animation) ((integer 0 1000) current-frame-index))
-           (< current-frame-index (- (length (animation-frames animation)) 1))))
-    (with-slots (animations
-                 active-animation
-                 active-animation-keyword
-                 next-frame-change-timestamp)
-        animated-sprite
-      (let ((now (scene-ticks scene))
-            (new-animation-keyword (get-new-animation animated-sprite)))
-        (declare (timestamp-ms now next-frame-change-timestamp))
-        (when (or (>= now next-frame-change-timestamp)
-                  (not (eq active-animation-keyword new-animation-keyword)))
-          (if (and (has-next-frame active-animation (active-animation-frame-index animated-sprite))
-                   (eq active-animation-keyword new-animation-keyword))
-              (incf (the (integer 0 10000)
-                         (active-animation-frame-index animated-sprite)))
-              (setf active-animation-keyword new-animation-keyword
-                    active-animation (getf animations active-animation-keyword)
-                    (path-to-sprite animated-sprite) (animation-spritesheet active-animation)
-                    next-frame-change-timestamp now ; frame index setter below will update the next update time correctly relative to now
-                    (active-animation-frame-index animated-sprite) 0)))))))
+  (prog1 (call-next-method animated-sprite)
+    (flet ((has-next-frame (animation current-frame-index)
+             (declare (animation animation) ((integer 0 1000) current-frame-index))
+             (< current-frame-index (- (length (animation-frames animation)) 1))))
+      (with-slots (animations
+                   active-animation
+                   active-animation-keyword
+                   next-frame-change-timestamp)
+          animated-sprite
+        (let ((now (scene-ticks *scene*))
+              (new-animation-keyword (get-new-animation animated-sprite)))
+          (declare (timestamp-ms now next-frame-change-timestamp))
+          (when (or (>= now next-frame-change-timestamp)
+                    (not (eq active-animation-keyword new-animation-keyword)))
+            (if (and (has-next-frame active-animation (active-animation-frame-index animated-sprite))
+                     (eq active-animation-keyword new-animation-keyword))
+                (incf (the (integer 0 10000)
+                           (active-animation-frame-index animated-sprite)))
+                (setf active-animation-keyword new-animation-keyword
+                      active-animation (getf animations active-animation-keyword)
+                      (path-to-sprite animated-sprite) (animation-spritesheet active-animation)
+                      next-frame-change-timestamp now ; frame index setter below will update the next update time correctly relative to now
+                      (active-animation-frame-index animated-sprite) 0))))))))
 
 @export
 (defgeneric interrupt-animation (game-object)

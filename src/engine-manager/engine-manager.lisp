@@ -181,7 +181,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                (loop :for stats :across game-stats :do
                     (when (typep stats 'builtin-vert-stats)
                       (pre-update-frame stats))))
-             (update active-scene *timestep* nil)
+             (update active-scene)
              (when (get-dev-config 'dev-mode-performance-hud)
                (loop :for stats :across game-stats :do
                     (when (typep stats 'builtin-vert-stats)
@@ -230,8 +230,8 @@ It is invoked after the engine is fully started.")
                    (make-instance 'camera
                                   :width (first (getconfig 'game-resolution *config*))
                                   :height (second (getconfig 'game-resolution *config*))))
-             (update screen-camera *timestep* nil)
-             (update screen-camera *timestep* nil))
+             (update screen-camera)
+             (update screen-camera))
            (change-scene engine-manager (funcall initial-scene-creator))
            (garbage-collect-hint)
            ;; run the game loop

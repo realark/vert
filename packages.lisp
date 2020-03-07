@@ -25,9 +25,6 @@
    ;; core game-object
    :game-object
    :update
-   :update-input
-   :update-user
-   :update-motion
    :render
    :load-resources
    :release-resources

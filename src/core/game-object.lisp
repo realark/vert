@@ -50,8 +50,6 @@ This is an optimization to allow scenes to skip updates for certain objects."))
 (defgeneric height (game-object)
   (:documentation "GAME-OBJECT's height in world units."))
 (defgeneric (setf height) (value game-object))
-(defgeneric interpolate-position (game-object update-percent)
-  (:documentation "Return an interpolated (x y z) for GAME-OBJECT at UPDATE-PERCENT between its last two update states."))
 @export
 (defgeneric pre-update (game-object)
   (:documentation "Called on each game object before anything in the update frame happens.")
@@ -66,50 +64,16 @@ This is an optimization to allow scenes to skip updates for certain objects."))
 (defevent object-moved (moved-game-object)
     "Called when an object changes its position or dimensions.")
 
-;; game update methods
-;; subclasses will hook :before, :after, and :around
-(defgeneric update-input (game-object delta-t-ms world-context)
-  (:documentation "Update the object based on external input.")
-  (:method ((game-object game-object) delta-t-ms world-context)
-    ;; default no-op
-    (declare (ignore game-object delta-t-ms world-context))))
-
-(defgeneric update-user (game-object delta-t-ms world-context)
-  (:documentation "User defined update.
-
-To add behavior, it is recommended to add an :after for the specific class which owns the new behavior.
-
-For example, to add new type of ai to an enemy class, add an :after method which dispatches
-on the enemy class then implements the enemy ai.
-
-This allows game classes to re-use behavior by extending the classes with the desired
-UPDATE-USER functionality.")
-  (:method ((game-object game-object) delta-t-ms world-context)
-    ;; default no-op
-    (declare (ignore game-object delta-t-ms world-context))))
-
-(defgeneric update-motion (game-object delta-t-ms world-context)
-  (:documentation "Update the object's position")
-  (:method ((game-object game-object) delta-t-ms world-context)
-    ;; default no-op
-    (declare (ignore game-object delta-t-ms world-context))))
-
 @export
-(defgeneric update (game-object delta-t-ms world-context)
-  (:documentation "Update GAME-OBJECT for an elapsed time of DELTA-T-MS inside of WORLD-CONTEXT.")
-  (:method ((game-object game-object) delta-t-ms world-context)
-    (update-input game-object delta-t-ms world-context)
-    (update-user game-object delta-t-ms world-context)
-    (update-motion game-object delta-t-ms world-context)))
-
-;; rendering methods to be implemented by graphics component
+(defgeneric update (object)
+  (:documentation "Update OBJECT")
+  (:method (object)))
 
 @export
 (defgeneric render (game-object update-percent camera rendering-context)
   (:documentation "Render GAME-OBJECT into RENDERING-CONTEXT relative to CAMERA.
 UPDATE-PERCENT is percentage [0,1) between calls to the UPDATE method, with 0 being right at the update frame.")
-  (:method ((game-object game-object) update-percent camera rendering-context)
-    (declare (ignore game-object update-percent camera rendering-context))))
+  (:method ((game-object game-object) update-percent camera rendering-context)))
 
 @export
 (defgeneric recycle (game-object)

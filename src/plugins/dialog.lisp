@@ -431,13 +431,13 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
                       :documentation "list of zero-arg fns to run when the cutscene finishes."))
   (:documentation "A more advanced dialog hud which may run arbitrary actions along with presenting text"))
 
-(defmethod update ((hud cutscene-hud) timestep scene)
+(defmethod update ((hud cutscene-hud))
   (with-slots (active-node) hud
     (when active-node
       (cutscene-node-while-active active-node hud)
       (let ((next-node (cutscene-node-next-node active-node)))
         (play-cutscene hud next-node))))
-  (call-next-method hud timestep scene))
+  (call-next-method hud))
 
 @export
 (defun cutscene-hud-add-callback (cutscene-hud zero-arg-fn)

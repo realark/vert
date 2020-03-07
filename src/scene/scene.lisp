@@ -43,15 +43,13 @@ Will be incremented by the update timestep after every update frame.")
     (with-accessors ((scene-input scene-input)) scene
       (setf scene-input (delete input scene-input)))))
 
-(defmethod update ((scene scene) (delta-t-ms real) (null null))
-  (declare (ignore scene delta-t-ms null)))
-
-(defmethod update :after ((scene scene) delta-t-ms context)
+(defmethod update :around ((scene scene))
+  (call-next-method scene)
   (loop :for device :across (scene-input scene) :do
        (after-input-update device))
   ;; run scheduler then advance scene time
   (scheduler-run-callbacks scene)
-  (incf (slot-value scene 'scene-ticks) delta-t-ms))
+  (incf (slot-value scene 'scene-ticks) *timestep*))
 
 (defmethod render ((scene scene) update-percent (null null) rendering-context)
   (declare (ignore null))

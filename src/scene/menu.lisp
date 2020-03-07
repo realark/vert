@@ -238,16 +238,15 @@
         (play-sound-effect *audio* run-action-sfx)))
     (funcall (slot-value action-node 'action) device-id)))
 
-(defmethod update ((menu menu) (delta-t-ms real) (null null))
+(defmethod update ((menu menu))
   (pre-update menu)
   (pre-update (camera menu))
   (with-slots (initialized-p initialized-sfx) menu
     (unless (or (null initialized-sfx) initialized-p (null *audio*))
       (setf initialized-p t)
       (play-sound-effect *audio* initialized-sfx)))
-  ;; update input
-  (update menu delta-t-ms menu)
-  (update (camera menu) delta-t-ms menu)
+  (call-next-method menu)
+  (update (camera menu))
   (%set-menu-position-and-color menu))
 
 ;; Render Menu

@@ -45,10 +45,7 @@
                          (:file "obb")
                          (:file "convex-polygon")
                          ;; motion
-                         (:file "motion")
                          (:file "kinematic-object")
-                         (:file "linear-motion")
-                         (:file "angular-motion")
                          ;; partitioning
                          (:file "quadtree")
                          (:file "array-backed")))

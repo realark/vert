@@ -37,7 +37,7 @@ Useful for debugging and pausing."))
           time-between-frame-steps-ms time-between-frames-ms
           next-frame-step-ts (+ (ticks) time-between-frame-steps-ms))))
 
-(defmethod update ((pause-scene pause-scene) delta-t-ms world-context)
+(defmethod update ((pause-scene pause-scene))
   (with-slots (scene
                remaining-steps
                next-frame-step-ts
@@ -45,14 +45,14 @@ Useful for debugging and pausing."))
       pause-scene
     (when (and (> remaining-steps 0)
                (>= (ticks) next-frame-step-ts))
-      (update scene delta-t-ms world-context)
+      (update scene)
       (setf next-frame-step-ts (+ (ticks) time-between-frame-steps-ms))
       (decf remaining-steps)
       ;; (when (= 0 remaining-steps)
       ;;   (when (%get-audio-player)
       ;;     (setf (music-state (%get-audio-player)) :paused)))
       )
-    (call-next-method pause-scene delta-t-ms world-context)))
+    (call-next-method pause-scene)))
 
 (defmethod render ((pause-scene pause-scene) update-percent camera rendering-context)
   (when (scene pause-scene )

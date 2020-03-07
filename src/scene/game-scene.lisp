@@ -233,14 +233,14 @@ This is an optimization so we don't have to rebuild the render and update queues
                   (y live-object-rebuild-camera-position) camera-centered-y)
             t))))))
 
-(defmethod update :around ((scene game-scene) delta-t-ms context)
+(defmethod update :around ((scene game-scene))
   (with-slots (updating-p) scene
     (setf updating-p t)
     (unwind-protect
-         (call-next-method scene delta-t-ms context)
+         (call-next-method scene)
       (setf updating-p nil))))
 
-(defmethod update ((game-scene game-scene) delta-t-ms (context null))
+(defmethod update ((game-scene game-scene))
   (declare (optimize (speed 3)))
   (with-slots (live-object-rebuild-camera-position
                live-object-radius
@@ -269,7 +269,7 @@ This is an optimization so we don't have to rebuild the render and update queues
            (pre-update overlay))
 
       ;; call super
-      (call-next-method game-scene delta-t-ms context)
+      (call-next-method game-scene)
 
       ;; update frame
       (when rebuild-live-objects-p
@@ -315,19 +315,19 @@ This is an optimization so we don't have to rebuild the render and update queues
           (log:debug "Rebuild complete. Found ~A objects to render and ~A objects to update"
                      num-objects-to-render
                      num-objects-to-update)))
-      (update (camera game-scene) delta-t-ms game-scene)
+      (update (camera game-scene))
       (loop :for overlay :across (the (vector overlay) scene-overlays) :do
-           (update overlay delta-t-ms game-scene)
+           (update overlay)
            (when rebuild-live-objects-p
              (render-queue-add queue overlay)))
       (when rebuild-live-objects-p
         (render-queue-add queue camera))
       (when bg
-        (update bg delta-t-ms game-scene))
+        (update bg))
       (loop :for game-object :across updatable-objects :do
            (pre-update game-object)
            (found-object-to-update game-scene game-object)
-           (update game-object delta-t-ms game-scene))
+           (update game-object))
       (values))))
 
 (defmethod render ((game-scene game-scene) update-percent (camera simple-camera) renderer)

@@ -101,37 +101,38 @@ The returned vector will be re-used by subsequent calls so callers must not hold
                    (t (vector-push-extend input vec))))))
     vec))
 
-(defmethod update-input ((input-handler input-handler) delta-t-ms input-context)
-  (when (active-input-device input-handler)
-    ;; TODO: instead of `scene-input` make a generic getter (separate from the concept of scenes)
-    (loop :for input-device :across (scene-input input-context) :do
-         (when (or (eql *all-input-id* (active-input-device input-handler))
-                   (eql (active-input-device input-handler) (device-id input-device)))
-           (let ((device-sending-input-p nil))
-             (loop :for input :across (%remove-duplicate-commands
-                                       input-handler
-                                       input-device
-                                       (get-activated-inputs input-device)) :do
-                  (setf device-sending-input-p t)
-                  (with-slots (last-input-device) input-handler
-                    (unless (eq input-device last-input-device)
-                      (setf last-input-device input-device)))
-                  (%handle-activated-input input-handler input-device input))
-             (loop :for input :across (%remove-duplicate-commands
-                                       input-handler
-                                       input-device
-                                       (get-active-inputs input-device)) :do
-                  (setf device-sending-input-p t)
-                  (%handle-active-input input-handler input-device input))
-             (loop :for input :across (%remove-duplicate-commands
-                                       input-handler
-                                       input-device
-                                       (get-deactivated-inputs input-device)) :do
-                  (setf device-sending-input-p t)
-                  (%handle-deactivated-input input-handler input-device input))
-             (when device-sending-input-p
-               ;; process input from the first configured device that is sending input
-               (return)))))))
+(defmethod update ((input-handler input-handler))
+  (prog1 (call-next-method input-handler)
+    (when (active-input-device input-handler)
+      ;; TODO: instead of `scene-input` make a generic getter (separate from the concept of scenes)
+      (loop :for input-device :across (scene-input *scene*) :do
+           (when (or (eql *all-input-id* (active-input-device input-handler))
+                     (eql (active-input-device input-handler) (device-id input-device)))
+             (let ((device-sending-input-p nil))
+               (loop :for input :across (%remove-duplicate-commands
+                                         input-handler
+                                         input-device
+                                         (get-activated-inputs input-device)) :do
+                    (setf device-sending-input-p t)
+                    (with-slots (last-input-device) input-handler
+                      (unless (eq input-device last-input-device)
+                        (setf last-input-device input-device)))
+                    (%handle-activated-input input-handler input-device input))
+               (loop :for input :across (%remove-duplicate-commands
+                                         input-handler
+                                         input-device
+                                         (get-active-inputs input-device)) :do
+                    (setf device-sending-input-p t)
+                    (%handle-active-input input-handler input-device input))
+               (loop :for input :across (%remove-duplicate-commands
+                                         input-handler
+                                         input-device
+                                         (get-deactivated-inputs input-device)) :do
+                    (setf device-sending-input-p t)
+                    (%handle-deactivated-input input-handler input-device input))
+               (when device-sending-input-p
+                 ;; process input from the first configured device that is sending input
+                 (return))))))))
 
 (defmacro set-default-input-command-map (classname &rest input-mappings)
   "Set the default input-command map for CLASSNAME."

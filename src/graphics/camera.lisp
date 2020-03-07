@@ -32,7 +32,7 @@
                          ortho-matrix))
   (values))
 
-(defmethod update :after ((camera simple-camera) delta-t-ms world-context)
+(defmethod update :after ((camera simple-camera))
   (with-slots (ortho-matrix ortho-interpolator) camera
     (let ((tmp (ortho-matrix (x camera)
                              (+ (x camera) (width camera))
@@ -292,7 +292,7 @@ Used to favor areas of the screen where the upcoming action will be.")
       (camera-track-target camera)
       camera))
 
-  (defmethod update ((camera target-tracking-camera) delta-t-ms world-context)
+  (defmethod update ((camera target-tracking-camera))
     (declare (optimize (speed 3)))
     (flet ((camera-lerp (a b time)
              (declare (single-float a b time))
@@ -339,7 +339,7 @@ Used to favor areas of the screen where the upcoming action will be.")
                               max-time)))
           (setf (x camera) (camera-lerp (x camera) (x destination) time)
                 (y camera) (camera-lerp (y camera) (y destination) time)))))
-    (call-next-method camera delta-t-ms world-context)))
+    (call-next-method camera)))
 
 ;;;; default camera
 
