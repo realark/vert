@@ -53,6 +53,11 @@
             tileset-tile-objects
             tileset-tile-properties)))
 
+@export
+(defun tileset-source-row-col (tileset tile-id)
+  "Return (values source-row source-col) for TILE-ID in TILESET"
+  (floor tile-id (tileset-columns tileset)))
+
 (progn
   @export
   (defstruct (tiled-object (:constructor %make-tiled-object))
@@ -179,7 +184,7 @@
                    (multiple-value-bind (tileset gid) (tileset-for-tile tile-number tilesets)
                      (multiple-value-bind (map-row map-col) (floor i map-num-cols)
                        (let ((source-tile-id (- tile-number gid)))
-                         (multiple-value-bind (source-row source-col) (floor source-tile-id (tileset-columns tileset))
+                         (multiple-value-bind (source-row source-col) (tileset-source-row-col tileset source-tile-id)
                            (on-tile-read tiled-scene
                                          layer-json
                                          tileset
