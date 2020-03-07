@@ -161,7 +161,6 @@
                #:cl-soil
                #:cl-freetype2
                #:glkit
-               #:queues.simple-cqueue
                #:cl-annot
                #:log4cl
                #:bordeaux-threads
