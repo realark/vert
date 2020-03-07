@@ -11,12 +11,15 @@
   "Tau represented as a single slot float")
 
 @export
-(defun float= (real1 real2 &key (precision 5))
+(defun float= (float1 float2 &key (precision 5))
   "Superset of #'=. T if (= real1 real2) or reals are floats within PRECISION."
-  (declare (real real1 real2)
-           (fixnum precision))
-  (or (= real1 real2)
-      (= 0 (truncate (* (expt 10 precision) (- real1 real2))))))
+  (declare (optimize (speed 3))
+           (single-float float1 float2)
+           (unsigned-byte precision))
+  (or (= float1 float2)
+      (= 0 (truncate
+            (* (expt 10 precision)
+               (- float1 float2))))))
 @export
 (defun deg->rad (x)
   (declare (rotation-degrees x))

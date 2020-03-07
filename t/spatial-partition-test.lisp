@@ -118,8 +118,10 @@
     (loop :with objects-in-wrong-place = (list) ; plist: array-index object
        :for i :from 0 :below num-objects :do
          (let ((obj (elt objects i)))
-           (unless (and (float= i (x obj))
-                        (float= i (y obj)))
+           (unless (and (float= (float i 0f0)
+                                (x obj))
+                        (float= (float i 0f0)
+                                (y obj)))
              (push obj objects-in-wrong-place)
              (push i objects-in-wrong-place)))
        :finally

@@ -3,7 +3,9 @@
 (defun vert-test-fn (obj1 obj2)
   "Compare numbers by float value out to 5 decimal places"
   (if (and (realp obj1) (realp obj2))
-      (float= obj1 obj2 :precision 5)
+      (float= (coerce obj1 'single-float)
+              (coerce obj2 'single-float)
+              :precision 5)
       (equal obj1 obj2)))
 
 (defun run-prove-tests (&key (reporter :fiveam) packages tests debug-on-error)

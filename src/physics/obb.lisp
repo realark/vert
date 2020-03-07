@@ -133,7 +133,9 @@ Note that for rotated objects, the dimensions represent an unrotated rectangle w
              (loop :with parent = (parent obb) :while parent :do
                   (setf world-width (* world-width (scale-x parent))
                         world-height (* world-height (scale-y parent))
-                        world-rotation (mod (+ world-rotation (rotation parent)) tau)
+                        world-rotation (if (= 0.0 (rotation parent))
+                                           world-rotation
+                                           (mod (+ world-rotation (rotation parent)) tau))
                         parent (parent parent)))
              (if (float= 0.0 world-rotation)
                  (values (x world-point)

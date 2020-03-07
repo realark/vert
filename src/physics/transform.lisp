@@ -40,13 +40,15 @@
     (setf (parent transform) parent)))
 
 (defun %mark-dirty (transform)
-  (declare (transform transform))
+  (declare (optimize (speed 3))
+           (transform transform))
   (with-slots (dirty-p inverse-dirty-p transform-children) transform
     (fire-event transform object-moved)
     (setf dirty-p t
           inverse-dirty-p t)
-    (loop :for child :across transform-children :do
-         (%mark-dirty child))))
+    (loop :for child :across (the (vector transform) transform-children) :do
+         (%mark-dirty child)))
+  (values))
 
 @export
 (defmethod parent ((transform transform))
