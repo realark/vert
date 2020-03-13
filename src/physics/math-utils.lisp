@@ -201,7 +201,8 @@
 
 (defun copy-array-contents (src-array dest-array)
   "Copy contents of SRC-ARRAY to DEST-ARRAY and return the dest array."
-  (declare (simple-array src-array dest-array))
+  (declare (optimize (speed 3))
+           (simple-array src-array dest-array))
   (assert (= (length src-array) (length dest-array)))
   (loop :for i :from 0 :below (length src-array) :do
        (setf (elt dest-array i) (elt src-array i)))

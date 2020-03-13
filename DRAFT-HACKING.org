@@ -47,6 +47,10 @@ Goals:
   (publish-event GAME-WINDOW-MOVED new-x new-y)
 
   ;;;; low level
+  (defclass event ()
+    ((name :initarg :name :initform (error ":name required"))
+     (args :initform nil)))
+
   (defparameter *pending-events*
     (make-some-array)
     "Events which will be published next frame.")
@@ -56,6 +60,7 @@ Goals:
     "Events which have been published in the previous update frame.")
 
   (defun publish-event (event-name-symbol &rest event-args)
+    ;; make or reuse an event-node?
     ;; push event name and all args to pending-events
     )
 

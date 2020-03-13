@@ -15,7 +15,7 @@
    (local-rotation :initform 0.0
                    :documentation "rotation in local space")
    (local-scale :initform (vector2 1.0 1.0))
-   (dirty-p :initform t)
+   (dirty-p :initform t :reader dirty-p)
    (local-to-world-matrix :initform (identity-matrix))
    (inverse-dirty-p :initform t)
    (world-to-local-matrix :initform (identity-matrix)))
