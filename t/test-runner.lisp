@@ -1,6 +1,6 @@
-(in-package :recurse.vert/test)
+(in-package :recurse.vert)
 
-(defun vert-test-fn (obj1 obj2)
+(defun %vert-test-fn (obj1 obj2)
   "Compare numbers by float value out to 5 decimal places"
   (if (and (realp obj1) (realp obj2))
       (float= (coerce obj1 'single-float)
@@ -8,13 +8,31 @@
               :precision 5)
       (equal obj1 obj2)))
 
-(defun run-prove-tests (&key (reporter :fiveam) packages tests debug-on-error)
+@export
+(defun run-tests (&key
+                    (reporter :fiveam)
+                    (packages (list))
+                    (tests (list))
+                    debug-on-error)
   "Reset counts and run all tests. T if all tests pass.
-REPORTER is a prove reporter. interesting reporters: :fiveam :list"
+REPORTER is a prove reporter. interesting reporters: :fiveam :list
+
+Examples:
+;; run a suite of tests associated with a package
+\(run-tests :packages '\(:recurse.vert\)\)
+
+;; run a single test with verbose output
+\(run-tests :reporter :list :tests '\(vert::base-cache-test\)\)"
+  (when (not (listp packages))
+    (setf packages (list packages)))
+  (when (not (listp tests))
+    (setf tests (list tests)))
+  (unless (or tests packages)
+    (error "must specify :TESTS and/or :PACKAGES."))
   (and
    (loop :for test-symb :in tests :do
         (format T "~%----~A----~%" test-symb)
-        (let ((prove:*default-test-function* #'vert-test-fn)
+        (let ((prove:*default-test-function* #'%vert-test-fn)
               (prove:*default-reporter* reporter)
               (prove:*debug-on-error* debug-on-error)
               (*package* (symbol-package test-symb)))
@@ -27,7 +45,7 @@ REPORTER is a prove reporter. interesting reporters: :fiveam :list"
    (loop :for pack :in packages :do
         (format T "~%----~A----~%" pack)
         (let ((*package* (find-package pack))
-              (prove:*default-test-function* #'vert-test-fn)
+              (prove:*default-test-function* #'%vert-test-fn)
               (prove:*debug-on-error* debug-on-error)
               ;; list :dot :tap :fiveam
               (prove:*default-reporter* reporter))
@@ -37,9 +55,3 @@ REPORTER is a prove reporter. interesting reporters: :fiveam :list"
           (unless (prove:finalize)
             (return nil)))
       :finally (return T))))
-
-#+nil
-(recurse.vert/test:run-prove-tests :packages '(:recurse.vert/test))
-
-#+nil
-(recurse.vert/test:run-prove-tests :reporter :list :tests '(recurse.vert/test::base-cache))

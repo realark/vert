@@ -169,9 +169,11 @@
   :description "Vert test utils"
   :pathname "t/"
   :serial t
-  :depends-on (:prove :vert)
-  :components ((:file "packages")
-               (:file "test-runner")
+  :components ((:file "test-runner")
                (:file "core-test")
                (:file "cache-test")
-               (:file "spatial-partition-test")))
+               (:file "spatial-partition-test"))
+  :around-compile "(lambda (compile-fn)
+                     (annot:enable-annot-syntax)
+                     (funcall compile-fn))"
+  :depends-on (:prove :vert))

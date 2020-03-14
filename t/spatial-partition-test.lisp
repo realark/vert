@@ -1,6 +1,6 @@
-(in-package :recurse.vert/test)
+(in-package :recurse.vert)
 
-(deftest partition-iteration
+(prove:deftest test-partition-iteration
   (let ((partition (make-instance 'quadtree
                                   :min-node-size (vector2 1.0 1.0)
                                   :initial-size (vector2 100.0 100.0)))
@@ -20,7 +20,7 @@
             (+ 1 (gethash obj obj-hash))))
     (loop :for obj :being :the hash-keys :of obj-hash
        :using (hash-value update-count) :do
-         (is update-count
+         (prove:is update-count
              1
              (format nil "Object ~A should be updated exactly once" obj)))
     ;; test updating specific region
@@ -42,11 +42,11 @@
                                                      (<= min-y (+ (y obj) (height obj)) max-y)))
                                             2
                                             1)))
-             (is update-count
+             (prove:is update-count
                  expected-update-count
                  (format nil "Object in boundary ~A should be updated exactly once" obj)))))))
 
-(deftest quadtree-track-z-changes
+(prove:deftest test-quadtree-track-z-changes
   (let ((partition (make-instance 'recurse.vert::quadtree
                                   :min-node-size (vector2 1.0 1.0)
                                   :initial-size (vector2 100.0 100.0)))
@@ -59,7 +59,7 @@
     (start-tracking partition test-object)
 
     ;; should track object through z layer changes
-    (is
+    (prove:is
      (block find-test-object
        (do-spatial-partition (obj partition :min-z 0.0 :max-z 1.0)
          (when (eq obj test-object)
@@ -68,7 +68,7 @@
      "Test object in partition.")
 
     (decf (z test-object))
-    (is
+    (prove:is
      (block find-test-object
        (do-spatial-partition (obj partition :min-z -1.0 :max-z 0.0)
          (when (eq obj test-object)
@@ -77,7 +77,7 @@
      "Test object in partition after z decf.")
 
     (incf (z test-object))
-    (is
+    (prove:is
      (block find-test-object
        (do-spatial-partition (obj partition :min-z 0.0 :max-z 1.0)
          (when (eq obj test-object)
@@ -85,7 +85,7 @@
      test-object
      "Test object in partition after z incf.")))
 
-(deftest partition-recursive-iteration
+(prove:deftest test-partition-recursive-iteration
   "Test calling do-spatial-partition in a nested fashion."
   (let ((num-objects 100)
         (objects (make-array 0 :fill-pointer 0 :adjustable t))
@@ -125,10 +125,10 @@
              (push obj objects-in-wrong-place)
              (push i objects-in-wrong-place)))
        :finally
-         (is objects-in-wrong-place nil
+         (prove:is objects-in-wrong-place nil
              "All objects should have an x/y matching their index."))))
 
-(deftest quadtree-track-object-movement
+(prove:deftest test-quadtree-track-object-movement
   (let ((qtree (make-instance 'recurse.vert::quadtree
                               :min-node-size (vector2 1.0 1.0)
                               :initial-size (vector2 100.0 100.0)))
@@ -153,14 +153,14 @@
                                           :x 10
                                           :y 10)))
       (start-tracking qtree object)
-      (isnt (find-object 0 15)
+      (prove:isnt (find-object 0 15)
             nil
             "found object in qtree before move")
       (setf (x object) 100
             (y object) 100)
-      (is (find-object 0 15)
+      (prove:is (find-object 0 15)
           nil
           "object not fond in x partition search parameters")
-      (isnt (find-object 90 110)
+      (prove:isnt (find-object 90 110)
             nil
             "found object in qtree after move"))))
