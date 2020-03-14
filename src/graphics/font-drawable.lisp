@@ -428,7 +428,7 @@
          :accessor text)
    (path-to-font :initarg :path-to-font
                  :initform (or (getconfig 'default-font *config*)
-                               (error "No default font specified in ~A" *config*))
+                               (resource-path "fonts/liberation_sans/LiberationSans-Regular.ttf"))
                  :reader path-to-font
                  :documentation "Path to font file.")
    (font-size :initform nil

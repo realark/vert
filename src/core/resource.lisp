@@ -31,7 +31,9 @@ Idempotent. Will be called when all vert systems are initialized.")
              (resource-exists-p (resource-dir resource-relative-path)
                (probe-file (absolute-resource-path resource-dir resource-relative-path))))
       (or
-       (loop :for resource-dir :in (getconfig 'config-resource-dirs *config*) :do
+       (loop :for resource-dir :in (or (getconfig 'config-resource-dirs *config*)
+                                       '("./resources"))
+          :do
             (when (resource-exists-p resource-dir resource-relative-path)
               (return (absolute-resource-path resource-dir resource-relative-path))))
        (when error-if-absent
