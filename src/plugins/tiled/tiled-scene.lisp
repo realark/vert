@@ -16,21 +16,22 @@
 
 (defmethod initialize-instance :after ((tiled-scene tiled-scene) &rest args)
   (declare (ignore args))
-  (let ((t0 (ticks)))
-    (read-tiled-file tiled-scene)
-    (log:info "read tiled file in ~Ams" (- (ticks) t0)))
-  (with-slots (spatial-partition) tiled-scene
-    (let ((t0 (ticks))
-          (new-partition (make-instance 'quadtree
-                                        :initial-size (vector2
-                                                       (* 2.0 (width tiled-scene))
-                                                       (* 2.0 (height tiled-scene))))))
-      ;; map size likely changed. Easiest to just use a new spatial partition
-      (do-spatial-partition (object spatial-partition :static-iteration-p t)
-        (start-tracking new-partition object))
-      (partition-clear spatial-partition)
-      (setf spatial-partition new-partition)
-      (log:info "rebuilt partition in ~Ams" (- (ticks) t0)))))
+  (unless (null (slot-value tiled-scene 'tiled-map))
+    (let ((t0 (ticks)))
+      (read-tiled-file tiled-scene)
+      (log:info "read tiled file in ~Ams" (- (ticks) t0)))
+    (with-slots (spatial-partition) tiled-scene
+      (let ((t0 (ticks))
+            (new-partition (make-instance 'quadtree
+                                          :initial-size (vector2
+                                                         (* 2.0 (width tiled-scene))
+                                                         (* 2.0 (height tiled-scene))))))
+        ;; map size likely changed. Easiest to just use a new spatial partition
+        (do-spatial-partition (object spatial-partition :static-iteration-p t)
+          (start-tracking new-partition object))
+        (partition-clear spatial-partition)
+        (setf spatial-partition new-partition)
+        (log:info "rebuilt partition in ~Ams" (- (ticks) t0))))))
 
 (progn
   @export
