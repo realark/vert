@@ -322,6 +322,8 @@ Used to favor areas of the screen where the upcoming action will be.")
           (setf (x offset) (camera-lerp (x offset) (x offset-destination) offset-drift-time)
                 (y offset) (camera-lerp (y offset) (y offset-destination) offset-drift-time))
           (camera-track-target camera)))
+      (unless (target camera)
+        (camera-snap-to-target camera))
       (with-slots (destination) camera
         (let* ((min-time 0.1)
                (max-time 1.0)

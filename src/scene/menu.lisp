@@ -241,6 +241,16 @@
 (defmethod update ((menu menu))
   (pre-update menu)
   (pre-update (camera menu))
+  (with-slots ((root-node node) background selection-marker) menu
+    (when background
+      (pre-update background))
+    #+nil
+    (pre-update root-node)
+    #+nil
+    (loop for child in (slot-value root-node 'children) do
+         (pre-update child))
+    #+nil
+    (pre-update selection-marker))
   (with-slots (initialized-p initialized-sfx) menu
     (unless (or (null initialized-sfx) initialized-p (null *audio*))
       (setf initialized-p t)
@@ -252,15 +262,16 @@
 ;; Render Menu
 
 (defmethod render ((menu menu) update-percent camera renderer)
-  (with-slots (node background) menu
-    (let ((camera (camera menu)))
-      (when background
-        (render background 0.0 camera renderer))
-      (render node 0.0 camera renderer)
-      (loop for child in (slot-value node 'children) do
-           (render child 0.0 camera renderer))
-      (render (slot-value menu 'selection-marker) update-percent camera renderer)))
-  (render (camera menu) update-percent camera renderer))
+  (let ((update-percent 1.0))
+    (with-slots (node background) menu
+      (let ((camera (camera menu)))
+        (when background
+          (render background update-percent camera renderer))
+        (render node update-percent camera renderer)
+        (loop for child in (slot-value node 'children) do
+             (render child update-percent camera renderer))
+        (render (slot-value menu 'selection-marker) update-percent camera renderer)))
+    (render (camera menu) update-percent camera renderer)))
 
 ;; Menu Builder DSL
 
