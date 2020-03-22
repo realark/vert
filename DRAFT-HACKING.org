@@ -2,6 +2,9 @@
 This document is a work in progress. Please do not take it seriously.
 * Units
 ** Distance
+Distance units are measured in pixels.
+
+Note that these pixels may be scaled up or down when rendered to fit on various screens.
 ** Time
 Unless otherwise stated in the variable name, all time units are assumed to be milliseconds.
 
@@ -20,7 +23,7 @@ TICKS and TICKS-NANOS return a millisecond and nanosecond timestamp respectively
 *** Scene Time / Game Time
 The amount of wallclock time passed will often not equal the amount of "game time" elapsed. For example, if the game is paused while an attack is charging, the amount of time paused must not affect the game-object's charge time.
 
-Each scene has a SCENE-TICKS function, which returns the amount of milliseconds elapsed since the scene began running.
+Each scene has a SCENE-TICKS function, which returns the amount of milliseconds of update time elapsed since the scene began updating.
 
 You will almost always want to use SCENE-TICKS to implement in-game timers.
 #+BEGIN_SRC lisp
@@ -168,8 +171,17 @@ As an example, we'll consider a bomb component. This is a contrived example for 
                 spritesheet nil
                 explode-sfx nil)))))
 #+END_SRC
-** Scenes
+** Scene
+A scene is something which can be rendered and updated, just like a game-object. There is only one active scene, which is updated and rendered in the main game loop.
+
+The active scene may be accessed with the *SCENE* variable. To change, call the CHANGE-SCENE fn.
 *** GAME-SCENE
+A game-scene holds a collection of GAME-OBJECTs, calls UPDATE and RENDER, and provides an api to access objects in the scene in an efficient manner.
 *** Menu
+Renders a menu. A tree of text nodes with one active node at a time, which may be selected.
+
+Leaf nodes run user-defined actions when selected.
 *** Pause Scene
+A scene which holds another scene. This other scene is rendered after the pause-scene, but not updated.
 *** Overlays
+Overlays are objects which are rendered in the scene in a camera independent manner. Used to implement HUDs.
