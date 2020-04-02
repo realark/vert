@@ -37,22 +37,56 @@ You will almost always want to use SCENE-TICKS to implement in-game timers.
 #+END_SRC
 * Event System
 ** scratch
-Goals:
-- object instance can subscribe to another object instance
-  - e.g. scene subscribes to objects getting killed
-- object instance can subscribe to a type of event
-  - e.g. scene subscribes to a screen resize and pauses itself
-- anonymous callbacks to events
-  - e.g. on-engine-start event, set up the resource-autoloader
-
 #+BEGIN_SRC lisp
-  (publish-event GAME-WINDOW-RESIZED new-width new-height)
-  (publish-event GAME-WINDOW-MOVED new-x new-y)
+  ;; Goals:
+  ;; - object instance can subscribe to another object instance
+  ;;   - e.g. scene subscribes to objects getting killed
+  ;; - object instance can subscribe to a type of event
+  ;;   - e.g. scene subscribes to a screen resize and pauses itself
+  ;; - anonymous callbacks to events
+  ;;   - e.g. on-engine-start event, set up the resource-autoloader
 
-  ;;;; low level
+  (publish-event GAME-WINDOW-RESIZED)
+  (publish-event GAME-WINDOW-MOVED)
+
+
+  ;;;; api
+
+  ;; first you define the event and a docstring.
+  (defevent game-window-resized
+      "Vert's game window has been resized.")
+
+  ;; now any lisp object can publish that event
+  (event-publish game-window-resized *engine-manager*)
+  (event-publish game-window-resized *player*) ; not that the player publishing window resize events make sense...
+
+  ;; ways to handle events
+
+  ;; 1. manually iterate all events and run desired action
+  (do-events (event-name event-publisher)
+    'dispatch-on-event)
+
+  ;; 2. define an anonymous handler for named events
+  (defevent-handler-lambda game-window-resized (publisher)
+    'body)
+
+  ;; 3. add a handler for specific pub/sub instances
+  (defevent-handler game-window-resized ((pub pub-class) (sub sub-class))
+    ;; handler will run for all SUBs which have EVENT-SUBSCRIBE'd to PUBs
+    ...)
+  (event-subscribe game-window-resized *engine-man* *graphics-hlpr*)
+
+  ;;;; implementation
+
+  (defun event-publish (publisher event-name-symbol)
+    "Have PUBLISHER publish an event named EVENT-NAME-SYMBOL"
+    ...)
+
   (defclass event ()
-    ((name :initarg :name :initform (error ":name required"))
-     (args :initform nil)))
+    ((name :initarg :name
+           :type symbol
+           :initform (error ":name required"))
+     (publisher :initform 'required)))
 
   (defparameter *pending-events*
     (make-some-array)
@@ -94,7 +128,7 @@ Goals:
 
     )
 #+END_SRC
-** Subscribing to a type of event
+** Adding an anonymous event handler
 ** Subscribing to Events from a specific instance
 * Vert Systems
 ** Config
