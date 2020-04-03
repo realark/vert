@@ -172,7 +172,8 @@
   :components ((:file "test-runner")
                (:file "core-test")
                (:file "cache-test")
-               (:file "spatial-partition-test"))
+               (:file "spatial-partition-test")
+               (:file "integration-tests"))
   :around-compile "(lambda (compile-fn)
                      (annot:enable-annot-syntax)
                      (funcall compile-fn))"

@@ -142,20 +142,11 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           (declare (function pending))
           (setf pending-scene-changes nil)
           (funcall pending))))
-    ;; then any pending dev actions
-    ;; (with-slots (pending-action) engine-manager
-    ;;   (unless (eq 'no-action pending-action)
-    ;;     (let ((pending pending-action))
-    ;;       (declare (function pending))
-    ;;       (sb-ext:atomic-update pending-action
-    ;;                             (lambda (previous-action)
-    ;;                               (declare (ignore previous-action))
-    ;;                               'no-action))
-    ;;       (funcall pending))))
     (update-live-coding)
     ;; I've considered wrapping this methig in (sb-sys:without-gcing)
     ;; to prevent short GCs from dropping the FPS.
     ;; But it seems like that could deadlock if the game is multithreaded.
+    ;; plus, GC isn't much of an issue (as long as I keep an eye on consing)
     (with-accessors ((active-scene active-scene)
                      (renderer rendering-context)
                      (lag lag-ns)

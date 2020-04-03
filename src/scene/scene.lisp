@@ -17,7 +17,10 @@ Will be incremented by the update timestep after every update frame.")
    (scene-overlays :initform (make-array 1 :adjustable T :fill-pointer 0))
    (scene-input :initform (make-array 4 :adjustable T :fill-pointer 0)
                 :accessor scene-input
-                :documentation "list of input-devices hooked up to the scene"))
+                :documentation "list of input-devices hooked up to the scene")
+   (custom-update-fn :initarg :custom-update-fn
+                     :initform nil
+                     :documentation "Optional zero-arg fn to run every update frame. Used for debugging and test automation."))
   (:documentation "Generic scene class."))
 
 (defmethod initialize-instance :after ((scene scene) &rest args)
@@ -45,6 +48,10 @@ Will be incremented by the update timestep after every update frame.")
 
 (defmethod update :around ((scene scene))
   (call-next-method scene)
+  (with-slots (custom-update-fn) scene
+    (when custom-update-fn
+      (locally (declare ((function ()) custom-update-fn))
+        (funcall custom-update-fn))))
   (loop :for device :across (scene-input scene) :do
        (after-input-update device))
   ;; run scheduler then advance scene time

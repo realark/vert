@@ -78,7 +78,7 @@
             (add-longest-frame-time frame-timer frame-time)))))))
 
 (defun frame-timer-stats (frame-timer)
-  "Get stats for the time period covering the last reset for FRAME-TIMER to now. (values avg-frame-time-ns frames-per-second)"
+  "Get stats for the time period covering the last reset for FRAME-TIMER to now. (values avg-frame-time-ns frames-per-second longest-frame-time-ns)"
   (declare (optimize (speed 3)))
   (with-slots (timer-start-timestamp frame-start-timestamp sum-frames num-frames longest-frames) frame-timer
     (declare (fixnum timer-start-timestamp sum-frames num-frames))

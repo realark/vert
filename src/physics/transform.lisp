@@ -15,9 +15,12 @@
    (local-rotation :initform 0.0
                    :documentation "rotation in local space")
    (local-scale :initform (vector2 1.0 1.0))
-   (dirty-p :initform t :reader dirty-p)
+   (dirty-p :initform t
+            :reader dirty-p
+            :documentation "T when the matrix local->world must be recomputed")
    (local-to-world-matrix :initform (identity-matrix))
-   (inverse-dirty-p :initform t)
+   (inverse-dirty-p :initform t
+                    :documentation "T when the matrix world->local must be recomputed")
    (world-to-local-matrix :initform (identity-matrix)))
   (:documentation "A 2d game object which may be positioned relative to other game-objects."))
 
