@@ -11,11 +11,11 @@
     (error "vert already running"))
   (recurse.vert:main (lambda ()
                        (let* ((test-run-time-ms 3000)
-                              (run-sprof nil)
-                              (run-profiler t)
+                              (run-sprof t)
+                              (run-profiler nil) ; Note: Turning on profiler will degrade performance
                               ;; (rect-v-x 0.0)
                               (rect-v-x (float 1/32))
-                              (rows 10)
+                              (rows 20)
                               (cols 10)
                               (rectangles (make-array rows))
                               (move-forward-p t)
@@ -35,18 +35,21 @@
                                                           (when run-sprof
                                                             (sb-sprof:reset)
                                                             (sb-sprof:start-profiling
-                                                             :mode :alloc
                                                              :threads (list *vert-thread*)))
                                                           (when run-profiler
                                                             (sb-profile:profile vert:world-points world-dimensions complex-obb-dimensions collidep)
                                                             (sb-profile:reset))
                                                           (sleep 1))
                                                         (let ((delta (- (scene-ticks *scene*) t0)))
-                                                          (loop :for rect-row :across rectangles :do
-                                                               (loop :for rect :across rect-row :do
-                                                                    (if move-forward-p
-                                                                        (setf (velocity-x rect) rect-v-x)
-                                                                        (setf (velocity-x rect) (- rect-v-x)))))
+                                                          (loop  :for i :from 0
+                                                             :for rect-row :across rectangles :do
+                                                             ;; keep half of the rectangles stationary
+                                                               (when (< i 10)
+                                                                 (loop :for rect :across rect-row :do
+                                                                      (if move-forward-p
+                                                                          (setf (velocity-x rect) rect-v-x)
+                                                                          (setf (velocity-x rect) (- rect-v-x))))
+                                                                 ))
                                                           (setf move-forward-p
                                                                 (not move-forward-p))
                                                           (when (> delta test-run-time-ms)
