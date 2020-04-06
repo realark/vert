@@ -45,13 +45,18 @@
 (defun %mark-dirty (transform)
   (declare (optimize (speed 3))
            (transform transform))
-  (with-slots (dirty-p inverse-dirty-p transform-children) transform
-    (fire-event transform object-moved)
-    (setf dirty-p t
-          inverse-dirty-p t)
-    (loop :for child :across (the (vector transform) transform-children) :do
-         (%mark-dirty child)))
+  (break "TODO: rm")
   (values))
+
+(defgeneric mark-transform-dirty (transform)
+  (:documentation "TRANSFORM's position, rotation, or scale has been altered. Mark it dirty to recompute matrices the next time they are needed.")
+  (:method ((transform transform))
+    (with-slots (dirty-p inverse-dirty-p transform-children) transform
+      (fire-event transform object-moved)
+      (setf dirty-p t
+            inverse-dirty-p t)
+      (loop :for child :across (the (vector transform) transform-children) :do
+           (mark-transform-dirty child)))))
 
 @export
 (defmethod parent ((transform transform))
@@ -82,7 +87,7 @@
         (setf parent new-parent)
         (when parent
           (add-child parent transform))
-        (%mark-dirty transform)))))
+        (mark-transform-dirty transform)))))
 
 @inline
 (defun %local-to-parent-matrix (transform)
@@ -175,7 +180,7 @@
           (current-value (x (slot-value transform 'local-position))))
       (unless (float= float-value current-value)
         (setf (x (slot-value transform 'local-position)) float-value)
-        (%mark-dirty transform)))))
+        (mark-transform-dirty transform)))))
 
 (defmethod y ((transform transform))
   (y (slot-value transform 'local-position)))
@@ -185,7 +190,7 @@
           (current-value (y (slot-value transform 'local-position))))
       (unless (float= float-value current-value)
         (setf (y (slot-value transform 'local-position)) float-value)
-        (%mark-dirty transform)))))
+        (mark-transform-dirty transform)))))
 
 (defmethod z ((transform transform))
   (z (slot-value transform 'local-position)))
@@ -195,13 +200,13 @@
           (current-value (z (slot-value transform 'local-position))))
       (unless (float= float-value current-value)
         (setf (z (slot-value transform 'local-position)) float-value)
-        (%mark-dirty transform)))))
+        (mark-transform-dirty transform)))))
 
 (defmethod rotation ((transform transform))
   (slot-value transform 'local-rotation))
 (defmethod (setf rotation) (value (transform transform))
   (setf (slot-value transform 'local-rotation) (coerce value 'single-float))
-  (%mark-dirty transform))
+  (mark-transform-dirty transform))
 
 (declaim (ftype (function (transform) single-float) scale-x scale-y))
 
@@ -209,10 +214,10 @@
   (width (slot-value transform 'local-scale)))
 (defmethod (setf scale-x) (value (transform transform))
   (setf (width (slot-value transform 'local-scale)) (coerce value 'single-float))
-  (%mark-dirty transform))
+  (mark-transform-dirty transform))
 
 (defmethod scale-y ((transform transform))
   (height (slot-value transform 'local-scale)))
 (defmethod (setf scale-y) (value (transform transform))
   (setf (height (slot-value transform 'local-scale)) (coerce value 'single-float))
-  (%mark-dirty transform))
+  (mark-transform-dirty transform))

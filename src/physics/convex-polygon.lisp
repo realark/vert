@@ -1,5 +1,7 @@
 (in-package :recurse.vert)
 
+;; Note: Currently Dead code
+
 (defclass convex-polygon (obb)
   ((local-points
     :initarg :local-points

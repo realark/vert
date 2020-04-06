@@ -5,16 +5,22 @@
 (defclass obb (transform)
   ((local-dimensions :initform (vector2 1.0 1.0)
                      :documentation "Local width and height.")
-   (world-points :initform nil)
-   (local-points :initform nil)
+   (world-points-dirty-p :initform t)
+   (world-points :initform nil
+                 :documentation "The world-space points that define this OBB (including rotations).")
    (world-dimensions-dirty-p :initform t)
    (world-dimensions :initform (make-array 5
                                            :element-type 'single-float
-                                           :initial-element 0.0)))
+                                           :initial-element 0.0)
+                     :documentation "A bounding box around the OBB in world space.
+This slot is used to cache the world AABB because it is frequently needed by collision and rendering code."))
   (:documentation "A 2D rectangle. X, Y, and Z are the rectangle's upper-left point. Rotation is around the rectangle's local center."))
 
-(defun %%mark-world-dimensions-dirty (obb)
+(defun %mark-world-dimensions-dirty (obb)
   (setf (slot-value obb 'world-dimensions-dirty-p) t))
+
+(defun %mark-world-points-dirty (obb)
+  (setf (slot-value obb 'world-points-dirty-p) t))
 
 (defmethod initialize-instance :after ((obb obb) &key (width 1.0) (height 1.0))
   (setf (width obb) width
@@ -29,34 +35,49 @@
             (rotation obb)
             (object-id obb))))
 
-(defun %set-local-points (obb)
+(defun world-points (obb)
+  "Returns a vector of points which defines the OBB's shape in world space."
   (declare (optimize (speed 3))
            (obb obb))
-  (with-slots (local-points) obb
-    (with-accessors ((w width) (h height)) obb
-      (if local-points
-          (locally (declare ((simple-array vector3) local-points))
-            (setf (x (elt local-points 1)) w
-                  (x (elt local-points 2)) w
-                  (y (elt local-points 2)) h
-                  (y (elt local-points 3)) h))
-        (setf local-points (make-array
-                            4
-                            :element-type 'vector3
-                            :initial-contents (list (vector3 0.0 0.0 0.0)
-                                                    (vector3 w 0.0 0.0)
-                                                    (vector3 w h 0.0)
-                                                    (vector3 0.0 h 0.0))))))))
+  (with-slots (world-points world-points-dirty-p) obb
+    (when world-points-dirty-p
+      (unless world-points
+        (setf world-points
+              (make-array 4
+                          :element-type 'vector3
+                          :initial-contents (list
+                                             (vector3)
+                                             (vector3)
+                                             (vector3)
+                                             (vector3)))))
+      (locally (declare ((simple-array vector3) world-points))
+        (block fill-world-points-with-local-points
+          ;; fill up the WORLD-POINTS vector with OBB's local points
+          (with-accessors ((w width) (h height)) obb
+            ;; upper-left
+            (setf (x (elt world-points 0)) 0.0
+                  (y (elt world-points 0)) 0.0
+                  (z (elt world-points 0)) 0.0)
+            ;; upper-right
+            (setf (x (elt world-points 1)) w
+                  (y (elt world-points 1)) 0.0
+                  (z (elt world-points 1)) 0.0)
+            ;; lower-right
+            (setf (x (elt world-points 2)) w
+                  (y (elt world-points 2)) h
+                  (z (elt world-points 2)) 0.0)
+            ;; lower-left
+            (setf (x (elt world-points 3)) 0.0
+                  (y (elt world-points 3)) h
+                  (z (elt world-points 3)) 0.0)))
+        (loop :for i :from 0 :below (length world-points) :do
+             (let ((point (elt world-points i))
+                   (transformed (transform-point (elt world-points i) obb)))
+               (declare (dynamic-extent transformed))
+               (copy-array-contents transformed point))))
 
-(defgeneric local-points (obb)
-  (:documentation "Return a vector containing the four corners of the Bounding Box.
-                   The points are relative to the Bounding Box's upper-left corner.
-                   The order of the returned points is Upper-Left, Upper-Right, Lower-Right, Lower-Left.")
-  (:method ((obb obb))
-    (with-slots (local-points) obb
-      (unless local-points
-        (%set-local-points obb))
-      local-points)))
+      (setf world-points-dirty-p nil))
+    world-points))
 
 (defmethod width ((obb obb))
   (width (slot-value obb 'local-dimensions)))
@@ -66,8 +87,8 @@
           (current-value (width (slot-value obb 'local-dimensions))))
       (unless (float= float-value current-value)
         (prog1 (setf (width (slot-value obb 'local-dimensions)) float-value)
-          (%set-local-points obb)
-          (%mark-dirty obb))))))
+          (%mark-world-points-dirty obb)
+          (%mark-world-dimensions-dirty obb))))))
 
 (defmethod height ((obb obb))
   (height (slot-value obb 'local-dimensions)))
@@ -77,31 +98,12 @@
           (current-value (height (slot-value obb 'local-dimensions))))
       (unless (float= float-value current-value)
         (prog1 (setf (height (slot-value obb 'local-dimensions)) float-value)
-          (%set-local-points obb)
-          (%mark-dirty obb))))))
+          (%mark-world-points-dirty obb)
+          (%mark-world-dimensions-dirty obb))))))
 
-;; TODO: could optimize further by only computing world points when the transform is dirtied
-(defun world-points (obb)
-  (declare (optimize (speed 3))
-           (obb obb))
-  (with-accessors ((local-points local-points)) obb
-    (declare ((simple-array vector3) local-points))
-    (with-slots (world-points) obb
-      (unless world-points
-        (setf world-points
-              (make-array (length local-points)
-                          :element-type 'vector3
-                          :initial-element (vector3 0.0 0.0 0.0)))
-        (locally (declare ((simple-array vector3) world-points))
-          (loop :for i :from 1 :below (length world-points) :do
-               (setf (elt world-points i) (vector3 0.0 0.0 0.0)))))
-      (locally (declare ((simple-array vector3) world-points))
-        (loop :for i :from 0 :below (length local-points) :do
-             (let ((point (elt world-points i))
-                   (transformed (transform-point (elt local-points i) obb)))
-               (declare (dynamic-extent transformed))
-               (copy-array-contents transformed point))))
-      world-points)))
+(defmethod mark-transform-dirty :after ((obb obb))
+  (%mark-world-points-dirty obb)
+  (%mark-world-dimensions-dirty obb))
 
 @export
 @inline
@@ -116,9 +118,15 @@
 (defun world-dimensions (obb)
   "Return bounding-box dimension info in base-world coordinates. (values x y z width height)
 Note that for rotated objects, the dimensions represent an unrotated rectangle which the underlying object fits entirely within."
+  ;; TODO: remove this function and use object-aabb directly
+  (object-aabb obb))
+
+@export
+(defun object-aabb (object)
+  "Dimensions of an AABB in world space which entirely contains OBJECT. XYZ are the AABB's upper-left corner. Returns: (values X Y Z W H)"
   (declare (optimize (speed 3))
-           (obb obb))
-  (with-slots (world-dimensions world-dimensions-dirty-p) obb
+           (obb object))
+  (with-slots (world-dimensions world-dimensions-dirty-p) object
     (declare ((simple-array single-float (5)) world-dimensions)
              (boolean world-dimensions-dirty-p))
     (flet ((simple-obb-p (obb)
@@ -188,9 +196,9 @@ Note that for rotated objects, the dimensions represent an unrotated rectangle w
       (declare (inline simple-obb-p simple-obb-dimensions complex-obb-dimensions))
       (when world-dimensions-dirty-p
         (multiple-value-bind (x y z w h)
-            (if (simple-obb-p obb)
-                (simple-obb-dimensions obb)
-                (complex-obb-dimensions obb))
+            (if (simple-obb-p object)
+                (simple-obb-dimensions object)
+                (complex-obb-dimensions object))
           (setf (elt world-dimensions 0) x
                 (elt world-dimensions 1) y
                 (elt world-dimensions 2) z
@@ -204,7 +212,7 @@ Note that for rotated objects, the dimensions represent an unrotated rectangle w
               (elt world-dimensions 4)))))
 
 (defun aabb-collidep (rect1 rect2)
-  "Assume RECT1 and RECT2 are AABBs in the same space and return t if they collide."
+  "T if RECT1 and RECT2's world-space AABBs collide."
   (declare (optimize (speed 3))
            (obb rect1 rect2))
   (multiple-value-bind (x1 y1 z1 w1 h1)
@@ -221,32 +229,6 @@ Note that for rotated objects, the dimensions represent an unrotated rectangle w
            ;; y1 falls inside rect2-y
            ;; in the same 2d plane
            (= z1 z2)))))
-
-(defun world-points-collidep (rect1 rect2)
-  "Check if the two unrotated rects collide by using their world-points."
-  (declare (optimize (speed 3)))
-  (convex-poly-collidep rect1 rect2)
-  (let ((points1 (world-points rect1))
-        (points2 (world-points rect2)))
-    (declare ((simple-array vector3 (4)) points1 points2))
-    (let ((left1 (x (elt points1 0)))
-          (right1 (x (elt points1 1)))
-          (top1 (y (elt points1 0)))
-          (bottom1 (y (elt points1 3)))
-          (left2 (x (elt points2 0)))
-          (right2 (x (elt points2 1)))
-          (top2 (y (elt points2 0)))
-          (bottom2 (y (elt points2 3))))
-      (declare (single-float left1 right1 top1 bottom1
-                             left2 right2 top2 bottom2))
-      (and (< left1 right2)
-           (> right1 left2)
-           ;; x1 falls inside rect2-x
-           (< top1 bottom2)
-           (> bottom1 top2)
-           ;; y1 falls inside rect2-y
-           ;; in the same 2d plane
-           (float= (z rect1) (z rect2))))))
 
 (defun convex-poly-collidep (poly1 poly2)
   "Assume POLY1 and POLY2 are convex polys and return t if they collide."
@@ -279,25 +261,17 @@ Note that for rotated objects, the dimensions represent an unrotated rectangle w
 
 (defcollision ((rect1 obb) (rect2 obb))
   (declare (optimize (speed 3)))
-  (if (and (float= 0f0
-                   (the single-float (rotation rect1)))
-           (float= 0f0
-                   (the single-float (rotation rect2))))
-      (if (eq (parent rect1) (parent rect2))
-          (aabb-collidep rect1 rect2)
-          (world-points-collidep rect1 rect2))
-      (convex-poly-collidep rect1 rect2)))
-
-(defmethod (setf x) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
-(defmethod (setf y) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
-(defmethod (setf z) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
-(defmethod (setf width) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
-(defmethod (setf height) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
+  (and
+   ;; first ensure world bounding-boxes overlap
+   (aabb-collidep rect1 rect2)
+   (if (and (eq (parent rect1) (parent rect2))
+            (= 0.0
+               (the single-float (rotation rect1))
+               (the single-float (rotation rect2))))
+       ;; unrotated rects in world space. No more checking required.
+       t
+       ;; expensive checking with separating axis theorem
+       (convex-poly-collidep rect1 rect2))))
 
 ;;;; util OBB classes
 

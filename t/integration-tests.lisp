@@ -1,5 +1,7 @@
 (in-package :recurse.vert)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (require :sb-sprof))
 ;;;; Scenes for various tests and benchmarks. Not run in CI.
 
 (defclass %test-rectangle (static-sprite kinematic-object)
@@ -37,7 +39,7 @@
                                                             (sb-sprof:start-profiling
                                                              :threads (list *vert-thread*)))
                                                           (when run-profiler
-                                                            (sb-profile:profile vert:world-points world-dimensions complex-obb-dimensions collidep)
+                                                            (sb-profile:profile world-points world-dimensions complex-obb-dimensions collidep)
                                                             (sb-profile:reset))
                                                           (sleep 1))
                                                         (let ((delta (- (scene-ticks *scene*) t0)))

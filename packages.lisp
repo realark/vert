@@ -73,9 +73,6 @@
    :height
    :scale-x
    :scale-y
-   :local-points
-   :world-points
-   :convex-polygon
    ;; collision
    :defcollision
    :collision

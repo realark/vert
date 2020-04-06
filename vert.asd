@@ -43,7 +43,6 @@
                          ;; shapes and collision
                          (:file "collision")
                          (:file "obb")
-                         (:file "convex-polygon")
                          ;; motion
                          (:file "kinematic-object")
                          ;; partitioning
