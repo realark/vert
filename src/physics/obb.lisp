@@ -4,8 +4,15 @@
   ((local-dimensions :initform (vector2 1.0 1.0)
                      :documentation "Local width and height.")
    (world-points :initform nil)
-   (local-points :initform nil))
+   (local-points :initform nil)
+   (world-dimensions-dirty-p :initform t)
+   (world-dimensions :initform (make-array 5
+                                           :element-type 'single-float
+                                           :initial-element 0.0)))
   (:documentation "A 2D rectangle which may be rotated about its local center."))
+
+(defun %%mark-world-dimensions-dirty (obb)
+  (setf (slot-value obb 'world-dimensions-dirty-p) t))
 
 (defmethod initialize-instance :after ((obb obb) &key (width 1.0) (height 1.0))
   (setf (width obb) width
@@ -109,68 +116,90 @@
 Note that for rotated objects, the dimensions represent an unrotated rectangle which the underlying object fits entirely within."
   (declare (optimize (speed 3))
            (obb obb))
-  (flet ((simple-obb-p (obb)
-           (and
-            (null (parent obb))
-            (equalp 1.0 (the single-float (scale-x obb)))
-            (equalp 1.0 (the single-float (scale-y obb)))
-            (equalp 0.0 (the single-float (rotation obb)))))
-         (simple-obb-dimensions (obb)
-           (values (x obb)
-                   (y obb)
-                   (z obb)
-                   (width obb)
-                   (height obb)))
-         (complex-obb-dimensions (obb)
-           (let* ((tmp (vector3 0f0 0f0 0f0))
-                  (world-point (transform-point tmp obb))
-                  (world-width (* (scale-x obb) (width obb)))
-                  (world-height (* (scale-y obb) (height obb)))
-                  (world-rotation (rotation obb)))
-             (declare (dynamic-extent world-point tmp)
-                      (single-float world-width world-height)
-                      (rotation-radians world-rotation))
-             (loop :with parent = (parent obb) :while parent :do
-                  (setf world-width (* world-width (scale-x parent))
-                        world-height (* world-height (scale-y parent))
-                        world-rotation (if (= 0.0 (rotation parent))
-                                           world-rotation
-                                           (mod (+ world-rotation (rotation parent)) tau))
-                        parent (parent parent)))
-             (if (float= 0.0 world-rotation)
-                 (values (x world-point)
-                         (y world-point)
-                         (z world-point)
-                         world-width
-                         world-height)
-                 ;; object has a rotation, return an unrotated rectangle which fits over the object
-                 ;; TODO: make this the default path if profiling show no performance hit
-                 (loop :with min-x = (the single-float (x world-point))
+  (with-slots (world-dimensions world-dimensions-dirty-p) obb
+    (declare ((simple-array single-float (5)) world-dimensions)
+             (boolean world-dimensions-dirty-p))
+    (flet ((simple-obb-p (obb)
+             (and
+              (null (parent obb))
+              (equalp 1.0 (the single-float (scale-x obb)))
+              (equalp 1.0 (the single-float (scale-y obb)))
+              (equalp 0.0 (the single-float (rotation obb)))))
+           (simple-obb-dimensions (obb)
+             (values (x obb)
+                     (y obb)
+                     (z obb)
+                     (width obb)
+                     (height obb)))
+           (complex-obb-dimensions (obb)
+             (let* ((tmp (vector3 0f0 0f0 0f0))
+                    (world-point (transform-point tmp obb))
+                    (world-width (* (the single-float (scale-x obb))
+                                    (the single-float (width obb))))
+                    (world-height (* (the single-float (scale-y obb))
+                                     (the single-float (height obb))))
+                    (world-rotation (rotation obb)))
+               (declare (dynamic-extent world-point tmp)
+                        (single-float world-width world-height)
+                        (rotation-radians world-rotation))
+               (loop :with parent = (parent obb) :while parent :do
+                    (setf world-width (* world-width
+                                         (the single-float (scale-x parent)))
+                          world-height (* world-height
+                                          (the single-float (scale-y parent)))
+                          world-rotation (if (= 0.0 (the single-float (rotation parent)))
+                                             world-rotation
+                                             (mod (+ world-rotation
+                                                     (the single-float (rotation parent)))
+                                                  tau))
+                          parent (parent parent)))
+               (if (float= 0.0 world-rotation)
+                   (values (x world-point)
+                           (y world-point)
+                           (z world-point)
+                           world-width
+                           world-height)
+                   ;; object has a rotation, return an unrotated rectangle which fits over the object
+                   ;; TODO: make this the default path if profiling show no performance hit
+                   (loop :with min-x = (the single-float (x world-point))
                       :and max-x = (the single-float (x world-point))
                       :and max-y = (the single-float (y world-point))
                       :and min-y = (the single-float (y world-point))
-                    :for point :across (the (simple-array vector3) (world-points obb)) :do
-                      (with-accessors ((point-x x) (point-y y)) point
-                        (declare (single-float point-x point-y))
-                        (when (< point-x min-x)
-                          (setf min-x point-x))
-                        (when (> point-x max-x)
-                          (setf max-x point-x))
-                        (when (< point-y min-y)
-                          (setf min-y point-y))
-                        (when (> point-y max-y)
-                          (setf max-y point-y)))
-                    :finally
-                      (return
-                        (values min-x
-                                min-y
-                                (z world-point)
-                                (- max-x min-x)
-                                (- max-y min-y))))))))
-    (declare (inline simple-obb-p simple-obb-dimensions complex-obb-dimensions))
-    (if (simple-obb-p obb)
-        (simple-obb-dimensions obb)
-        (complex-obb-dimensions obb))))
+                      :for point :across (the (simple-array vector3) (world-points obb)) :do
+                        (with-accessors ((point-x x) (point-y y)) point
+                          (declare (single-float point-x point-y))
+                          (when (< point-x min-x)
+                            (setf min-x point-x))
+                          (when (> point-x max-x)
+                            (setf max-x point-x))
+                          (when (< point-y min-y)
+                            (setf min-y point-y))
+                          (when (> point-y max-y)
+                            (setf max-y point-y)))
+                      :finally
+                        (return
+                          (values min-x
+                                  min-y
+                                  (z world-point)
+                                  (- max-x min-x)
+                                  (- max-y min-y))))))))
+      (declare (inline simple-obb-p simple-obb-dimensions complex-obb-dimensions))
+      (when world-dimensions-dirty-p
+        (multiple-value-bind (x y z w h)
+            (if (simple-obb-p obb)
+                (simple-obb-dimensions obb)
+                (complex-obb-dimensions obb))
+          (setf (elt world-dimensions 0) x
+                (elt world-dimensions 1) y
+                (elt world-dimensions 2) z
+                (elt world-dimensions 3) w
+                (elt world-dimensions 4) h
+                world-dimensions-dirty-p nil)))
+      (values (elt world-dimensions 0)
+              (elt world-dimensions 1)
+              (elt world-dimensions 2)
+              (elt world-dimensions 3)
+              (elt world-dimensions 4)))))
 
 (defun aabb-collidep (rect1 rect2)
   "Assume RECT1 and RECT2 are AABBs in the same space and return t if they collide."
@@ -291,3 +320,14 @@ Note that for rotated objects, the dimensions represent an unrotated rectangle w
 @export-class
 (defclass static-obb (obb static-object)
   ())
+
+(defmethod (setf x) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+(defmethod (setf y) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+(defmethod (setf z) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+(defmethod (setf width) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+(defmethod (setf height) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
