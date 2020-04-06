@@ -5,7 +5,8 @@
 @export
 (defclass kinematic-object (game-object)
   ((velocity :initform (vector2))
-   (acceleration :initform (vector2)))
+   (acceleration :initform (vector2))
+   (original-position :initform (vector3)))
   (:documentation "Game-Object with velocity and acceleration."))
 
 @export
@@ -134,8 +135,9 @@
                      (max x (- max-magnitude)))
                  x)))
       (declare (inline cap))
-      (let ((original-position (vector3 0.0 0.0 0.0)))
-        (declare (dynamic-extent original-position))
+      ;; (let ((original-position (vector3 0.0 0.0 0.0)))
+      ;;   (declare (dynamic-extent original-position)))
+      (with-slots (original-position) object
         (with-accessors ((max-v-x max-velocity-x) (max-v-y max-velocity-y)
                          (friction-x friction-x) (drag-y drag-y))
             *scene*
@@ -160,6 +162,22 @@
                 (setf (x original-position) x
                       (y original-position) y
                       (z original-position) z)
+                #+nil
+                (block no-collision-checking
+                  (setf x (+ x (* v-x *timestep*)))
+                  (setf y (+ y (* v-y *timestep*))))
+                #+nil
+                (block system-collision-check
+                  (setf x (+ x (* v-x *timestep*)))
+                  (setf y (+ y (* v-y *timestep*)))
+                  ;; inform the collision system that this object moved
+                  ;; resolutions will run at the end of the udpate frame
+                  (collision-system-object-moved *collision-system* object))
+
+                ;; A == all objects in partition
+                ;; N == all moved objects
+                ;; every moved object will traverse the spatial partition, giving us
+                ;; Big-O Cost = N * A
                 (with-collision-check (object *scene*)
                   (:position-update
                    (log:trace "moving (~A,~A) -> ~A" v-x v-y object)
