@@ -81,10 +81,13 @@ but cannot be removed from the implementation due to iteration.")
 (defmacro do-array-backed ((game-object-name array-backed) &body body)
   (assert (symbolp game-object-name))
   (alexandria:once-only (array-backed)
-    (alexandria:with-gensyms (obj)
-      `(loop :for ,obj :across (slot-value ,array-backed 'objects) :do
-            (let ((,game-object-name ,obj))
-              ,@body)))))
+    (alexandria:with-gensyms (obj all-objects)
+      `(locally (declare (optimize (speed 3)))
+         (with-slots ((,all-objects objects)) ,array-backed
+           (declare ((vector (or null game-object)) ,all-objects))
+           (loop :for ,obj :across ,all-objects :do
+                (let ((,game-object-name ,obj))
+                  ,@body)))))))
 
 (defmacro do-spatial-partition ((game-object-name spatial-partition &key min-x max-x min-y max-y min-z max-z static-iteration-p skip-static-objects-p) &body body)
   "Run BODY once over every element (bound to GAME-OBJECT-NAME) in SPATIAL-PARTION. Keyword args are optional optimization hints
