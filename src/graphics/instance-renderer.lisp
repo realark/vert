@@ -407,7 +407,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                                           :float (+ c-offset 3))
                            (float (/ (* h flip-y) total-h))))
 
-                   (loop :with model-matrix = (interpolated-sprite-matrix drawable update-percent)
+                   (loop :with model-matrix = (interpolated-obb-matrix drawable update-percent)
                       :for c-index :from (* drawable-index 16)
                       :for i :from 0 :below 16 :do
                         (locally (declare (fixnum c-index i)

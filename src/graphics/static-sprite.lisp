@@ -118,7 +118,7 @@
         ;; set position, rotation, and size
         (set-uniform-matrix-4fv shader
                                 "worldModel"
-                                (interpolated-sprite-matrix static-sprite update-percent)
+                                (interpolated-obb-matrix static-sprite update-percent)
                                 nil)
 
         ;; set world projection

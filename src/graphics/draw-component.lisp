@@ -87,11 +87,11 @@
                       1.0 1.0 1.0 1.0))
 
     ;; set position, rotation, and size
-    (let* ((sprite-transform (sprite-transform game-object)))
-      (declare (dynamic-extent sprite-transform))
+    (let* ((render-transform (obb-render-transform game-object)))
+      (declare (dynamic-extent render-transform))
       (set-uniform-matrix-4fv shader
                               "worldModel"
-                              sprite-transform
+                              render-transform
                               nil))
 
     ;; set world projection

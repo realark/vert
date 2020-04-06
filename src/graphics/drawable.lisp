@@ -21,18 +21,19 @@
     (render draw-component update-percent camera context)))
 
 @inline
-(defun sprite-transform (transform)
-  "Construct a matrix which can be used to render TRANSFORM as a sprite."
-  (declare (optimize (speed 3)))
-  (let ((translate (translation-matrix (width transform)
-                                       (height transform)
+(defun obb-render-transform (obb)
+  "Construct a rendering transform for OBB."
+  (declare (optimize (speed 3))
+           (obb obb))
+  (let ((translate (translation-matrix (width obb)
+                                       (height obb)
                                        0.0))
-        (dimensions (scale-matrix (width transform)
-                                  (height transform)
+        (dimensions (scale-matrix (width obb)
+                                  (height obb)
                                   1.0)))
     (declare (dynamic-extent translate dimensions))
     (matrix*
-     (local-to-world-matrix transform)
+     (local-to-world-matrix obb)
      ;; render with upper-left = object's origin
      translate
      dimensions)))
@@ -41,14 +42,14 @@
   (declare (optimize (speed 3))
            (ignore args))
   (with-slots (interpolator) transform
-    (let ((m (sprite-transform transform)))
+    (let ((m (obb-render-transform transform)))
       (declare (dynamic-extent m))
       (interpolator-update interpolator m))))
 
-(defmethod pre-update :before ((transform drawable))
+(defmethod pre-update :before ((drawable drawable))
   (declare (optimize (speed 3)))
-  (with-slots (interpolator) transform
-    (let ((m (sprite-transform transform)))
+  (with-slots (interpolator) drawable
+    (let ((m (obb-render-transform drawable)))
       (declare (dynamic-extent m))
       (interpolator-update interpolator m)))
   (values))
@@ -57,13 +58,13 @@
   ;; drop the previous matrix
   (pre-update drawable))
 
-(defun interpolated-sprite-matrix (drawable update-percent)
+(defun interpolated-obb-matrix (drawable update-percent)
   (declare (optimize (speed 3))
            ((single-float 0.0 1.0) update-percent))
   (with-slots (interpolator) drawable
     (unless (= update-percent
                (matrix-interpolator-cached-update-percent interpolator))
-      (let ((m (sprite-transform drawable)))
+      (let ((m (obb-render-transform drawable)))
         (declare (dynamic-extent m))
         (interpolator-compute interpolator
                               m
