@@ -10,7 +10,7 @@
     :documentation "Determines the draw-component used to render the game-object")
    (color :initarg :color
           :initform nil
-          :documentation "A color mod blended with the drawable. Nil has the same effect as *white*."
+          :documentation "A color mod blended (multiplied) with the drawable. Nil has the same effect as *white*."
           :accessor color)
    (interpolator :initform (make-matrix-interpolator)
                  :documentation "Holds the previous position of the game-object. Used for interpolating between update frames."))

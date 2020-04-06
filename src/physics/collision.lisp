@@ -1,5 +1,6 @@
 (in-package :recurse.vert)
 
+;; TODO: Remove Dead Collisions System Code after testing is completed
 ;; collision system
 
 (defclass collision-system ()

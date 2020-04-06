@@ -1,5 +1,7 @@
 (in-package :recurse.vert)
 
+;;;; OBB base class
+
 (defclass obb (transform)
   ((local-dimensions :initform (vector2 1.0 1.0)
                      :documentation "Local width and height.")
@@ -9,7 +11,7 @@
    (world-dimensions :initform (make-array 5
                                            :element-type 'single-float
                                            :initial-element 0.0)))
-  (:documentation "A 2D rectangle which may be rotated about its local center."))
+  (:documentation "A 2D rectangle. X, Y, and Z are the rectangle's upper-left point. Rotation is around the rectangle's local center."))
 
 (defun %%mark-world-dimensions-dirty (obb)
   (setf (slot-value obb 'world-dimensions-dirty-p) t))
@@ -286,11 +288,25 @@ Note that for rotated objects, the dimensions represent an unrotated rectangle w
           (world-points-collidep rect1 rect2))
       (convex-poly-collidep rect1 rect2)))
 
+(defmethod (setf x) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+(defmethod (setf y) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+(defmethod (setf z) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+(defmethod (setf width) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+(defmethod (setf height) :after (value (obb obb))
+  (%%mark-world-dimensions-dirty obb))
+
+;;;; util OBB classes
+
 @export-class
 (defclass cross (obb)
   ((vertical-rect :initform nil)
    (horizontal-rect :initform nil))
-  (:documentation "A cross-shaped hitbox which favors different axes for the two sections. Horizontal favors X and vertical favors Y."))
+  (:documentation "A cross-shaped hitbox which favors different axes for the two sections. Horizontal favors X and vertical favors Y.
+Useful to simulate an agent with feet pushing down on the ground and/or hands pushing to the side of a wall."))
 
 (defmethod initialize-instance :after ((cross cross) &key (vertical-width 1) (horizontal-height 1))
   (with-slots (vertical-rect horizontal-rect) cross
@@ -320,14 +336,3 @@ Note that for rotated objects, the dimensions represent an unrotated rectangle w
 @export-class
 (defclass static-obb (obb static-object)
   ())
-
-(defmethod (setf x) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
-(defmethod (setf y) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
-(defmethod (setf z) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
-(defmethod (setf width) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
-(defmethod (setf height) :after (value (obb obb))
-  (%%mark-world-dimensions-dirty obb))
