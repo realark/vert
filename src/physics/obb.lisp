@@ -16,11 +16,11 @@
 This slot is used to cache the world AABB because it is frequently needed by collision and rendering code."))
   (:documentation "A 2D rectangle. X, Y, and Z are the rectangle's upper-left point. Rotation is around the rectangle's local center."))
 
-(defun %mark-world-dimensions-dirty (obb)
-  (setf (slot-value obb 'world-dimensions-dirty-p) t))
-
-(defun %mark-world-points-dirty (obb)
-  (setf (slot-value obb 'world-points-dirty-p) t))
+(defgeneric mark-obb-dirty (obb)
+  (:documentation "Called when OBB dimensions or location have changed.")
+  (:method ((obb obb))
+    (setf (slot-value obb 'world-points-dirty-p) t
+          (slot-value obb 'world-dimensions-dirty-p) t)))
 
 (defmethod initialize-instance :after ((obb obb) &key (width 1.0) (height 1.0))
   (setf (width obb) width
@@ -87,8 +87,7 @@ This slot is used to cache the world AABB because it is frequently needed by col
           (current-value (width (slot-value obb 'local-dimensions))))
       (unless (float= float-value current-value)
         (prog1 (setf (width (slot-value obb 'local-dimensions)) float-value)
-          (%mark-world-points-dirty obb)
-          (%mark-world-dimensions-dirty obb))))))
+          (mark-obb-dirty obb))))))
 
 (defmethod height ((obb obb))
   (height (slot-value obb 'local-dimensions)))
@@ -98,12 +97,10 @@ This slot is used to cache the world AABB because it is frequently needed by col
           (current-value (height (slot-value obb 'local-dimensions))))
       (unless (float= float-value current-value)
         (prog1 (setf (height (slot-value obb 'local-dimensions)) float-value)
-          (%mark-world-points-dirty obb)
-          (%mark-world-dimensions-dirty obb))))))
+          (mark-obb-dirty obb))))))
 
 (defmethod mark-transform-dirty :after ((obb obb))
-  (%mark-world-points-dirty obb)
-  (%mark-world-dimensions-dirty obb))
+  (mark-obb-dirty obb))
 
 @export
 @inline
