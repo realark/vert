@@ -328,7 +328,6 @@ This is an optimization so we don't have to rebuild the render and update queues
            (pre-update game-object)
            (found-object-to-update game-scene game-object)
            (update game-object))
-      (update *collision-system*)
       (values))))
 
 (defmethod render ((game-scene game-scene) update-percent (camera simple-camera) renderer)

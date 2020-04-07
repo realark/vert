@@ -162,18 +162,6 @@
                 (setf (x original-position) x
                       (y original-position) y
                       (z original-position) z)
-                #+nil
-                (block no-collision-checking
-                  (setf x (+ x (* v-x *timestep*)))
-                  (setf y (+ y (* v-y *timestep*))))
-                #+nil
-                (block system-collision-check
-                  (setf x (+ x (* v-x *timestep*)))
-                  (setf y (+ y (* v-y *timestep*)))
-                  ;; inform the collision system that this object moved
-                  ;; resolutions will run at the end of the udpate frame
-                  (collision-system-object-moved *collision-system* object))
-
                 ;; A == all objects in partition
                 ;; N == all moved objects
                 ;; every moved object will traverse the spatial partition, giving us
