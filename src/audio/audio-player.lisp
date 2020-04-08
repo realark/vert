@@ -1,54 +1,72 @@
-;; Generic audio player methods
+;; Audio system api
 (in-package :recurse.vert)
 
 (defclass audio-player (event-publisher)
-  ((music-state :initform :stopped
-                :type keyword
-                :accessor music-state
-                :documentation "State of the music. Must be :playing, :paused, or :stopped.
-The setf also allows for a :toggle option.")
-   (num-music-plays :initform 0
-                    :documentation "number of times to repeat the current music")
-   (current-music :initform nil
-                  :reader current-music
-                  :documentation "path to the current music"))
-  (:documentation "Class for playing music or sound effects."))
+  ()
+  (:documentation "Singleton (by convention, not enforced). Stored in *audio* global. Accesses audio resources shared across vert."))
 
 (defgeneric start-audio-player (audio-player)
-  (:documentation "Initialize AUDIO-PLAYER.
-Must be called before any sounds will play."))
+  (:documentation "Initialize AUDIO-PLAYER."))
 
 (defgeneric stop-audio-player (audio-player)
   (:documentation "Stop AUDIO-PLAYER and release all resources."))
 
 ;;;; audio player api
 
+@export
+(defgeneric audio-player-copy-state (audio-player &optional destination-audio-state)
+  (:documentation "Thread safe. Copy AUDIO-PLAYER's internal audio-state to DESTINATION-AUDIO-STATE."))
+
+@export
+(defgeneric audio-player-load-state (audio-player new-audio-state)
+  (:documentation "Thread safe. Copy NEW-AUDIO-STATE into  AUDIO-PLAYER's internal audio-state."))
+
+@export
+(defgeneric audio-player-load-sfx (audio-player path-to-sfx &key volume)
+  (:documentation "Create an object compatible with AUDIO-PLAYER's sound effect playing."))
+
+@export
+(defgeneric audio-player-load-music (audio-player path-to-music)
+  (:documentation "Create an object compatible with AUDIO-PLAYER's music playing."))
+
+@export
 (defgeneric play-sound-effect (audio-player path-to-sfx-file &key rate volume)
   (:documentation "Play the audio in PATH-TO-SFX-FILE as a sound effect on the audio player.")
   (:method ((null-audio null) path-to-sfx &key rate volume)
     (declare (ignore null-audio path-to-sfx rate volume))
     'noop))
 
+@export
 (defgeneric play-music (audio-player path-to-music-file &key num-plays)
   (:documentation "Play the given song. If NUM-REPEATS is -1 the song will loop forever.")
   (:method ((null-audio null) path-to-music-file &key num-plays)
     (declare (ignore null-audio path-to-music-file num-plays))
     'noop))
 
-(defmethod (setf music-state) :around (new-state audio-player)
-  (with-slots (current-music) audio-player
-    (ecase new-state
-      (:playing
-       (unless current-music
-         (error "Invalid music-state. No song to play")))
-      (:paused
-       (unless current-music
-         (error "Invalid music-state. No song to pause")))
-      (:stopped)))
-  (call-next-method new-state audio-player))
-
+@export
 (defgeneric audio-output-info (audio-player)
   (:documentation "Get the output frequency (hz), bit depth, and number of channels of this audio player.")
   (:method (audio-player)
     ;; just using the hardcoded values
     (values +output-frequency-hz+ +output-bit-depth+ +output-num-channels+)))
+
+;;;; audio system
+
+@export
+(defvar *audio*
+  nil
+  "Active audio player.")
+
+(defconstant +output-frequency-hz+ 44100 "Audio system output frequency.")
+(defconstant +output-bit-depth+ 16 "Audio system output bit depth.")
+(defconstant +output-num-channels+ 2 "Stereo output")
+
+(defun start-audio-system ()
+  (when *audio*
+    (start-audio-player *audio*)
+    *audio*))
+
+(defun stop-audio-system ()
+  (when *audio*
+    (stop-audio-player *audio*))
+  (values))

@@ -106,18 +106,6 @@
    :animation
    :animation-effects
 
-   ;; music
-   :audio-player
-   :play-music
-   :stop-music
-   :play-sound-effect
-   :music-state
-   :audio-output-info
-   :music-advance
-   :event-callback-music-advance
-   :sample-process
-   :event-callback-sample-process
-
    ;; ai
    :agent
 

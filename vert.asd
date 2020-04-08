@@ -83,8 +83,7 @@
                         :serial T
                         :components
                         ((:file "audio-player")
-                         (:file "sdl-audio-player")
-                         (:file "audio-system")))
+                         (:file "sdl-audio-player")))
                (:module input
                         :depends-on (:core)
                         :pathname "src/input"

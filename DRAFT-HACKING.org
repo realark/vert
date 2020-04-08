@@ -191,7 +191,9 @@ As an example, we'll consider a bomb component. This is a contrived example for 
           (setf (slot-value bomb 'spritesheet) spritesheet
                 (slot-value bomb 'explode-sfx) explode-sfx
                 (slot-value bomb 'releaser)
-                ;; Note that passing BOMB will NOT create a hard ref.
+                ;; Note that passing BOMB in the first arg will NOT create a hard ref.
+                ;; Whatever is passed there is convereted to a string for logging purposes. No hard refs will be created.
+                ;; Using BOMB in the body, on the other hand, WILL create a hard ref and must not be done.
                 (make-resource-releaser (bomb)
                   (%release-bomb-resources spritesheet explode-sfx)))))))
 
