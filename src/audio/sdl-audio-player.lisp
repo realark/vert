@@ -125,7 +125,9 @@ Computed as (* (/ bit-rate 8) num-channels)")
                 (null (sdl-channel-sample channel2)))
            (and (sdl-channel-sample channel1)
                 (sdl-channel-sample channel2)))
-       (%audio-samples-equalp (sdl-channel-sample channel1) (sdl-channel-sample channel2))
+       (or (and (null (sdl-channel-sample channel1)) (null (sdl-channel-sample channel2)))
+           (and (not (null (sdl-channel-sample channel1))) (not (null (sdl-channel-sample channel2)))
+                (%audio-samples-equalp (sdl-channel-sample channel1) (sdl-channel-sample channel2))))
        (equalp (sdl-channel-number channel1) (sdl-channel-number channel2))
        (equalp (sdl-channel-start-time-samples channel1) (sdl-channel-start-time-samples channel2))))
 
@@ -268,7 +270,7 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
               (unless (= 0 (sdl2-mixer:play-music (slot-value (sdl-channel-sample new-music-channel) 'sdl-buffer) 1))
                 (error "sdl-mixer unable to play music: ~A"
                        (sdl2-ffi.functions:sdl-get-error)))
-              (if (sdl-channel-start-time-samples current-music-channel)
+              (if (sdl-channel-start-time-samples new-music-channel)
                   ;; resume music playback
                   (let ((music-position-seconds (/ (convert-audio-samples->ms
                                                     (- (audio-state-current-time-samples new-audio-state)
@@ -476,10 +478,13 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
                  ;;  ;; divide by 4 because LEN is for 8bit array but sample format is 16 bit audio 16. Divide by 2.
                  ;;  ;; and the sample array is for two channels (left and right speakers). Divide by 2 again.
                  (the fixnum (/ len 4))))
-        (log:trace "audio thread tick: ~A (~Ams)"
+        (log:trace "audio thread tick: ~A (~Ams). ~A delta (~A ms)"
                    (audio-state-current-time-samples audio-state)
                    (convert-audio-samples->ms
-                    (audio-state-current-time-samples audio-state)))))))
+                    (audio-state-current-time-samples audio-state))
+                   (the fixnum (/ len 4))
+                   (convert-audio-samples->ms
+                    (the fixnum (/ len 4))))))))
 
 (defun %%channel-finished-callback (channel-number)
   (declare (optimize (speed 3))
@@ -633,5 +638,18 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
               (:pause t)
               (:unpause nil)
               (:toggle (not (audio-state-paused-p tmp-audio-state)))))
+      (audio-player-load-state audio-player tmp-audio-state))
+    audio-player))
+
+(let ((tmp-audio-state nil))
+  (defmethod audio-stop-music ((audio-player sdl-audio-player))
+    (with-sdl-mixer-lock-held
+      (unless tmp-audio-state
+        (setf tmp-audio-state
+              (audio-player-copy-state audio-player)))
+      (audio-player-copy-state audio-player tmp-audio-state)
+      (let ((music (audio-state-music-channel tmp-audio-state)))
+        (setf (sdl-channel-sample music) nil
+              (sdl-channel-start-time-samples music) nil))
       (audio-player-load-state audio-player tmp-audio-state))
     audio-player))

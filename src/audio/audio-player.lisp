@@ -49,6 +49,10 @@
 PAUSE-STATE must be :toggle :pause or :unpause"))
 
 @export
+(defgeneric audio-stop-music (audio-player)
+  (:documentation "Stop any playing music on AUDIO-PLAYER. No effect if no music playing."))
+
+@export
 (defgeneric audio-output-info (audio-player)
   (:documentation "Get the output frequency (hz), bit depth, and number of channels of this audio player.")
   (:method (audio-player)
