@@ -13,7 +13,7 @@
 
 @export
 (defun ticks-nanos ()
-  "Wallclock nanosecond timestamp starting from an arbitrary point in time."
+  "Wallclock nanosecond timestamp starting from an arbitrary point in time. Note: microsecond precision."
   (declare (optimize (speed 3)
                      (safety 0)))
   (multiple-value-bind (sec microsec) (sb-ext:get-time-of-day)

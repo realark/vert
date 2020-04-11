@@ -121,7 +121,11 @@ Computed as (* (/ bit-rate 8) num-channels)")
   dest-channel)
 
 (defun %sdl-channels-equal-p (channel1 channel2)
-  (and (%audio-samples-equalp (sdl-channel-sample channel1) (sdl-channel-sample channel2))
+  (and (or (and (null (sdl-channel-sample channel1))
+                (null (sdl-channel-sample channel2)))
+           (and (sdl-channel-sample channel1)
+                (sdl-channel-sample channel2)))
+       (%audio-samples-equalp (sdl-channel-sample channel1) (sdl-channel-sample channel2))
        (equalp (sdl-channel-number channel1) (sdl-channel-number channel2))
        (equalp (sdl-channel-start-time-samples channel1) (sdl-channel-start-time-samples channel2))))
 
@@ -261,7 +265,7 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
             (%sdl-channel-copy new-music-channel current-music-channel)
             (sdl2-mixer:halt-music)
             (when (sdl-channel-sample new-music-channel)
-              (unless (= 0 (sdl2-mixer:play-music (slot-value (sdl-channel-sample new-music-channel) 'sdl-buffer) -1))
+              (unless (= 0 (sdl2-mixer:play-music (slot-value (sdl-channel-sample new-music-channel) 'sdl-buffer) 1))
                 (error "sdl-mixer unable to play music: ~A"
                        (sdl2-ffi.functions:sdl-get-error)))
               (if (sdl-channel-start-time-samples current-music-channel)
@@ -436,7 +440,21 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
                                    :path-to-audio path-to-music)))
 
 ;;;; callbacks which run on sdl-mixer under the audio lock
-(defun %%music-finished-callback ())
+(defun %%music-finished-callback ()
+  (declare (optimize (speed 3)))
+  (when *audio*
+    (with-slots (audio-state) *audio*
+      (with-slots (music-channel) audio-state
+        (when (sdl-channel-sample music-channel)
+          (log:debug "Reached end of song (~A). Looping back to beginning."
+                     (audio-sample-path-to-audio (sdl-channel-sample music-channel)))
+          (unless (= 0 (the fixnum (sdl2-mixer:play-music (slot-value (sdl-channel-sample music-channel) 'sdl-buffer) 1)))
+            (log:error "sdl-mixer unable to play music: ~A"
+                       (sdl2-ffi.functions:sdl-get-error)))
+          (setf (sdl-channel-start-time-samples music-channel)
+                ;; looping is hardcoded.
+                ;; This means we're just starting to play the song again.
+                (audio-state-current-time-samples audio-state)))))))
 
 (defun %%postmix-callback (udata stream len)
   "Note: This fn runs on the sdl-mixer audio thread."
