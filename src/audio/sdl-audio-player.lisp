@@ -620,3 +620,18 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
                   (audio-state-music-channel tmp-audio-state) channel))
           (audio-player-load-state audio-player tmp-audio-state)))
       audio-player)))
+
+(let ((tmp-audio-state nil))
+  (defmethod audio-pause-music ((audio-player sdl-audio-player) &key (pause-state :toggle))
+    (with-sdl-mixer-lock-held
+      (unless tmp-audio-state
+        (setf tmp-audio-state
+              (audio-player-copy-state audio-player)))
+      (audio-player-copy-state audio-player tmp-audio-state)
+      (setf (audio-state-paused-p tmp-audio-state)
+            (ecase pause-state
+              (:pause t)
+              (:unpause nil)
+              (:toggle (not (audio-state-paused-p tmp-audio-state)))))
+      (audio-player-load-state audio-player tmp-audio-state))
+    audio-player))

@@ -44,6 +44,11 @@
     'noop))
 
 @export
+(defgeneric audio-pause-music (audio-player &key pause-state)
+  (:documentation "Alter the pause state of the currently playing music.
+PAUSE-STATE must be :toggle :pause or :unpause"))
+
+@export
 (defgeneric audio-output-info (audio-player)
   (:documentation "Get the output frequency (hz), bit depth, and number of channels of this audio player.")
   (:method (audio-player)
