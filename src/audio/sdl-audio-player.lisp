@@ -191,11 +191,18 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
           (progn ,@body)
        (sdl2-ffi.functions:sdl-unlock-audio-device +sdl-mixer-audio-device-id+))))
 
+@export
 (defun convert-audio-samples->ms (audio-samples)
   (declare (optimize (speed 3))
            (fixnum audio-samples))
   (/ audio-samples
      #.(/ +output-frequency-hz+ 1000.0)))
+
+@export
+(defun convert-ms->audio-sample (ms)
+  (declare (optimize (speed 3))
+           (single-float ms))
+  (round (* ms #.(/ +output-frequency-hz+ 1000.0))))
 
 ;; audio-state copy implementations
 
