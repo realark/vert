@@ -46,6 +46,16 @@ Will be incremented by the update timestep after every update frame.")
     (with-accessors ((scene-input scene-input)) scene
       (setf scene-input (delete input scene-input)))))
 
+@export
+(defgeneric scene-activated (scene)
+  (:documentation "Called when SCENE is made active by the engine-manager.")
+  (:method ((scene scene))))
+
+@export
+(defgeneric scene-deactivated (scene)
+  (:documentation "Called when SCENE goes from active to unactive by the engine-manager.")
+  (:method ((scene scene))))
+
 (defmethod update :around ((scene scene))
   (call-next-method scene)
   (with-slots (custom-update-fn) scene

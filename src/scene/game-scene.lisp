@@ -6,6 +6,8 @@
                      :initarg :background
                      :type scene-background
                      :accessor scene-background)
+   (scene-audio-state :initform nil
+                      :documentation "Used to resume audio-state when the scene deactivates.")
    (scene-music :initarg :music
                 :initform nil
                 :accessor scene-music
@@ -117,6 +119,17 @@ This is an optimization so we don't have to rebuild the render and update queues
             (log:debug "cancel ~A for scene add" object)
             (setf pending-adds (delete object pending-adds))
             object)))))
+
+(defmethod scene-activated ((scene game-scene))
+  (with-slots ((state scene-audio-state)) scene
+    (when state
+      (audio-player-load-state *audio* state))))
+
+(defmethod scene-deactivated ((scene game-scene))
+  (with-slots ((state scene-audio-state)) scene
+    (unless state
+      (setf state (audio-player-copy-state *audio*)))
+    (setf state (audio-player-copy-state *audio*))))
 
 @export
 (defun scene-teleport-object (scene object &optional new-x new-y new-z)

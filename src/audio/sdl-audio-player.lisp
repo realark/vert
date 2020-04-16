@@ -155,6 +155,15 @@ Computed as (* (/ bit-rate 8) num-channels)")
                  :documentation "Array of SDL-SFX-CHANNEL objects. Ordered by channel number"))
   (:documentation "The state of all audio. One channel of music and up to 8 channels of sound effects"))
 
+(defgeneric audio-state-music-state (audio-state)
+  (:documentation "Returns :playing :paused or :stopped depending on the state of the music.")
+  (:method ((audio-state audio-state))
+    (if (audio-state-music-channel audio-state)
+        (if (audio-state-paused-p audio-state)
+            :paused
+            :playing)
+        :stopped)))
+
 ;;;; sdl audio player
 
 (defclass sdl-audio-player (audio-player)

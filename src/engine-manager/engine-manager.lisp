@@ -31,10 +31,6 @@
                       :initform nil
                       :reader rendering-context
                       :documentation "Rendering context of the application window.")
-   (audio-player :initarg :audio-player
-                 :initform nil
-                 :reader audio-player
-                 :documentation "System audio player.")
    (pending-scene-changes :initform nil)
    (pending-action :initform 'no-action
                    :documentation "A zero-arg lambda to execute at the end of the next game loop iteration")
@@ -62,6 +58,10 @@
                                    :game-stats game-stats
                                    :width (first (getconfig 'game-resolution *config*))
                                    :height (second (getconfig 'game-resolution *config*))))))
+
+@export
+(defmethod audio-player ((engine-manager engine-manager))
+  *audio*)
 
 (defgeneric quit-engine (engine-manager)
   (:documentation "Stop the running game engine"))
@@ -104,7 +104,9 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
               (when new-scene
                 (do-input-devices device (input-manager engine-manager)
                   (add-scene-input new-scene device)))
+              (scene-deactivated *scene*)
               (setf *scene* new-scene)
+              (scene-activated *scene*)
               (multiple-value-bind (width-px height-px)
                   (window-size-pixels (application-window *engine-manager*))
                 (after-resize-window (application-window engine-manager) width-px height-px))
