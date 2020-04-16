@@ -207,7 +207,7 @@
       (unless (= selected-child-index (1- (length children)))
         (with-slots (select-up-sfx) menu
           (when (and select-up-sfx *audio*)
-            (play-sound-effect *audio* select-up-sfx)))
+            (audio-player-play-sound-effect *audio* select-up-sfx)))
         (incf selected-child-index)))))
 
 (defgeneric select-up (parent-node)
@@ -217,7 +217,7 @@
       (unless (= selected-child-index 0)
         (with-slots (select-down-sfx) menu
           (when (and select-down-sfx *audio*)
-            (play-sound-effect *audio* select-down-sfx)))
+            (audio-player-play-sound-effect *audio* select-down-sfx)))
         (decf selected-child-index)))))
 
 (defclass action-node (menu-node)
@@ -235,7 +235,7 @@
   (:method ((menu menu) (action-node action-node) &optional device-id)
     (with-slots (run-action-sfx) menu
       (when (and run-action-sfx *audio*)
-        (play-sound-effect *audio* run-action-sfx)))
+        (audio-player-play-sound-effect *audio* run-action-sfx)))
     (funcall (slot-value action-node 'action) device-id)))
 
 (defmethod update ((menu menu))
@@ -254,7 +254,7 @@
   (with-slots (initialized-p initialized-sfx) menu
     (unless (or (null initialized-sfx) initialized-p (null *audio*))
       (setf initialized-p t)
-      (play-sound-effect *audio* initialized-sfx)))
+      (audio-player-play-sound-effect *audio* initialized-sfx)))
   (call-next-method menu)
   (update (camera menu))
   (%set-menu-position-and-color menu))

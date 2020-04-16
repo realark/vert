@@ -79,7 +79,8 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (prog1 (call-next-method sample)
     (with-slots (audio-sample-releaser type sdl-buffer) sample
       (when audio-sample-releaser
-        (%release-audio-sample-resources type sdl-buffer)))))
+        (%release-audio-sample-resources type sdl-buffer)
+        (setf audio-sample-releaser nil)))))
 
 (defun %audio-samples-equalp (sample1 sample2)
   (declare (audio-sample sample1 sample2))
