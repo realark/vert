@@ -591,7 +591,7 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
   (values))
 
 (let ((tmp-audio-state nil))
-  (defmethod play-sound-effect ((audio-player sdl-audio-player) path-to-sfx-file &key (rate 1.0) (volume 1.0))
+  (defmethod audio-player-play-sound-effect ((audio-player sdl-audio-player) path-to-sfx-file &key (rate 1.0) (volume 1.0))
     ;; TODO: volume above 1.0 will not have additional affect
     (declare (ignore rate)
              ((single-float 0.0 10.0) volume))
@@ -614,7 +614,7 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
       audio-player)))
 
 (let ((tmp-audio-state nil))
-  (defmethod play-music ((audio-player sdl-audio-player) path-to-music-file &key (num-plays -1))
+  (defmethod audio-player-play-music ((audio-player sdl-audio-player) path-to-music-file &key (num-plays -1))
     (unless (= -1 num-plays)
       (error "TODO"))
     (unless (getconfig 'use-dummy-audio-output *config*)
@@ -634,7 +634,7 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
       audio-player)))
 
 (let ((tmp-audio-state nil))
-  (defmethod audio-pause-music ((audio-player sdl-audio-player) &key (pause-state :toggle))
+  (defmethod audio-player-pause ((audio-player sdl-audio-player) &key (pause-state :toggle))
     (with-sdl-mixer-lock-held
       (unless tmp-audio-state
         (setf tmp-audio-state
@@ -649,7 +649,7 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
     audio-player))
 
 (let ((tmp-audio-state nil))
-  (defmethod audio-stop-music ((audio-player sdl-audio-player))
+  (defmethod audio-player-stop-music ((audio-player sdl-audio-player))
     (with-sdl-mixer-lock-held
       (unless tmp-audio-state
         (setf tmp-audio-state
