@@ -98,33 +98,16 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
         (error "Scene change already pending"))
       (setf (slot-value engine-manager 'pending-scene-changes)
             (lambda ()
-              (when (and old-scene (current-music *audio*))
-                ;; Hack to resume music on unpause
-                (unless preserve-audio
-                  (if release-existing-scene
-                      (setf (music-state *audio*) :stopped)
-                      (setf (music-state *audio*) :paused))))
               #+nil
               (when (and old-scene release-existing-scene)
                 (garbage-collect-hint))
               (when new-scene
-                (when (typep new-scene 'game-scene)
-                  ;; Hack to resume game-scene music on unpause
-                  (with-accessors ((music scene-music)) new-scene
-                    (when music
-                      (if (eq :paused (music-state *audio*))
-                          (setf (music-state *audio*) :playing)
-                          (play-music *audio* music :num-plays -1)))))
                 (do-input-devices device (input-manager engine-manager)
                   (add-scene-input new-scene device)))
               (setf *scene* new-scene)
               (multiple-value-bind (width-px height-px)
                   (window-size-pixels (application-window *engine-manager*))
                 (after-resize-window (application-window engine-manager) width-px height-px))
-              (when (and preserve-audio
-                         (typep old-scene 'pause-scene)
-                         (eq :paused (music-state *audio*)))
-                (setf (music-state *audio*) :playing))
               (block run-gc
                 (setf old-scene nil)
                 (when run-full-gc

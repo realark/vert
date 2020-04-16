@@ -137,9 +137,12 @@ Computed as (* (/ bit-rate 8) num-channels)")
                          :accessor audio-state-current-time-samples
                          :type fixnum
                          :documentation "How many samples this audio-state has processed. audio-player advances the sample time for its active audio-state.")
+   ;; FIXME: pause state resuming will sometimes compute music and sfx resume positions incorrectly
+   ;; because they are not using this timestamp to adjust the start time.
+   ;; TODO: rename paused-p to paused-time-samples
    (paused-p :initform nil
              :accessor audio-state-paused-p
-             :documentation "when t music and all sfx channels will be paused.")
+             :documentation "Timestamp of when audio was paused. Nil if not paused.")
    (music-channel :initform
                   (make-instance 'sdl-channel
                                  :channel-number +music-channel+)
@@ -642,9 +645,15 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
       (audio-player-copy-state audio-player tmp-audio-state)
       (setf (audio-state-paused-p tmp-audio-state)
             (ecase pause-state
-              (:pause t)
+              (:pause
+               ;; set to the sample timestamp of when the pause occurred
+               (or (audio-state-paused-p tmp-audio-state)
+                   (audio-state-current-time-samples tmp-audio-state)))
               (:unpause nil)
-              (:toggle (not (audio-state-paused-p tmp-audio-state)))))
+              (:toggle
+               (if (audio-state-paused-p tmp-audio-state)
+                   nil
+                   (audio-state-current-time-samples tmp-audio-state)))))
       (audio-player-load-state audio-player tmp-audio-state))
     audio-player))
 
