@@ -409,16 +409,19 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                        ;; channel began playing. mark start time
                        (setf (sdl-channel-start-time-samples current-channel)
                              (audio-state-current-time-samples new-audio-state)))))
-
              :finally
-               (loop :for j :from i :below (length current-sfx-channels) :do
-                    (log:debug "state change halting channel ~A" j)
-                    (sdl2-mixer:halt-channel
-                     (sdl-channel-number (elt current-sfx-channels j))))
-               (log:debug "state change truncate existing mixer channels: ~A -> ~A"
-                          (length current-sfx-channels)
-                          i)
-               (setf (fill-pointer current-sfx-channels) i))
+               (when (> (length new-sfx-channels)
+                        (length current-sfx-channels))
+                 (loop :for j :from (length new-sfx-channels) :below (length current-sfx-channels)
+                    :do
+                      (log:debug "state change halting channel ~A" j)
+                      (sdl2-mixer:halt-channel
+                       (sdl-channel-number (elt current-sfx-channels j))))
+                 (log:debug "state change truncate existing mixer channels: ~A -> ~A"
+                            (length current-sfx-channels)
+                            (length new-sfx-channels))
+                 (setf (fill-pointer current-sfx-channels)
+                       (length new-sfx-channels))))
           (if new-paused-p
               (sdl2-ffi.functions:mix-pause +all-channels+)
               (sdl2-ffi.functions:mix-resume +all-channels+)))))))
@@ -677,5 +680,16 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
       (let ((music (audio-state-music-channel tmp-audio-state)))
         (setf (sdl-channel-sample music) nil
               (sdl-channel-start-time-samples music) nil))
+      (audio-player-load-state audio-player tmp-audio-state))
+    audio-player))
+
+(let ((tmp-audio-state nil))
+  (defmethod audio-player-stop-sfx ((audio-player sdl-audio-player))
+    (with-sdl-mixer-lock-held
+      (unless tmp-audio-state
+        (setf tmp-audio-state
+              (audio-player-copy-state audio-player)))
+      (audio-player-copy-state audio-player tmp-audio-state)
+      (setf (fill-pointer (audio-state-sfx-channels tmp-audio-state)) 0)
       (audio-player-load-state audio-player tmp-audio-state))
     audio-player))

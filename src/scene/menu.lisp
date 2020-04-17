@@ -32,7 +32,6 @@
    (run-action-sfx :initarg :run-aciton-sfx
                    :initform nil
                    :documentation "Sound effect to play when selecting an action")
-   (initialized-p :initform nil)
    (initialized-sfx :initarg :initialized-sfx
                     :initform nil
                     :documentation "Sound effect to play when menu is initialized.")
@@ -238,6 +237,11 @@
         (audio-player-play-sound-effect *audio* run-action-sfx)))
     (funcall (slot-value action-node 'action) device-id)))
 
+(defmethod scene-activated ((menu menu))
+  (with-slots (initialized-sfx) menu
+    (when initialized-sfx
+      (audio-player-play-sound-effect *audio* initialized-sfx))))
+
 (defmethod update ((menu menu))
   (pre-update menu)
   (pre-update (camera menu))
@@ -251,10 +255,6 @@
          (pre-update child))
     #+nil
     (pre-update selection-marker))
-  (with-slots (initialized-p initialized-sfx) menu
-    (unless (or (null initialized-sfx) initialized-p (null *audio*))
-      (setf initialized-p t)
-      (audio-player-play-sound-effect *audio* initialized-sfx)))
   (call-next-method menu)
   (update (camera menu))
   (%set-menu-position-and-color menu))

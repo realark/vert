@@ -189,8 +189,7 @@ It is invoked after the engine is fully started.")
            (do-cache (*engine-caches* cache-name cache)
              (clear-cache cache))
            ;; start services
-           (setf (slot-value engine-manager 'audio-player)
-                 (start-audio-system))
+           (start-audio-system)
            ;; fire events
            (fire-event engine-manager engine-started)
            ;; set up initial active-scene

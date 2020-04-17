@@ -21,6 +21,13 @@ Useful for debugging and pausing."))
 
   (export 'release-underlying-scene))
 
+;; TODO: use this instead of the current accessor
+@export
+(defmethod pause-scene-underlying-scene ((scene pause-scene))
+  (scene scene))
+
+(defmethod (setf pause-scene-underlying-scene) (new-value (scene pause-scene))
+  (setf (scene scene) new-value))
 
 (defun step-scene (pause-scene &key (num-steps 1) (time-between-frames-ms 1000))
   "Update the underlying scene NUM-STEPS."

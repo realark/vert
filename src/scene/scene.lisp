@@ -49,12 +49,12 @@ Will be incremented by the update timestep after every update frame.")
 @export
 (defgeneric scene-activated (scene)
   (:documentation "Called when SCENE is made active by the engine-manager.")
-  (:method ((scene scene))))
+  (:method (scene)))
 
 @export
 (defgeneric scene-deactivated (scene)
   (:documentation "Called when SCENE goes from active to unactive by the engine-manager.")
-  (:method ((scene scene))))
+  (:method (scene)))
 
 (defmethod update :around ((scene scene))
   (call-next-method scene)

@@ -129,7 +129,10 @@ This is an optimization so we don't have to rebuild the render and update queues
   (with-slots ((state scene-audio-state)) scene
     (unless state
       (setf state (audio-player-copy-state *audio*)))
-    (setf state (audio-player-copy-state *audio*))))
+    (audio-player-copy-state *audio* state)
+    (audio-player-stop-music *audio*)
+    (audio-player-stop-sfx *audio*))
+  (values))
 
 @export
 (defun scene-teleport-object (scene object &optional new-x new-y new-z)
