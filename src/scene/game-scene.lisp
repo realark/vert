@@ -122,8 +122,9 @@ This is an optimization so we don't have to rebuild the render and update queues
 
 (defmethod scene-activated ((scene game-scene))
   (with-slots ((state scene-audio-state)) scene
-    (when state
-      (audio-player-load-state *audio* state))))
+    (if state
+        (audio-player-load-state *audio* state)
+        (audio-player-stop-all *audio*))))
 
 (defmethod scene-deactivated ((scene game-scene))
   (with-slots ((state scene-audio-state)) scene

@@ -52,6 +52,10 @@
   (:documentation "Stop any playing sound effects on AUDIO-PLAYER."))
 
 @export
+(defgeneric audio-player-stop-all (audio-player)
+  (:documentation "Stop all audio on AUDIO-PLAYER"))
+
+@export
 (defgeneric audio-player-output-info (audio-player)
   (:documentation "Get the output frequency (hz), bit depth, and number of channels of this audio player.")
   (:method (audio-player)

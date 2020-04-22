@@ -104,9 +104,10 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
               (when new-scene
                 (do-input-devices device (input-manager engine-manager)
                   (add-scene-input new-scene device)))
-              (scene-deactivated *scene*)
-              (setf *scene* new-scene)
-              (scene-activated *scene*)
+              (let ((old-scene *scene*))
+                (setf *scene* new-scene)
+                (scene-deactivated old-scene)
+                (scene-activated *scene*))
               (multiple-value-bind (width-px height-px)
                   (window-size-pixels (application-window *engine-manager*))
                 (after-resize-window (application-window engine-manager) width-px height-px))
