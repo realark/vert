@@ -138,12 +138,6 @@ Computed as (* (/ bit-rate 8) num-channels)")
                          :accessor audio-state-current-time-samples
                          :type fixnum
                          :documentation "How many samples this audio-state has processed. audio-player advances the sample time for its active audio-state.")
-   ;; FIXME: pause state resuming will sometimes compute music and sfx resume positions incorrectly
-   ;; because they are not using this timestamp to adjust the start time.
-   ;; TODO: rename paused-p to paused-time-samples
-   (paused-p :initform nil
-             :accessor audio-state-paused-p
-             :documentation "Timestamp of when audio was paused. Nil if not paused.")
    (music-channel :initform
                   (make-instance 'sdl-channel
                                  :channel-number +music-channel+)
@@ -159,9 +153,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (:documentation "Returns :playing :paused or :stopped depending on the state of the music.")
   (:method ((audio-state audio-state))
     (if (audio-state-music-channel audio-state)
-        (if (audio-state-paused-p audio-state)
-            :paused
-            :playing)
+        :playing
         :stopped)))
 
 ;;;; sdl audio player
@@ -224,17 +216,14 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
     (declare (audio-state audio-state destination-audio-state))
     (with-sdl-mixer-lock-held
       (with-slots ((current-time current-time-samples)
-                   (current-paused-p paused-p)
                    (current-music-channel music-channel)
                    (current-sfx-channels sfx-channels))
           audio-state
         (with-slots ((dest-time current-time-samples)
-                     (dest-paused-p paused-p)
                      (dest-music-channel music-channel)
                      (dest-sfx-channels sfx-channels))
             destination-audio-state
-          (setf dest-time current-time
-                dest-paused-p current-paused-p)
+          (setf dest-time current-time)
           (%sdl-channel-copy current-music-channel dest-music-channel)
           (loop :for i :from 0
              :for current-channel :across current-sfx-channels :do
@@ -251,25 +240,16 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
     (declare (audio-state audio-state new-audio-state))
     (with-sdl-mixer-lock-held
       (with-slots ((current-time current-time-samples)
-                   (current-paused-p paused-p)
                    (current-music-channel music-channel)
                    (current-sfx-channels sfx-channels))
           audio-state
         (with-slots ((new-time current-time-samples)
-                     (new-paused-p paused-p)
                      (new-music-channel music-channel)
                      (new-sfx-channels sfx-channels))
             new-audio-state
-          ;; music and sfx fns also handle pausing, but we'll do it here first to
-          ;; stop all sfx and music close to the same time
-          (when new-paused-p
-            (progn                      ; pause everything
-              (sdl2-ffi.functions:mix-pause +all-channels+)
-              (sdl2-ffi.functions:mix-pause-music)))
           (sdl-audio-player-load-music-state audio-player new-audio-state)
           (sdl-audio-player-load-sfx-state audio-player new-audio-state)
-          (setf current-time new-time
-                current-paused-p new-paused-p))
+          (setf current-time new-time))
         new-audio-state))))
 
 @export
@@ -279,8 +259,7 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
     (declare (audio-state audio-state new-audio-state))
     (with-slots ((current-music-channel music-channel))
         audio-state
-      (with-slots ((new-paused-p paused-p)
-                   (new-music-channel music-channel))
+      (with-slots ((new-music-channel music-channel))
           new-audio-state
         (let ((new-music-p (not (%sdl-channels-equal-p current-music-channel new-music-channel))))
           (when new-music-p
@@ -314,11 +293,8 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                     (setf (sdl-channel-start-time-samples current-music-channel)
                           (audio-state-current-time-samples new-audio-state))))
               (sdl2-ffi.functions:mix-pause-music)))
-          (if new-paused-p
-              (when (= 1 (sdl2-ffi.functions:mix-playing-music))
-                (sdl2-ffi.functions:mix-pause-music))
-              ;; note: resume is safe no matter what the state of the music is
-              (sdl2-ffi.functions:mix-resume-music)))))))
+          ;; note: resume is safe no matter what the state of the music is
+          (sdl2-ffi.functions:mix-resume-music))))))
 
 @export
 (defun sdl-audio-player-load-sfx-state (audio-player new-audio-state)
@@ -373,58 +349,47 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
       (declare (audio-state audio-state new-audio-state))
       (with-slots ((current-sfx-channels sfx-channels))
           audio-state
-        (with-slots ((new-paused-p paused-p)
-                     (new-sfx-channels sfx-channels))
+        (with-slots ((new-sfx-channels sfx-channels))
             new-audio-state
-          (when new-paused-p
-            (sdl2-ffi.functions:mix-pause +all-channels+))
-          (loop :for i :from 0
-             :for new-channel :across new-sfx-channels :do
-               (when (>= i (length current-sfx-channels))
-                 (vector-push-extend (sdl-audio-player-get-channel audio-player)
-                                     current-sfx-channels))
-               (let ((current-channel (elt current-sfx-channels i)))
-                 (unless (%sdl-channels-equal-p new-channel current-channel)
-                   (%sdl-channel-copy new-channel current-channel)
-                   (sdl2-mixer:halt-channel (sdl-channel-number new-channel))
-                   (sdl2-ffi.functions:mix-play-channel-timed
-                    (sdl-channel-number new-channel)
-                    (slot-value (sdl-channel-sample new-channel) 'sdl-buffer)
-                    ;; hardcoding a one-time play
-                    0 -1)
-                   (sdl2-ffi.functions:mix-pause (sdl-channel-number new-channel))
-                   (log:debug "queuing sfx play on mixer channel: ~A -> ~A"
-                              (sdl-channel-number new-channel)
-                              (audio-sample-path-to-audio (sdl-channel-sample new-channel)))
-                   (if (and (sdl-channel-start-time-samples current-channel)
-                            (/= (sdl-channel-start-time-samples current-channel)
-                                (audio-state-current-time-samples new-audio-state)))
-                       ;; resume channel playback
-                       (let ((sfx-position-samples (- (audio-state-current-time-samples new-audio-state)
-                                                      (sdl-channel-start-time-samples current-channel))))
-                         (set-channel-position (sdl-channel-number new-channel)
-                                               (slot-value (sdl-channel-sample new-channel)
-                                                           'sdl-buffer)
-                                               sfx-position-samples))
-                       ;; channel began playing. mark start time
-                       (setf (sdl-channel-start-time-samples current-channel)
-                             (audio-state-current-time-samples new-audio-state)))))
-             :finally
-               (when (> (length new-sfx-channels)
-                        (length current-sfx-channels))
-                 (loop :for j :from (length new-sfx-channels) :below (length current-sfx-channels)
-                    :do
-                      (log:debug "state change halting channel ~A" j)
-                      (sdl2-mixer:halt-channel
-                       (sdl-channel-number (elt current-sfx-channels j))))
-                 (log:debug "state change truncate existing mixer channels: ~A -> ~A"
-                            (length current-sfx-channels)
+          (block add-new-channels
+            (loop :while (< (length current-sfx-channels)
                             (length new-sfx-channels))
-                 (setf (fill-pointer current-sfx-channels)
-                       (length new-sfx-channels))))
-          (if new-paused-p
-              (sdl2-ffi.functions:mix-pause +all-channels+)
-              (sdl2-ffi.functions:mix-resume +all-channels+)))))))
+               :do
+                 (vector-push-extend (sdl-audio-player-get-channel audio-player)
+                                     current-sfx-channels)))
+          (block remove-extra-channels
+            (when (< (length new-sfx-channels)
+                     (length current-sfx-channels))
+              (log:debug "state change truncate existing mixer channels: ~A -> ~A"
+                         (length current-sfx-channels)
+                         (length new-sfx-channels))
+              (loop :for i :from (length new-sfx-channels) :below (length current-sfx-channels)
+                 :do
+                   (log:debug "-- halting channel ~A" i)
+                   (sdl2-mixer:halt-channel
+                    (sdl-channel-number (elt current-sfx-channels i))))
+              (setf (fill-pointer current-sfx-channels)
+                    (length new-sfx-channels))))
+          (block copy-existing-channels
+            (loop :for i :from 0
+               :for new-channel :across new-sfx-channels :do
+                 (let ((current-channel (elt current-sfx-channels i)))
+                   (unless (%sdl-channels-equal-p new-channel current-channel)
+                     (%sdl-channel-copy new-channel current-channel)
+                     (sdl2-mixer:halt-channel (sdl-channel-number new-channel))
+                     (sdl2-ffi.functions:mix-play-channel-timed
+                      (sdl-channel-number new-channel)
+                      (slot-value (sdl-channel-sample new-channel) 'sdl-buffer)
+                      ;; hardcoding a one-time play
+                      0 -1)
+                     (sdl2-ffi.functions:mix-pause (sdl-channel-number new-channel))
+                     (log:debug "queuing sfx play on mixer channel: ~A -> ~A"
+                                (sdl-channel-number new-channel)
+                                (audio-sample-path-to-audio (sdl-channel-sample new-channel)))
+                     (if (and (sdl-channel-start-time-samples current-channel) (/= (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state))) (let ((sfx-position-samples (- (audio-state-current-time-samples new-audio-state) (sdl-channel-start-time-samples current-channel)))) (when *audio* (set-channel-position (sdl-channel-number new-channel) (slot-value (sdl-channel-sample new-channel) 'sdl-buffer) sfx-position-samples))) (setf (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state))))) ;; resume channel playback channel began playing. mark start time
+                 ))
+          (when *audio*
+            (sdl2-ffi.functions:mix-resume +all-channels+)))))))
 
 ;; audio sound loading implementation
 
@@ -648,27 +613,6 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
                   (audio-state-music-channel tmp-audio-state) channel))
           (audio-player-load-state audio-player tmp-audio-state)))
       audio-player)))
-
-(let ((tmp-audio-state nil))
-  (defmethod audio-player-pause ((audio-player sdl-audio-player) &key (pause-state :toggle))
-    (with-sdl-mixer-lock-held
-      (unless tmp-audio-state
-        (setf tmp-audio-state
-              (audio-player-copy-state audio-player)))
-      (audio-player-copy-state audio-player tmp-audio-state)
-      (setf (audio-state-paused-p tmp-audio-state)
-            (ecase pause-state
-              (:pause
-               ;; set to the sample timestamp of when the pause occurred
-               (or (audio-state-paused-p tmp-audio-state)
-                   (audio-state-current-time-samples tmp-audio-state)))
-              (:unpause nil)
-              (:toggle
-               (if (audio-state-paused-p tmp-audio-state)
-                   nil
-                   (audio-state-current-time-samples tmp-audio-state)))))
-      (audio-player-load-state audio-player tmp-audio-state))
-    audio-player))
 
 (let ((tmp-audio-state nil))
   (defmethod audio-player-stop-music ((audio-player sdl-audio-player))

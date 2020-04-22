@@ -133,7 +133,7 @@
                                       (>= (- (scene-ticks *scene*) last-sfx-ts)
                                           min-sfx-gap)))
                          (setf last-sfx-ts (scene-ticks *scene*))
-                         (play-sound-effect *audio* reading-sfx :volume 0.5)))
+                         (audio-player-play-sound-effect *audio* reading-sfx :volume 0.5)))
                      (log:trace "~A :: Revealed char. next-char-appear: ~A"
                                 (scene-ticks *scene*)
                                 next-char-appear-timestamp)
@@ -571,7 +571,7 @@ The NEXT value of each node defaults to the next line in BODY. "
   (label 'after-tale)
   (run-action (log "This is arbitrary lisp code")
               (give-to-player *stone-sword*)
-              (play-sound-effect *audio* *recieve-special-item*))
+              (audio-player-play-sound-effect *audio* *recieve-special-item*))
   "Good luck on your journey."
 
   (run-action (format t "debugging"))
@@ -743,7 +743,7 @@ The NEXT value of each node defaults to the next line in BODY. "
     (when answer-indicator
       (setf (parent answer-indicator) nil))
     (when sfx
-      (play-sound-effect *audio* sfx))
+      (audio-player-play-sound-effect *audio* sfx))
     (loop :for answer in answers :do
          (setf (parent answer) nil)))
   (call-next-method node hud))
@@ -761,7 +761,7 @@ The NEXT value of each node defaults to the next line in BODY. "
       node
     (setf index (min (+ index 1) (- (length answers) 1)))
     (when sfx
-      (play-sound-effect *audio* sfx))
+      (audio-player-play-sound-effect *audio* sfx))
     (when indicator
       (setf (x indicator) (x (elt answers index))
             (y indicator) (y (elt answers index))
@@ -776,7 +776,7 @@ The NEXT value of each node defaults to the next line in BODY. "
       node
     (setf index (max (- index 1) 0))
     (when sfx
-      (play-sound-effect *audio* sfx))
+      (audio-player-play-sound-effect *audio* sfx))
     (when indicator
       (setf (x indicator) (x (elt answers index))
             (y indicator) (y (elt answers index))

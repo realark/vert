@@ -100,6 +100,8 @@ Idempotent. Will be called when all vert systems are initialized.")
   (with-slots (lock objects can-load-resources-p) resource-autoloader
     (when can-load-resources-p
       (bt:with-recursive-lock-held (lock)
+        (setf objects
+              (delete nil objects))
         (loop :for i :from 0
              :with empty-refs-p = nil
            :for pointer :across objects :do

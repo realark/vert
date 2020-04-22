@@ -44,11 +44,6 @@
     'noop))
 
 @export
-(defgeneric audio-player-pause (audio-player &key pause-state)
-  (:documentation "Pause or unpause all audio.
-PAUSE-STATE must be :toggle :pause or :unpause"))
-
-@export
 (defgeneric audio-player-stop-music (audio-player)
   (:documentation "Stop any playing music on AUDIO-PLAYER. No effect if no music playing."))
 

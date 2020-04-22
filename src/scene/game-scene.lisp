@@ -127,11 +127,12 @@ This is an optimization so we don't have to rebuild the render and update queues
 
 (defmethod scene-deactivated ((scene game-scene))
   (with-slots ((state scene-audio-state)) scene
-    (unless state
-      (setf state (audio-player-copy-state *audio*)))
-    (audio-player-copy-state *audio* state)
-    (audio-player-stop-music *audio*)
-    (audio-player-stop-sfx *audio*))
+    (with-sdl-mixer-lock-held
+      (unless state
+        (setf state (audio-player-copy-state *audio*)))
+      (audio-player-copy-state *audio* state)
+      (audio-player-stop-music *audio*)
+      (audio-player-stop-sfx *audio*)))
   (values))
 
 @export
