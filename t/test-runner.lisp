@@ -10,12 +10,12 @@
 
 @export
 (defun run-tests (&key
-                    (reporter :fiveam)
+                    reporter
                     (packages (list))
                     (tests (list))
                     debug-on-error)
   "Reset counts and run all tests. T if all tests pass.
-REPORTER is a prove reporter. interesting reporters: :fiveam :list
+REPORTER is a prove reporter. If null the test runner will guess which one is best to use. Interesting reporters: :fiveam :list
 
 Examples:
 ;; run a suite of tests associated with a package
@@ -29,6 +29,12 @@ Examples:
     (setf tests (list tests)))
   (unless (or tests packages)
     (error "must specify :TESTS and/or :PACKAGES."))
+  (unless reporter
+    (setf reporter
+          (if packages
+              ;; full package runs have a lot of output. Report fiveam to condense output.
+              :fiveam
+              :list)))
   (and
    (loop :for test-symb :in tests :do
         (format T "~%----~A----~%" test-symb)
