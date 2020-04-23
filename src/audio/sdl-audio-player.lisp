@@ -146,7 +146,19 @@ Computed as (* (/ bit-rate 8) num-channels)")
                                        :adjustable t
                                        :fill-pointer 0)
                  :reader audio-state-sfx-channels
-                 :documentation "Array of SDL-SFX-CHANNEL objects. Ordered by channel number"))
+                 :documentation "Array of SDL-SFX-CHANNEL objects. Ordered by channel number")
+   (sfx-volume :initarg :sfx-volume
+               :initform
+               (if *config*
+                   (getconfig 'audio-player-sfx-volume *config*)
+                   1.0)
+               :accessor audio-state-sfx-volume)
+   (music-volume :initarg :music-volume
+                 :initform
+                 (if *config*
+                     (getconfig 'audio-player-music-volume *config*)
+                     1.0)
+                 :accessor audio-state-music-volume))
   (:documentation "The state of all audio. One channel of music and up to 8 channels of sound effects"))
 
 (defgeneric audio-state-music-state (audio-state)
@@ -217,13 +229,19 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
     (with-sdl-mixer-lock-held
       (with-slots ((current-time current-time-samples)
                    (current-music-channel music-channel)
-                   (current-sfx-channels sfx-channels))
+                   (current-sfx-channels sfx-channels)
+                   (current-music-volume music-volume)
+                   (current-sfx-volume sfx-volume))
           audio-state
         (with-slots ((dest-time current-time-samples)
                      (dest-music-channel music-channel)
-                     (dest-sfx-channels sfx-channels))
+                     (dest-sfx-channels sfx-channels)
+                     (dest-music-volume music-volume)
+                     (dest-sfx-volume sfx-volume))
             destination-audio-state
-          (setf dest-time current-time)
+          (setf dest-time current-time
+                dest-music-volume current-music-volume
+                dest-sfx-volume current-sfx-volume)
           (%sdl-channel-copy current-music-channel dest-music-channel)
           (loop :for i :from 0
              :for current-channel :across current-sfx-channels :do
@@ -257,9 +275,11 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
   "Load music info from NEW-AUDIO-STATE into AUDIO-PLAYER's internal state. Must be called under AUDIO-PLAYER's lock."
   (with-slots (audio-state) audio-player
     (declare (audio-state audio-state new-audio-state))
-    (with-slots ((current-music-channel music-channel))
+    (with-slots ((current-music-channel music-channel)
+                 (current-music-volume music-volume))
         audio-state
-      (with-slots ((new-music-channel music-channel))
+      (with-slots ((new-music-channel music-channel)
+                   (new-music-volume music-volume))
           new-audio-state
         (let ((new-music-p (not (%sdl-channels-equal-p current-music-channel new-music-channel))))
           (when new-music-p
@@ -293,7 +313,11 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                           (audio-state-current-time-samples new-audio-state))))
               (sdl2-ffi.functions:mix-pause-music)))
           ;; note: resume is safe no matter what the state of the music is
-          (sdl2-ffi.functions:mix-resume-music))))))
+          (setf current-music-volume new-music-volume)
+          (when *audio*
+            (sdl2-ffi.functions:mix-volume-music
+             (floor (* new-music-volume sdl2-ffi:+mix-max-volume+)))
+            (sdl2-ffi.functions:mix-resume-music)))))))
 
 @export
 (defun sdl-audio-player-load-sfx-state (audio-player new-audio-state)
@@ -346,9 +370,11 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                    (setf alen (+ alen foreign-offset-bytes))))))))
     (with-slots (audio-state) audio-player
       (declare (audio-state audio-state new-audio-state))
-      (with-slots ((current-sfx-channels sfx-channels))
+      (with-slots ((current-sfx-channels sfx-channels)
+                   (current-sfx-volume sfx-volume))
           audio-state
-        (with-slots ((new-sfx-channels sfx-channels))
+        (with-slots ((new-sfx-channels sfx-channels)
+                     (new-sfx-volume sfx-volume))
             new-audio-state
           (block add-new-channels
             (loop :while (< (length current-sfx-channels)
@@ -398,7 +424,12 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                              (set-channel-position (sdl-channel-number new-channel) (slot-value (sdl-channel-sample new-channel) 'sdl-buffer) sfx-position-samples)))
                          ;; resume channel playback channel began playing. mark start time
                          (setf (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state)))))))
+
+          (setf current-sfx-volume new-sfx-volume)
           (when *audio*
+            (sdl2-ffi.functions:mix-volume
+             +all-channels+
+             (floor (* new-sfx-volume sdl2-ffi:+mix-max-volume+)))
             (sdl2-ffi.functions:mix-resume +all-channels+)))))))
 
 ;; audio sound loading implementation

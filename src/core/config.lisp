@@ -75,8 +75,6 @@ Example:
 (export-config-key
  'resizable-window "Allow application window to be resized. Defaults to t.")
 (export-config-key
- 'use-dummy-audio-output "When t, audio will be output to a dummy driver.")
-(export-config-key
  'log-output "The keyword :stdout, or a string specifying log's file name.")
 (export-config-key
  'log-level "A log4CL log level.")
@@ -84,6 +82,12 @@ Example:
  'controller-db "Path to an sdl controller database. See https://wiki.libsdl.org/SDL_GameControllerAddMappingsFromFile")
 (export-config-key
  'audio-player-creator-fn "A zero arg function which returns an AUDIO-PLAYER. Use this option to override the built-in sdl-audio-player.")
+(export-config-key
+ 'audio-player-music-volume "Set the music volume. single-float between 0.0 and 1.0. Defaults to 1.0.")
+(export-config-key
+ 'audio-player-sfx-volume "Set the sound effect volume. single-float between 0.0 and 1.0. Defaults to 1.0.")
+(export-config-key
+ 'use-dummy-audio-output "When t, audio will be output to a dummy driver.")
 
 @export
 (defvar *default-config* (make-config ()
@@ -102,7 +106,9 @@ Example:
                                       ('controller-db nil)
                                       ('audio-player-creator-fn
                                        (lambda ()
-                                         (make-instance 'recurse.vert::sdl-audio-player))))
+                                         (make-instance 'recurse.vert::sdl-audio-player)))
+                                      ('audio-player-music-volume 1.0)
+                                      ('audio-player-sfx-volume 1.0))
   "The config used by vert if no config is specified.")
 
 @export
