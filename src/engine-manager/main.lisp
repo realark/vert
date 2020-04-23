@@ -20,12 +20,11 @@
            (function scene-creator-function))
   (unless *engine-manager*
     #+os-macosx
-    (unless (and (eq (or #+sbcl (sb-thread:main-thread)
-                         (error "unable to find main thread for lisp impl ~A:~A"
-                                (lisp-implementation-type)
-                                (lisp-implementation-version)))
-                     (current-thread))
-                 block)
+    (unless (eq (or #+sbcl (sb-thread:main-thread)
+                    (error "unable to find main thread for lisp impl ~A:~A"
+                           (lisp-implementation-type)
+                           (lisp-implementation-version)))
+                (current-thread))
       (error "osx will crash if any thread other than thread0 issues drawing calls"))
     (setf *config* config
           *engine-manager* (make-instance 'sdl-engine-manager)
