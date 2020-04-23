@@ -5,9 +5,11 @@
   ()
   (:documentation "Singleton (by convention, not enforced). Stored in *audio* global. Accesses audio resources shared across vert."))
 
+@export
 (defgeneric start-audio-player (audio-player)
   (:documentation "Initialize AUDIO-PLAYER."))
 
+@export
 (defgeneric stop-audio-player (audio-player)
   (:documentation "Stop AUDIO-PLAYER and release all resources."))
 
@@ -74,11 +76,40 @@
 (defconstant +output-num-channels+ 2 "Stereo output")
 
 (defun start-audio-system ()
-  (when *audio*
-    (start-audio-player *audio*)
-    *audio*))
+  (if *audio*
+      (log:warn "START-AUDIO-SYSTEM invoked, but *audio* global is already initialized: ~A. Skipping startup."
+                *audio*)
+      (progn
+        (unless *config*
+          (log:warn "No config found. Using *default-config* to start the audio system."))
+        (let* ((*config* (or *config* *default-config*))
+               (creator-fn (getconfig 'audio-player-creator-fn *config*)))
+          (unless creator-fn
+            (log:warn "audio-player-creator-fn not present in config ~A. Using default creator fn." *config*)
+            (setf creator-fn
+                  (getconfig 'audio-player-creator-fn *default-config*)))
+          (setf *audio*
+                (funcall creator-fn))
+          (unless (typep *audio* 'audio-player)
+            (log:error "AUDIO-PLAYER-CREATOR-FN must return an audio-player type or subtype. ~A returned ~A (of type ~A)"
+                       *config*
+                       *audio*
+                       (type-of *audio*))
+            (setf *audio* nil)
+            (error "AUDIO-PLAYER-CREATOR-FN must return an audio-player type or subtype. ~A returned ~A (of type ~A)"
+                   *config*
+                   *audio*
+                   (type-of *audio*)))
+          (start-audio-player *audio*)
+          (log:info "Audio System started: ~A" *audio*))))
+  *audio*)
 
 (defun stop-audio-system ()
-  (when *audio*
-    (stop-audio-player *audio*))
+  (if *audio*
+      (progn
+        (stop-audio-player *audio*)
+        (setf *audio* nil)
+        (log:info "Audio System stopped."))
+      (log:warn "STOP-AUDIO-SYSTEM invoked, but *audio* global is null. Skipping."
+                *audio*))
   (values))

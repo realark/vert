@@ -10,14 +10,13 @@
   nil
   "Manages the current scene and runs the game loop")
 
-(defun main (scene-creator-function &key (block T)
+@export
+(defun main (scene-creator-function &key
                                       (dev-mode nil)
-                                      (audio-player (make-instance 'sdl-audio-player))
                                       (config *default-config*))
   "Start the game engine. No effect if the engine is already started."
   (declare (config config)
            ((or null config) dev-mode)
-           (audio-player audio-player)
            (function scene-creator-function))
   (unless *engine-manager*
     #+os-macosx
@@ -30,8 +29,7 @@
       (error "osx will crash if any thread other than thread0 issues drawing calls"))
     (setf *config* config
           *engine-manager* (make-instance 'sdl-engine-manager)
-          *dev-mode* dev-mode
-          *audio* audio-player)
+          *dev-mode* dev-mode)
     (labels ((run-engine ()
                (unwind-protect
                     (progn ; set log4cl to a base state
@@ -52,9 +50,7 @@
                        *config* nil
                        *vert-thread* nil
                        *dev-mode* nil))))
-      (if t ; TODO: remove block parameter entirely
-          (run-engine)
-          (make-thread #'run-engine :name "vert-game-loop")))))
+      (run-engine))))
 
 (defun quit ()
   "Stop the running game engine."

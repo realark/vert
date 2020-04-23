@@ -82,6 +82,8 @@ Example:
  'log-level "A log4CL log level.")
 (export-config-key
  'controller-db "Path to an sdl controller database. See https://wiki.libsdl.org/SDL_GameControllerAddMappingsFromFile")
+(export-config-key
+ 'audio-player-creator-fn "A zero arg function which returns an AUDIO-PLAYER. Use this option to override the built-in sdl-audio-player.")
 
 @export
 (defvar *default-config* (make-config ()
@@ -97,7 +99,10 @@ Example:
                                       ('initial-window-fullscreen-p nil)
                                       ('log-output :stdout)
                                       ('log-level :info)
-                                      ('controller-db nil))
+                                      ('controller-db nil)
+                                      ('audio-player-creator-fn
+                                       (lambda ()
+                                         (make-instance 'recurse.vert::sdl-audio-player))))
   "The config used by vert if no config is specified.")
 
 @export
