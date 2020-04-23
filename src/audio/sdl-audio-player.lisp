@@ -281,7 +281,6 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                     (log:debug "Resuming music playback at ~A seconds" music-position-seconds)
                     ;; Note: mixer position setting differs for different file types
                     ;; https://www.libsdl.org/projects/SDL_mixer/docs/SDL_mixer.html#SEC65
-                    ;; (sdl2-ffi.functions:mix-rewind-music)
                     (sdl2-ffi.functions:mix-set-music-position
                      ;; TODO: consing due to double-float boxing
                      (coerce music-position-seconds
@@ -434,6 +433,11 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
                                    :path-to-audio path-to-sfx)))
 
 (defmethod audio-player-load-music ((audio-player sdl-audio-player) path-to-music)
+  (unless (and (> (length path-to-music) 4)
+               (equalp ".ogg"
+                       (subseq path-to-music
+                               (- (length path-to-music) 4))))
+    (error "Only .ogg file supported. Got: ~A" path-to-music))
   (getcache-default path-to-music
                     *legacy-sdl-audio-cache*
                     (make-instance 'audio-sample
