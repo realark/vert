@@ -381,7 +381,9 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                             (length new-sfx-channels))
                :do
                  (vector-push-extend (sdl-audio-player-get-channel audio-player)
-                                     current-sfx-channels)))
+                                     current-sfx-channels)
+                 (log:debug "Added new sfx channel for state change: ~A"
+                            (length current-sfx-channels))))
           (block remove-extra-channels
             (when (< (length new-sfx-channels)
                      (length current-sfx-channels))
@@ -392,7 +394,9 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                  :do
                    (log:debug "-- halting channel ~A" i)
                    (sdl2-mixer:halt-channel
-                    (sdl-channel-number (elt current-sfx-channels i))))
+                    (sdl-channel-number (elt current-sfx-channels i)))
+                   ;; return to object pool
+                   (sdl-audio-player-return-channel audio-player (elt current-sfx-channels i)))
               (setf (fill-pointer current-sfx-channels)
                     (length new-sfx-channels))))
           (block copy-existing-channels
@@ -400,31 +404,32 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                :for new-channel :across new-sfx-channels :do
                  (let ((current-channel (elt current-sfx-channels i)))
                    (unless (%sdl-channels-equal-p new-channel current-channel)
-                     (%sdl-channel-copy new-channel current-channel)
+                     ;; be mindful that calling HALT-CHANNEL will invoke %%CHANNEL-FINISHED-CALLBACK
                      (sdl2-mixer:halt-channel (sdl-channel-number new-channel))
-                     (sdl2-ffi.functions:mix-play-channel-timed
-                      (sdl-channel-number new-channel)
-                      (slot-value (sdl-channel-sample new-channel) 'sdl-buffer)
-                      ;; hardcoding a one-time play
-                      0 -1)
-                     (sdl2-ffi.functions:mix-pause (sdl-channel-number new-channel))
-                     (log:debug "queuing sfx play on mixer channel: ~A -> ~A"
-                                (sdl-channel-number new-channel)
-                                (audio-sample-path-to-audio (sdl-channel-sample new-channel)))
-                     (if (and (sdl-channel-start-time-samples current-channel)
-                              (/= (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state)))
-                         (let ((sfx-position-samples (- (audio-state-current-time-samples new-audio-state)
-                                                        (sdl-channel-start-time-samples current-channel))))
-                           (when *audio*
-                             (when (< sfx-position-samples 0)
-                               (log:warn "Invalid start time for sdl channel: ~A -- ~A. Setting to zero."
-                                         (sdl-channel-number current-channel)
-                                         (audio-sample-path-to-audio (sdl-channel-sample current-channel)))
-                               (setf sfx-position-samples 0))
-                             (set-channel-position (sdl-channel-number new-channel) (slot-value (sdl-channel-sample new-channel) 'sdl-buffer) sfx-position-samples)))
-                         ;; resume channel playback channel began playing. mark start time
-                         (setf (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state)))))))
-
+                     (%sdl-channel-copy new-channel current-channel)
+                     (when (sdl-channel-sample new-channel)
+                       (sdl2-ffi.functions:mix-play-channel-timed
+                        (sdl-channel-number new-channel)
+                        (slot-value (sdl-channel-sample new-channel) 'sdl-buffer)
+                        ;; hardcoding a one-time play
+                        0 -1)
+                       (sdl2-ffi.functions:mix-pause (sdl-channel-number new-channel))
+                       (log:debug "queuing sfx play on mixer channel: ~A -> ~A"
+                                  (sdl-channel-number new-channel)
+                                  (audio-sample-path-to-audio (sdl-channel-sample new-channel)))
+                       (if (and (sdl-channel-start-time-samples current-channel)
+                                (/= (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state)))
+                           (let ((sfx-position-samples (- (audio-state-current-time-samples new-audio-state)
+                                                          (sdl-channel-start-time-samples current-channel))))
+                             (when *audio*
+                               (when (< sfx-position-samples 0)
+                                 (log:warn "Invalid start time for sdl channel: ~A -- ~A. Setting to zero."
+                                           (sdl-channel-number current-channel)
+                                           (audio-sample-path-to-audio (sdl-channel-sample current-channel)))
+                                 (setf sfx-position-samples 0))
+                               (set-channel-position (sdl-channel-number new-channel) (slot-value (sdl-channel-sample new-channel) 'sdl-buffer) sfx-position-samples)))
+                           ;; resume channel playback channel began playing. mark start time
+                           (setf (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state))))))))
           (setf current-sfx-volume new-sfx-volume)
           (when *audio*
             (sdl2-ffi.functions:mix-volume
@@ -530,10 +535,8 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
         (loop :for sdl-channel :across sfx-channels :do
              (when (equalp (the fixnum (sdl-channel-number sdl-channel))
                            channel-number)
-               (log:debug "Channel ~A finished normally" channel-number)
-               (setf sfx-channels
-                     (delete sdl-channel sfx-channels :test #'eq))
-               (sdl-audio-player-return-channel *audio* sdl-channel)
+               (setf (sdl-channel-sample sdl-channel) nil
+                     (sdl-channel-start-time-samples sdl-channel) nil)
                (return))
            :finally
              (log:debug "Unable to find sdl-channel in audio-state for channel: ~A. This is can happen when a new audio-state is loaded while a channel is playing."
@@ -629,14 +632,21 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
             (setf tmp-audio-state
                   (audio-player-copy-state audio-player)))
           (audio-player-copy-state audio-player tmp-audio-state)
-          (let ((channel (sdl-audio-player-get-channel audio-player)))
-            (setf (sdl-channel-number channel) (length (audio-state-sfx-channels tmp-audio-state))
-                  (sdl-channel-sample channel) (audio-player-load-sfx audio-player
+          (let ((channel (loop :for channel :across (audio-state-sfx-channels tmp-audio-state) :do
+                              (when (null (sdl-channel-sample channel))
+                                ;; return the first free channel
+                                (return channel))
+                            :finally
+                            ;; not free channels. Get a new one out of the object pool.
+                              (let ((channel (sdl-audio-player-get-channel audio-player)))
+                                (setf (sdl-channel-number channel) (length (audio-state-sfx-channels tmp-audio-state)))
+                                (vector-push-extend channel
+                                                    (audio-state-sfx-channels tmp-audio-state))
+                                (return channel)))))
+            (setf (sdl-channel-sample channel) (audio-player-load-sfx audio-player
                                                                       path-to-sfx-file
                                                                       :volume volume)
-                  (sdl-channel-start-time-samples channel) nil)
-            (vector-push-extend channel
-                                (audio-state-sfx-channels tmp-audio-state)))
+                  (sdl-channel-start-time-samples channel) nil))
           (audio-player-load-state audio-player tmp-audio-state)))
       audio-player)))
 
