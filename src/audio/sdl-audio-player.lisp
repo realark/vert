@@ -171,8 +171,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
 ;;;; sdl audio player
 
 (defclass sdl-audio-player (audio-player)
-  ((lock :initform (bt:make-recursive-lock "sdl-audio-player"))
-   (audio-state :initform (make-instance 'audio-state)
+  ((audio-state :initform (make-instance 'audio-state)
                 :documentation "The active audio-state being processed. The audio-player will update this audio-state as samples are processed.
 For thread safety, this slot should not be directly accessed outside of audio-player internals. See AUDIO-PLAYER-COPY-STATE and AUDIO-PLAYER-LOAD-STATE if you wish to alter or read the audio state.")
    (channel-pool :initform (make-array 0
@@ -224,7 +223,7 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
 ;; audio-state copy implementations
 
 (defmethod audio-player-copy-state ((audio-player sdl-audio-player) &optional (destination-audio-state (make-instance 'audio-state)))
-  (with-slots (lock audio-state) audio-player
+  (with-slots (audio-state) audio-player
     (declare (audio-state audio-state destination-audio-state))
     (with-sdl-mixer-lock-held
       (with-slots ((current-time current-time-samples)
@@ -254,7 +253,7 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
       destination-audio-state)))
 
 (defmethod audio-player-load-state ((audio-player sdl-audio-player) (new-audio-state audio-state))
-  (with-slots (lock audio-state) audio-player
+  (with-slots (audio-state) audio-player
     (declare (audio-state audio-state new-audio-state))
     (with-sdl-mixer-lock-held
       (with-slots ((current-time current-time-samples)
