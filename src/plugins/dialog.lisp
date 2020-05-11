@@ -682,6 +682,13 @@ The NEXT value of each node defaults to the next line in BODY. "
      (setf (dialog-hud-initiator hud) initiator)
      t)))
 
+@export
+(defun cutscene-on-quit (zero-arg-fn)
+  (cutscene-run-action-with-hud
+   (lambda (hud)
+     (with-slots (on-quit-callbacks) hud
+       (push zero-arg-fn on-quit-callbacks)))))
+
 ;; hid dialog -hud
 @export
 (defun cutscene-hide-dialog-hud ()
