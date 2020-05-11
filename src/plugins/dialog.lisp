@@ -427,6 +427,10 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
 (defclass cutscene-hud (dialog-hud)
   ((active-node :initarg :active-node
                 :initform nil)
+   (on-skip :initform nil
+            :initarg :on-skip
+            :type (function () *)
+            :documentation "If the cutscene may be skipped, a zero-arg lambda will be provided for this slot and invoked when the skip occurs.")
    (on-quit-callbacks :initform nil
                       :documentation "list of zero-arg fns to run when the cutscene finishes."))
   (:documentation "A more advanced dialog hud which may run arbitrary actions along with presenting text"))
@@ -447,9 +451,9 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
   (values))
 
 @export
-(defmethod play-cutscene ((hud cutscene-hud) new-node &key on-quit)
+(defmethod play-cutscene ((hud cutscene-hud) new-node &key on-quit on-skip)
   "Play a cutscene starting with NEW-NODE. ON-QUIT is an optional zero-arg fn to invoke when the cutscene finishes."
-  (with-slots ((current-node active-node) on-quit-callbacks) hud
+  (with-slots ((current-node active-node) on-quit-callbacks (on-skip-slot on-skip)) hud
     (unless (eq new-node current-node)
       (when current-node
         (cutscene-node-on-deactivate current-node hud))
@@ -461,13 +465,20 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
         (log:debug "cutscene adding on-quit callback: ~A. ~A total"
                    on-quit
                    (length on-quit-callbacks)))
+      (when on-skip
+        (setf on-skip-slot on-skip))
       (when (null current-node)
-        (quit-dialog hud)
-        (loop :while on-quit-callbacks :do
-             (handler-case
-                 (funcall (the (function ()) (pop on-quit-callbacks)))
-               (error (e)
-                 (log:error "cutscene callback error: ~A" e))))))))
+        (cutscene-quit hud)))))
+
+(defmethod cutscene-quit ((hud cutscene-hud))
+  (with-slots (active-node on-quit-callbacks ) hud
+    (setf active-node nil)
+    (quit-dialog hud)
+    (loop :while on-quit-callbacks :do
+         (handler-case
+             (funcall (the (function ()) (pop on-quit-callbacks)))
+           (error (e)
+             (log:error "cutscene callback error: ~A" e))))))
 
 (defmethod advance-dialog ((hud cutscene-hud))
     (with-slots (active-node on-quit-callback) hud
@@ -513,7 +524,7 @@ May be the same CUTSCENE-NODE to continue the same action, or nil to quit the cu
 ;;;; Macro to build cutscene tree
 
 @export
-(defmacro make-cutscene (() &body body)
+(defmacro make-cutscene ((&key on-skip) &body body)
   "Macro to to create a dialog tree. Each form in body may either be a function which returns a CUTSCENE-NODE, or a string (which will be turned into a SHOW-DIALOG).
 The NEXT value of each node defaults to the next line in BODY. "
   (alexandria:with-gensyms (id-hash node nodes i next-node-id)
@@ -813,10 +824,12 @@ The NEXT value of each node defaults to the next line in BODY. "
  cutscene-hud
  (:controller
   (:2 :advance-dialog)
+  (:3 :skip-cutscene)
   (:14 :select-right)
   (:13 :select-left))
  (:keyboard
   (:scancode-z :advance-dialog)
+  (:scancode-c :skip-cutscene)
   (:scancode-right :select-right)
   (:scancode-l :select-right)
   (:scancode-left :select-left)
@@ -824,6 +837,13 @@ The NEXT value of each node defaults to the next line in BODY. "
 
 (set-default-command-action-map
  cutscene-hud
+ (:skip-cutscene
+  (on-deactivate
+   (with-slots (on-skip) cutscene-hud
+     (when on-skip
+       (funcall on-skip)
+       (setf on-skip nil)
+       (cutscene-quit cutscene-hud)))))
  (:advance-dialog
   (on-activate
    (%advance-dialog-button cutscene-hud :activate))
