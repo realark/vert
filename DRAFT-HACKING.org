@@ -133,7 +133,80 @@ You will almost always want to use SCENE-TICKS to implement in-game timers.
 * Vert Systems
 ** Config
 *** Interesting Globals
-** GL Context
+** Graphics
+Graphics use OpenGL 3.3.1. The window and gl-context are created by sdl2 (see sdl-engine-manager for implementation).
+
+# *** Rendering Pipeline
+# - each game scene stores a self-sorting render-queue
+#   - The sorting is used render items with a lower Z value first
+#   - Other custom sortings may be defined
+# - For every update frame, objects inside the camera are added to the render-queue
+# - Set up a scene-FBO
+#   - if no post-process, use default FBO
+#   - otherwise use a custom FBO
+# - For the render frame, the render-queue is iterated and RENDER is called on each object
+# - RENDER does the following
+#   - set up object-FBO
+#     - if no effects, use a custom FBO
+#     - otherwise use scene-FBO
+#   - render base object local space into the object-FBO texture
+#   - for each render effect:
+#     - copy object-FBO into tmp-FBO
+#     - feed tmp-FBO into the effect as the source texture
+#     - write output to object-FBO
+#   - finally
+#     - run matrix transformations and interpolations
+#     - if effects ran, write the object-FBO into the scene-FBO
+*** Rendering Overview
+Rendering is handled by providing the RENDER method.
+
+To render a specific game-component, implement the RENDER method.
+#+BEGIN_SRC lisp
+(defclass my-component (game-object)
+  ())
+
+(defmethod render ((object my-component))
+  ;; modifications to the gl context go here
+  )
+#+END_SRC
+
+RENDER will be called for every visible object once per render frame.
+*** Post-Process Effects
+To modify an entire scene a post-process effect may be added to the scene.
+
+Each post-process effect defines an input and output FBO. The scene will render into the input-texture and pass the output-fbo to the next effect's input-texture. When it reaches the final effect the output will be sent to opengl's final output buffer.
+
+As with game-object components, each post-process-effect is implemented by specializing the RENDER method.
+
+#+BEGIN_SRC lisp
+(defclass blur-effect (post-process-effect) ())
+
+(scene-add-post-process-effect *scene*
+                               (make-instance 'blur-effect
+                                              ;; numbers are gl ids
+                                              :input-texture 1
+                                              :output-fbo 2))
+
+(defmethod render ((effect blur-effect))
+  ;; modifications to the gl context go here
+  )
+#+END_SRC
+
+*** OpengGL Utils
+- The gl-utils file contains classes to represent opengl objects
+  - gl-context
+  - shader
+  - texture
+  - non-consing cl-opengl functions
+
+gl-drawable
+- effects-pipeline
+  - pre-render
+  - post-render
+
+scene
+- effects-pipeline ; runs on entire image
+*** Built-in Drawing components
 ** Audio
 ** Caches
 ** Resource Autloader

@@ -1,6 +1,6 @@
 ;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 
-(defpackage #:vert-asd
+(defpackage :vert-asd
   (:use :cl :asdf))
 
 (in-package :vert-asd)
@@ -72,6 +72,7 @@
                          (:static-file "instanced-sprite-shader.frag")
                          (:file "draw-component")
                          (:file "drawable")
+                         (:file "gl-drawable")
                          (:file "static-sprite")
                          (:file "animated-sprite")
                          (:file "font-drawable")
