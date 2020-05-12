@@ -751,10 +751,11 @@ The NEXT value of each node defaults to the next line in BODY. "
              (incf x (+ (width answer) padding))))
       (setf index 0)
       (when indicator
-        (setf (x indicator) (x (elt answers index))
-              (y indicator) (y (elt answers index))
-              (width indicator) (width (elt answers index))
-              (height indicator) (+ (height (elt answers index))))))))
+        (let ((spacing 4))
+          (setf (x indicator) (- (x (elt answers index)) (/ spacing 2))
+                (y indicator) (- (y (elt answers index)) (/ spacing 2))
+                (width indicator) (+ (width (elt answers index)) spacing)
+                (height indicator) (+ (height (elt answers index)) spacing)))))))
 
 (defmethod cutscene-node-on-deactivate ((node cutscene-node-ask-question) (hud cutscene-hud))
   (with-slots (answers answer-indicator (sfx selection-made-sfx)) node
@@ -781,10 +782,11 @@ The NEXT value of each node defaults to the next line in BODY. "
     (when sfx
       (audio-player-play-sound-effect *audio* sfx))
     (when indicator
-      (setf (x indicator) (x (elt answers index))
-            (y indicator) (y (elt answers index))
-            (width indicator) (width (elt answers index))
-            (height indicator) (+ (height (elt answers index)))))))
+      (let ((spacing 4))
+        (setf (x indicator) (- (x (elt answers index)) (/ spacing 2))
+              (y indicator) (- (y (elt answers index)) (/ spacing 2))
+              (width indicator) (+ (width (elt answers index)) spacing)
+              (height indicator) (+ (height (elt answers index)) spacing))))))
 
 (defmethod cutscene-node-select-left ((node cutscene-node-ask-question))
   (with-slots (answers
@@ -796,10 +798,11 @@ The NEXT value of each node defaults to the next line in BODY. "
     (when sfx
       (audio-player-play-sound-effect *audio* sfx))
     (when indicator
-      (setf (x indicator) (x (elt answers index))
-            (y indicator) (y (elt answers index))
-            (width indicator) (width (elt answers index))
-            (height indicator) (+ (height (elt answers index)))))))
+      (let ((spacing 4))
+        (setf (x indicator) (- (x (elt answers index)) (/ spacing 2))
+              (y indicator) (- (y (elt answers index)) (/ spacing 2))
+              (width indicator) (+ (width (elt answers index)) spacing)
+              (height indicator) (+ (height (elt answers index)) spacing))))))
 
 @export
 (defun cutscene-ask (prompt &key answer-indicator select-sfx selection-made-sfx answers)
