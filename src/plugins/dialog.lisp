@@ -451,8 +451,8 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
   (values))
 
 @export
-(defmethod play-cutscene ((hud cutscene-hud) new-node &key on-quit on-skip)
-  "Play a cutscene starting with NEW-NODE. ON-QUIT is an optional zero-arg fn to invoke when the cutscene finishes."
+(defmethod play-cutscene ((hud cutscene-hud) new-node &key on-quit (on-skip t))
+  "Play a cutscene starting with NEW-NODE. When ON-QUIT is non-nil the cutscene may be skipped. When ON-QUIT is a zero-arg fn it shall be invoked when the cutscene is skipped."
   (with-slots ((current-node active-node) on-quit-callbacks (on-skip-slot on-skip)) hud
     (unless (eq new-node current-node)
       (when current-node
@@ -465,14 +465,15 @@ If nil, this node will block the cutscene. If non-nil, this node will be deactiv
         (log:debug "cutscene adding on-quit callback: ~A. ~A total"
                    on-quit
                    (length on-quit-callbacks)))
-      (when on-skip
+      (unless on-skip-slot
         (setf on-skip-slot on-skip))
       (when (null current-node)
         (cutscene-quit hud)))))
 
 (defmethod cutscene-quit ((hud cutscene-hud))
-  (with-slots (active-node on-quit-callbacks ) hud
-    (setf active-node nil)
+  (with-slots (active-node on-skip on-quit-callbacks ) hud
+    (setf active-node nil
+          on-skip nil)
     (quit-dialog hud)
     (loop :while on-quit-callbacks :do
          (handler-case
@@ -851,8 +852,8 @@ The NEXT value of each node defaults to the next line in BODY. "
   (on-deactivate
    (with-slots (on-skip) cutscene-hud
      (when on-skip
-       (funcall on-skip)
-       (setf on-skip nil)
+       (when (functionp on-skip)
+         (funcall on-skip))
        (cutscene-quit cutscene-hud)))))
  (:advance-dialog
   (on-activate
