@@ -158,9 +158,10 @@ Graphics use OpenGL 3.3.1. The window and gl-context are created by sdl2 (see sd
 #     - run matrix transformations and interpolations
 #     - if effects ran, write the object-FBO into the scene-FBO
 *** Rendering Overview
-Rendering is handled by providing the RENDER method.
+A lisp wrapper over the opengl context is stored in the global ~*GL-CONTEXT*~.
 
-To render a specific game-component, implement the RENDER method.
+Rendering is implemented with the RENDER method for the component you wish to render. Within the render method's body, modify the gl-context to make the changes required to render your component.
+
 #+BEGIN_SRC lisp
 (defclass my-component (game-object)
   ())
@@ -171,6 +172,34 @@ To render a specific game-component, implement the RENDER method.
 #+END_SRC
 
 RENDER will be called for every visible object once per render frame.
+*** Effects with gl-pipeline
+Often it is desired to add rendering effects to a component (glow, explosion, etc). Vert provides the ~gl-pipeline~ utility to combine certain opengl operations.
+
+#+BEGIN_SRC lisp
+(defclass my-component (game-object gl-pipeline)
+  ())
+
+(defmethod initialize-instance :after ((my-component my-component) &rest args)
+  (declare (ignore args))
+  ;; first step of the pipeline will be to render the gl texture with id 78
+  (gl-pipeline-add-effect my-component
+                          (make-instance 'gl-texture-quad
+                                         :texture-id 78))
+  ;; now add an effect which can show electrical shocks
+  (gl-pipeline-add-effect my-component
+                          (make-instance 'electricity-effect))
+  ;; set up remaining effects here, or dynamically if you wish.
+  )
+#+END_SRC
+*** Base Rendering Classes
+You probably don't need to implement rendering yourself. Instead consider using or extending the built-in rendering components.
+
+All of these utils are subclasses of ~gl-pipeline~
+
+- static-sprite : render a sprite, or a portion of a sprite.
+- animated-sprite : render a sequence of component-defined static-sprites to create an animation.
+- font-drawable : render text
+# - polygon-drawable : render a solid-color concave polygon.
 *** Post-Process Effects
 To modify an entire scene a post-process effect may be added to the scene.
 
@@ -181,7 +210,8 @@ As with game-object components, each post-process-effect is implemented by speci
 #+BEGIN_SRC lisp
 (defclass blur-effect (post-process-effect) ())
 
-(scene-add-post-process-effect *scene*
+;;
+(gl-pipeline-add-post-process-effect *scene*
                                (make-instance 'blur-effect
                                               ;; numbers are gl ids
                                               :input-texture 1
@@ -191,13 +221,17 @@ As with game-object components, each post-process-effect is implemented by speci
   ;; modifications to the gl context go here
   )
 #+END_SRC
+*** Other Rendering Utils
+**** TODO instance-renderer
+**** TODO render-queue
+**** TODO OpengGL Utils
+Vert provides a series of opengl utils to implement rendering or add a new rendering effect.
 
-*** OpengGL Utils
 - The gl-utils file contains classes to represent opengl objects
   - gl-context
   - shader
   - texture
-  - non-consing cl-opengl functions
+  - non-consing cl-opengl functions.
 
 gl-drawable
 - effects-pipeline
@@ -206,7 +240,7 @@ gl-drawable
 
 scene
 - effects-pipeline ; runs on entire image
-*** Built-in Drawing components
+
 ** Audio
 ** Caches
 ** Resource Autloader

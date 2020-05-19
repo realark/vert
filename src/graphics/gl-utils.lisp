@@ -22,6 +22,7 @@
   (wrapper (error ":wrapper required") :type sdl2-ffi::sdl-glcontext)
   (shader nil :type (or null shader))
   (texture nil :type (or null texture))
+  (fbo 0 :type integer)
   (vao 0 :type integer))
 
 (defun gl-use-shader (gl-context shader)
@@ -61,10 +62,17 @@
      (if texture (texture-id texture) 0)))
   (values))
 
+(defun gl-context-use-fbo (gl-context fbo-id)
+  "Binds the read-write framebuffer for the gl context"
+  (unless (= (gl-context-fbo gl-context) fbo-id)
+    (gl:bind-framebuffer :framebuffer fbo-id)
+    (setf (gl-context-fbo gl-context) fbo-id)))
+
 (defun gl-context-clear-all (gl-context)
   (setf (gl-context-shader gl-context) nil
         (gl-context-texture gl-context) nil
-        (gl-context-vao gl-context) 0))
+        (gl-context-vao gl-context) 0
+        (gl-context-fbo gl-context) 0))
 
 ;;;; Shader
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -337,6 +345,53 @@
       (setf texture-id 0
             texture-src-width nil
             texture-src-height nil))))
+
+;;;; Framebuffer
+
+(defclass framebuffer ()
+  ((id :initform -1)
+   (texture-id :initform -1))
+  (:documentation "lisp wrapper for an opengl framebuffer with an attached texture equal to the game resolution size."))
+
+(defmethod load-resources ((framebuffer framebuffer))
+  (with-slots (id texture-id) framebuffer
+    (when (and *gl-context*
+               (= -1 id))
+      (setf id (gl:gen-framebuffer)
+            texture-id (gl:gen-texture))
+      (let ((orig-fbo (gl-context-fbo *gl-context*))
+            (orig-texture (gl-context-texture *gl-context*)))
+        (unwind-protect
+             (progn
+               (gl-context-use-fbo *gl-context* id)
+               (destructuring-bind (width height)
+                   (or (getconfig 'game-resolution *config*)
+                       (list 320 180))
+                 (n-bind-texture :texture-2d texture-id)
+                 (gl:tex-image-2d :texture-2d 0 :rgba width height 0 :rgba :unsigned-byte nil :raw t)
+                 (gl:tex-parameter :texture-2d :texture-min-filter :nearest)
+                 (gl:tex-parameter :texture-2d :texture-mag-filter :nearest))
+               (gl:framebuffer-texture-2d :framebuffer :color-attachment0 :texture-2d texture-id 0)
+
+               (let ((fbo-status (gl:check-framebuffer-status :framebuffer)))
+                 (unless (or (equal fbo-status :framebuffer-complete-oes)
+                             (equal fbo-status :framebuffer-complete))
+                   (release-resources framebuffer)
+                   (error "Error building framebuffer: ~A" fbo-status)))
+               (log:debug "Successfully built framebuffer ~A with attached texture ~A"
+                          id texture-id))
+          (gl-context-use-fbo *gl-context* orig-fbo)
+          (gl-bind-texture *gl-context* nil)
+          (gl-bind-texture *gl-context* orig-texture))))))
+
+(defmethod release-resources ((framebuffer framebuffer))
+  (with-slots (id texture-id) framebuffer
+    (unless (= -1 id)
+      (when *gl-context*
+        ;; NOTE: consing
+        (gl:delete-framebuffers (list id))
+        (gl:delete-texture texture-id))
+      (setf id -1))))
 
 ;;;; globals
 (defvar *gl-context* nil)
