@@ -62,11 +62,14 @@
      (if texture (texture-id texture) 0)))
   (values))
 
-(defun gl-context-use-fbo (gl-context fbo-id)
+(defun gl-context-use-fbo (gl-context fbo)
   "Binds the read-write framebuffer for the gl context"
-  (unless (= (gl-context-fbo gl-context) fbo-id)
-    (gl:bind-framebuffer :framebuffer fbo-id)
-    (setf (gl-context-fbo gl-context) fbo-id)))
+  (let ((fbo-id (if (typep fbo 'framebuffer)
+                    (slot-value fbo 'id)
+                    fbo)))
+    (unless (= (gl-context-fbo gl-context) fbo-id)
+      (gl:bind-framebuffer :framebuffer fbo-id)
+      (setf (gl-context-fbo gl-context) fbo-id))))
 
 (defun gl-context-clear-all (gl-context)
   (setf (gl-context-shader gl-context) nil
@@ -350,11 +353,30 @@
 
 (defclass framebuffer ()
   ((id :initform -1)
-   (texture-id :initform -1))
-  (:documentation "lisp wrapper for an opengl framebuffer with an attached texture equal to the game resolution size."))
+   (texture-id :initform -1
+               :reader framebuffer-texture-id)
+   (width :initarg :width
+          :initform nil
+          :documentation "width of the texture attached to this framebuffer.")
+   (height :initarg :height
+           :initform nil
+           :documentation "height of the texture attached to this framebuffer."))
+  (:documentation "lisp wrapper for an opengl framebuffer with an attached texture.
+If the texture dimensions are not specified the texture will be sized to the configured game resolution."))
+
+(defmethod initialize-instance :after ((fbo framebuffer) &rest args)
+  (declare (ignore args))
+  (with-slots (width height) fbo
+    (destructuring-bind (default-width default-height)
+        (or (getconfig 'game-resolution *config*)
+            (list 320 180))
+      (unless width
+        (setf width default-width))
+      (unless height
+        (setf height default-height)))))
 
 (defmethod load-resources ((framebuffer framebuffer))
-  (with-slots (id texture-id) framebuffer
+  (with-slots (id texture-id width height) framebuffer
     (when (and *gl-context*
                (= -1 id))
       (setf id (gl:gen-framebuffer)
@@ -364,13 +386,11 @@
         (unwind-protect
              (progn
                (gl-context-use-fbo *gl-context* id)
-               (destructuring-bind (width height)
-                   (or (getconfig 'game-resolution *config*)
-                       (list 320 180))
-                 (n-bind-texture :texture-2d texture-id)
-                 (gl:tex-image-2d :texture-2d 0 :rgba width height 0 :rgba :unsigned-byte nil :raw t)
-                 (gl:tex-parameter :texture-2d :texture-min-filter :nearest)
-                 (gl:tex-parameter :texture-2d :texture-mag-filter :nearest))
+
+               (n-bind-texture :texture-2d texture-id)
+               (gl:tex-image-2d :texture-2d 0 :rgba width height 0 :rgba :unsigned-byte nil :raw t)
+               (gl:tex-parameter :texture-2d :texture-min-filter :nearest)
+               (gl:tex-parameter :texture-2d :texture-mag-filter :nearest)
                (gl:framebuffer-texture-2d :framebuffer :color-attachment0 :texture-2d texture-id 0)
 
                (let ((fbo-status (gl:check-framebuffer-status :framebuffer)))
@@ -409,6 +429,84 @@
   (getcache-default "texture-cache"
                     *engine-caches*
                     (make-instance 'resource-cache)))
+
+(defvar *framebuffer-cache*
+  (getcache-default "framebuffer-cache"
+                    *engine-caches*
+                    (make-instance 'cache
+                                   :on-evict (lambda (dimensions-cons framebuffer-vec)
+                                               (declare (ignore dimensions-cons))
+                                               (loop :for framebuffer :across framebuffer-vec :do
+                                                    (release-resources framebuffer)))))
+  "(cons width height) -> (vector framebuffer1 framebuffer2 ...)")
+
+(defun get-tmp-framebuffer (&key width height)
+  "Get or create a framebuffer of the specified width and height (game resolution if null).
+When done with the tmp framebuffer, call return-tmp-framebuffer to return it to the cache.
+framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not specified the game resolution will be used."
+  (declare (optimize (speed 3)))
+  (destructuring-bind (default-width default-height)
+      (or (getconfig 'game-resolution *config*)
+          (list 320 180))
+    (unless width
+      (setf width default-width))
+    (unless height
+      (setf height default-height)))
+  (let* ((dimensions (cons width height))
+         (cached-fbos (getcache-default dimensions
+                                        *framebuffer-cache*
+                                        (make-array 0
+                                                    :adjustable t
+                                                    :fill-pointer 0
+                                                    :element-type 'framebuffer))))
+    (declare (dynamic-extent dimensions)
+             (vector cached-fbos))
+    (unless (metadata *framebuffer-cache* dimensions :next-free-fbo)
+      (setf (metadata *framebuffer-cache* dimensions :next-free-fbo) 0))
+    (when (>= (metadata *framebuffer-cache* dimensions :next-free-fbo)
+              (length cached-fbos))
+      (let ((fbo (make-instance 'framebuffer
+                                :width width
+                                :height height)))
+        (load-resources fbo)
+        (vector-push-extend fbo cached-fbos)))
+    (prog1 (elt cached-fbos
+           (metadata *framebuffer-cache* dimensions :next-free-fbo) )
+      (incf (metadata *framebuffer-cache* dimensions :next-free-fbo)))))
+
+(defun return-tmp-framebuffer (framebuffer)
+  (declare (optimize (speed 3)))
+  (let* ((dimensions (cons (slot-value framebuffer 'width)
+                           (slot-value framebuffer 'height)))
+         (cached-fbos (getcache-default dimensions
+                                        *framebuffer-cache*
+                                        (make-array 0
+                                                    :adjustable t
+                                                    :fill-pointer 0
+                                                    :element-type 'framebuffer)))
+         (framebuffer-index (loop :for i :from 0 :below (length cached-fbos) :do
+                                 (when (eq (elt cached-fbos i) framebuffer)
+                                   (return i))
+                               :finally
+                                 (log:error "Asked to return framebuffer ~A, but it is not in the framebuffer cache"
+                                            framebuffer)
+                                 (return-from return-tmp-framebuffer))))
+    (declare (dynamic-extent dimensions)
+             (vector cached-fbos))
+    (unless (= (+ framebuffer-index 1)
+               (metadata *framebuffer-cache* dimensions :next-free-fbo))
+      (rotatef (elt cached-fbos framebuffer-index)
+               (elt cached-fbos
+                    (metadata *framebuffer-cache* dimensions :next-free-fbo))))
+    (decf (metadata *framebuffer-cache* dimensions :next-free-fbo))))
+
+(defmacro with-tmp-framebuffer ((framebuffer-name &key width height) &body body)
+  (assert (symbolp framebuffer-name))
+  (alexandria:once-only (width height)
+    `(let ((,framebuffer-name (get-tmp-framebuffer :width ,width :height ,height)))
+       (unwind-protect
+            (progn ,@body)
+         (return-tmp-framebuffer ,framebuffer-name)))))
 
 ;;;; FFIs
 ;;;; cl-opengl wrapper is consing so we'll redefine some non-consing alternatives to use in hot code.
