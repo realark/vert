@@ -49,6 +49,9 @@
     (sdl2:set-window-size win width-pixels height-pixels)))
 
 (defmethod after-resize-window :after ((application-window sdl-application-window) width-pixels height-pixels)
+  (set-gl-viewport-to-game-resolution width-pixels height-pixels))
+
+(defun set-gl-viewport-to-game-resolution (width-pixels height-pixels)
   (destructuring-bind (game-resolution-w game-resolution-h)
       (getconfig 'initial-window-size *config*)
     (labels ((find-nearest-matching-resolution ()
@@ -66,17 +69,17 @@
           (find-nearest-matching-resolution)
         (assert (= (/ matching-resolution-w matching-resolution-h)
                    (/ game-resolution-w game-resolution-h)))
-          (let* ((delta-w (- width-pixels matching-resolution-w))
-                 (delta-h (- height-pixels matching-resolution-h)))
-            #+nil
-            (format t "win:~Ax~A~%nearest:~Ax~A~%delta:~Ax~A~%~%"
-                    width-pixels height-pixels
-                    matching-resolution-w matching-resolution-h
-                    delta-w delta-h)
-            (gl:viewport (/ delta-w 2)
-                         (/ delta-h 2)
-                         (- width-pixels delta-w)
-                         (- height-pixels delta-h)))))))
+        (let* ((delta-w (- width-pixels matching-resolution-w))
+               (delta-h (- height-pixels matching-resolution-h)))
+          #+nil
+          (format t "win:~Ax~A~%nearest:~Ax~A~%delta:~Ax~A~%~%"
+                  width-pixels height-pixels
+                  matching-resolution-w matching-resolution-h
+                  delta-w delta-h)
+          (gl:viewport (/ delta-w 2)
+                       (/ delta-h 2)
+                       (- width-pixels delta-w)
+                       (- height-pixels delta-h)))))))
 
 (defmethod toggle-fullscreen ((application-window sdl-application-window))
   (with-slots ((win sdl-window) pre-fs-width pre-fs-height pre-fs-x pre-fs-y) application-window

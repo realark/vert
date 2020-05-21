@@ -135,6 +135,9 @@
                                                 (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'instanced-sprite-shader.frag
                                (merge-pathnames (pathname "src/graphics/instanced-sprite-shader.frag")
+                                                (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'inverter-shader.frag
+                               (merge-pathnames (pathname "src/graphics/inverter-shader.frag")
                                                 (asdf:system-source-directory :vert)))))
 
 (defclass shader ()
@@ -273,7 +276,13 @@
     (n-uniform-matrix-4fv
      (getcache-default uniform-name
                        uniform-locations
-                       (n-get-uniform-location (shader-program-id shader) uniform-name))
+                       (progn
+                         (let ((location (n-get-uniform-location (shader-program-id shader) uniform-name)))
+                           (declare (fixnum location))
+                           (log:debug "shader (shader-program-id shader) cache uniform ~A -> ~A"
+                                      uniform-name
+                                      location)
+                           location)))
      matrix
      transpose-p)))
 
@@ -440,6 +449,21 @@ If the texture dimensions are not specified the texture will be sized to the con
                                                     (release-resources framebuffer)))))
   "(cons width height) -> (vector framebuffer1 framebuffer2 ...)")
 
+(defvar *identity-matrix*
+  (matrix
+   1.0 0.0 0.0 0.0
+   0.0 1.0 0.0 0.0
+   0.0 0.0 1.0 0.0
+   0.0 0.0 0.0 1.0))
+
+;; (progn
+;;   (format t "fbo cache~%")
+;;   (do-cache-with-metadata (*framebuffer-cache* resoluiton vec :next-free-fbo next-free-fbo)
+;;     (format t "     ~A -> [next=~A] ~A~%"
+;;             resoluiton
+;;             next-free-fbo
+;;             vec)))
+
 (defun get-tmp-framebuffer (&key width height)
   "Get or create a framebuffer of the specified width and height (game resolution if null).
 When done with the tmp framebuffer, call return-tmp-framebuffer to return it to the cache.
@@ -453,14 +477,18 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
     (unless height
       (setf height default-height)))
   (let* ((dimensions (cons width height))
-         (cached-fbos (getcache-default dimensions
-                                        *framebuffer-cache*
-                                        (make-array 0
-                                                    :adjustable t
-                                                    :fill-pointer 0
-                                                    :element-type 'framebuffer))))
+         (cached-fbos (getcache dimensions *framebuffer-cache*)))
     (declare (dynamic-extent dimensions)
-             (vector cached-fbos))
+             ((or null vector) cached-fbos))
+    (unless cached-fbos
+      ;; make sure not to used dynamic-extent dimensions variable for the hash key
+      (setf cached-fbos
+            (getcache-default (cons width height)
+                              *framebuffer-cache*
+                              (make-array 0
+                                          :adjustable t
+                                          :fill-pointer 0
+                                          :element-type 'framebuffer))))
     (unless (metadata *framebuffer-cache* dimensions :next-free-fbo)
       (setf (metadata *framebuffer-cache* dimensions :next-free-fbo) 0))
     (when (>= (metadata *framebuffer-cache* dimensions :next-free-fbo)

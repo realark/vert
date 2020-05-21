@@ -21,7 +21,7 @@ void main()
 
   vertexData.textureCoords = vec2(spriteSrcX + (srcCoord.x * spriteWidth),
                                   spriteSrcY + (srcCoord.y * spriteHeight));
-  vec4 rawPosition = worldProjection * worldModel * vec4(screenPos, 1.0);
+  // vec4 rawPosition = worldProjection * worldModel * vec4(screenPos, 1.0);
   // gl_Position = vec4(round((rawPosition.x * roundingPrecision)) / roundingPrecision,
   //                    round((rawPosition.y * roundingPrecision)) / roundingPrecision,
   //                    rawPosition.z,
