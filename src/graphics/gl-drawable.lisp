@@ -78,6 +78,7 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                (setf (gl-drawable-input-texture drawable) nil)
                (render drawable update-percent camera rendering-context)))
             (t
+             ;; TODO: allow drawables to modify the transform matrix
              (let ((orig-fbo (gl-context-fbo *gl-context*)))
                (unwind-protect
                     (with-tmp-framebuffer (input-fbo)
@@ -101,54 +102,12 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                  (rotatef input-fbo output-fbo))))))
                  (gl-context-use-fbo *gl-context* orig-fbo))))))))
 
-;;;; TODO scratch vvv
+;;;; color invert effect
 
-#+nil
-(progn
-  (defclass tmp-pipe (obb gl-pipeline)
-    ())
+;; (defclass gl-color-invert ()
+;;   ()
+;;   )
 
-  (defparameter *pipe*
-    (make-instance 'vert::tmp-pipe
-                   :width 32
-                   :height 32
-                   :x (x *player*)
-                   :y (- (y *player*) 32)))
-  (add-to-scene *scene* *pipe*)
-  )
-
-#+nil
-(progn
-  ;; scratching out how to combine gl-pipeline with current static-sprite and
-
-  (defclass gl-texture-quad ()
-    ;; simply render a texture quad
-    ())
-
-  (defclass static-sprite (transform)
-    ;; convert a sprite into a texture
-    ;; at the front of the pipeline, put the texture-quad renderer
-    ((effects :initform (make-instance 'gl-pipeline))))
-
-  (defmethod render ((sprite static-sprite) update-percent camera rendering-context)
-    ;; update transform and interpolate between frames
-
-    ;; simple case -- no effects
-    ;; - compute matrix and bind variables
-    ;; - render
-
-    ;; complex case -- effects
-    ;; - get-or-create-tmp-FBO
-    ;; - bind identity-matrix for transforms
-    ;; - render local space into tmp-FBO
-    ;; - call into pipeline
-    ;; - (sprite + effects are new local-space rendered in tmp-FBO)
-    ;; - get-or-create-tmp-texture
-    ;; - copy tmp-FBO into tmp-texture
-    ;; - re-bind original FBO. Done with tmp-FBO
-    ;; - bind world and identity matrices
-    ;; - remove coloring (already done in step 1)
-    ;; - run tmp-texture through sprite shader
-    ;; - sprite + effects are now in the original FBO. We're done!
-
-    ))
+;; (make-instance 'shader
+;;                  :vertex-source (get-builtin-shader-source 'sprite-shader.vert)
+;;                  :fragment-source (get-builtin-shader-source 'sprite-shader.frag))

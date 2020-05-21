@@ -1,7 +1,7 @@
 (in-package :recurse.vert)
 
 @export-class
-(defclass game-scene (scene)
+(defclass game-scene (scene gl-pipeline)
   ((scene-background :initform nil
                      :initarg :background
                      :type scene-background
@@ -59,7 +59,8 @@ This is an optimization so we don't have to rebuild the render and update queues
 
 (defmethod initialize-instance :after ((game-scene game-scene) &rest args)
   (declare (ignore args))
-  (with-slots (spatial-partition) game-scene
+  (with-slots (spatial-partition render-queue) game-scene
+    (gl-pipeline-add game-scene render-queue)
     (setf spatial-partition
           (make-instance 'quadtree))))
 
@@ -347,16 +348,6 @@ This is an optimization so we don't have to rebuild the render and update queues
            (found-object-to-update game-scene game-object)
            (update game-object))
       (values))))
-
-(defmethod render ((game-scene game-scene) update-percent (camera simple-camera) renderer)
-  (declare (optimize (speed 3)))
-  (with-slots ((bg scene-background)
-               spatial-partition
-               (queue render-queue)
-               scene-overlays)
-      game-scene
-    (render queue update-percent camera renderer))
-  (values))
 
 (defevent-callback killed ((object obb) (game-scene game-scene))
   (remove-from-scene game-scene object))

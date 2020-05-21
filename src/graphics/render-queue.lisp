@@ -8,7 +8,7 @@
                  :object-id 'render-dummy) )
 
 @export
-(defclass render-queue ()
+(defclass render-queue (gl-drawable)
   ((fill-pointer :initform 0)
    (objects-to-render :initform (make-array 200
                                             :adjustable nil

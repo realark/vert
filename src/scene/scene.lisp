@@ -70,12 +70,4 @@ Will be incremented by the update timestep after every update frame.")
 
 (defmethod render ((scene scene) update-percent (null null) rendering-context)
   (declare (ignore null))
-  ;; TODO: if effects are active bind to a temporary FBO
-  (render scene update-percent (slot-value scene 'camera) rendering-context)
-  ;; TODO: if effects are active
-  ;;        - run the pipeline
-  ;;       - unbind temp FBO and write texture into the default FBO
-  )
-
-(defmethod render ((scene scene) update-percent (camera simple-camera) rendering-context)
-  (declare (ignore camera scene update-percent camera rendering-context)))
+  (render scene update-percent (slot-value scene 'camera) rendering-context))
