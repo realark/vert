@@ -15,5 +15,5 @@ void main()
   // color mod
   // FragColor = texture(ourTexture, fragmentData.textureCoords) * vec4(0.0, 1.0, 1.0, 1.0) ;
   // pass-through
-  FragColor = texture(ourTexture, fragmentData.textureCoords);
+  FragColor = vec4(vec3(1.0 - texture(ourTexture, fragmentData.textureCoords)), 1.0);
 }
