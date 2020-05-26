@@ -136,6 +136,12 @@
     (add-builtin-shader-source 'instanced-sprite-shader.frag
                                (merge-pathnames (pathname "src/graphics/instanced-sprite-shader.frag")
                                                 (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'quad-shader.vert
+                               (merge-pathnames (pathname "src/graphics/quad-shader.vert")
+                                                (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'quad-shader.frag
+                               (merge-pathnames (pathname "src/graphics/quad-shader.frag")
+                                                (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'inverter-shader.frag
                                (merge-pathnames (pathname "src/graphics/inverter-shader.frag")
                                                 (asdf:system-source-directory :vert)))))
@@ -521,12 +527,13 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
                                  (return-from return-tmp-framebuffer))))
     (declare (dynamic-extent dimensions)
              (vector cached-fbos))
-    (unless (= (+ framebuffer-index 1)
-               (metadata *framebuffer-cache* dimensions :next-free-fbo))
+
+    (decf (metadata *framebuffer-cache* dimensions :next-free-fbo))
+    (unless (>= framebuffer-index
+                (metadata *framebuffer-cache* dimensions :next-free-fbo))
       (rotatef (elt cached-fbos framebuffer-index)
                (elt cached-fbos
-                    (metadata *framebuffer-cache* dimensions :next-free-fbo))))
-    (decf (metadata *framebuffer-cache* dimensions :next-free-fbo))))
+                    (metadata *framebuffer-cache* dimensions :next-free-fbo))))))
 
 (defmacro with-tmp-framebuffer ((framebuffer-name &key width height) &body body)
   (assert (symbolp framebuffer-name))

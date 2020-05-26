@@ -38,6 +38,7 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
       (loop :for drawable :across drawables :do
            (release-resources drawable)))))
 
+@export
 (defun gl-pipeline-add (gl-pipeline gl-drawable)
   "Append GL-DRAWABLE to the end of GL-PIPELINE's draw commands."
   (declare (gl-pipeline gl-pipeline)
@@ -138,39 +139,95 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                  (gl-context-use-fbo *gl-context* orig-fbo)
                  (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))))))))
 
-;;;; color invert effect
+;;;; quad texture base class
+(defvar %quad-cache-key% 'gl-quad)
 
-(defclass gl-color-invert (gl-drawable)
-  ;; FIXME vao can't be created outside of *gl-context*
-  ;; FIXME need to call load-resources on the shader
-  ((vao :initform (%create-inverter-vao))
-   (shader :initform (make-instance 'shader
-                                    :vertex-source (get-builtin-shader-source 'sprite-shader.vert)
-                                    :fragment-source (get-builtin-shader-source 'inverter-shader.frag)))))
+@export-class
+(defclass gl-quad (gl-drawable)
+  ((buffer-ids :initform nil
+               :documentation "(list vao-id vbo-id)")
+   (shader :initform nil
+           :documentation "quad shader. Subclasses may override and re-use the same vertex shader.")
+   (quad-releaser :initform nil))
+  ;; TODO: An obb may be provided to specify where the quad should render. Nil to fill the entire screen. ;;
+  (:documentation "Render a quad (rectangle) to the screen.
+A texture may be provided to render into the quad.
+Most gl drawing utils will want to subclass and override the SHADER slot with custom fragment rendering."))
 
-(defmethod render ((color-invert gl-color-invert) update-percent camera rendering-context)
-  (with-slots (shader vao) color-invert
+(defmethod initialize-instance :around ((quad gl-quad) &rest args)
+  (declare (optimize (speed 3)))
+  ;; NOTE: consing
+  (let ((all-args (append (list quad) args)))
+    (prog1 (apply #'call-next-method all-args)
+      (resource-autoloader-add-object *resource-autoloader*
+                                      (tg:make-weak-pointer quad)))))
+
+@export
+(defmethod gl-quad-shader-cache-key ((quad gl-quad))
+  %quad-cache-key%)
+
+@export
+(defmethod gl-quad-load-shader ((quad gl-quad))
+  (let ((shader (getcache-default (gl-quad-shader-cache-key quad)
+                                  *shader-cache*
+                                  (make-instance 'shader
+                                                 :vertex-source (get-builtin-shader-source 'quad-shader.vert)
+                                                 :fragment-source (get-builtin-shader-source 'quad-shader.frag)))))
+    (load-resources shader)
+    shader))
+
+(defmethod load-resources ((quad gl-quad))
+  (prog1 (call-next-method quad)
+    (unless (slot-value quad 'quad-releaser)
+      (with-slots (buffer-ids shader) quad
+        (setf buffer-ids
+              (getcache-default %quad-cache-key%
+                                *sprite-buffer-cache*
+                                (%create-quad-vao)))
+        (setf shader (gl-quad-load-shader quad)))
+      (let ((shader-key (gl-quad-shader-cache-key quad)))
+        (setf (slot-value quad 'quad-releaser)
+              (make-resource-releaser (quad)
+                (%release-quad-resources %quad-cache-key%
+                                         shader-key)))))))
+
+(defun %release-quad-resources (buffer-key shader-key)
+  (remcache buffer-key *sprite-buffer-cache*)
+  (remcache shader-key *sprite-buffer-cache*))
+
+(defmethod release-resources ((quad gl-quad))
+  (prog1 (call-next-method quad)
+    (with-slots (quad-releaser) quad
+      (when quad-releaser
+        (%release-quad-resources %quad-cache-key%
+                                 (gl-quad-shader-cache-key quad))
+        (setf quad-releaser nil)))))
+
+(defmethod render ((quad gl-quad) update-percent camera rendering-context)
+  (declare (optimize (speed 3)))
+  (with-slots (shader buffer-ids) quad
     (declare (shader shader)
-             ;; (integer vao)
+             ;; TODO
+             ;; ((list integer) buffer-ids)
              )
     (gl-use-shader *gl-context* shader)
-    (gl-use-vao *gl-context* (car vao))
+    (gl-use-vao *gl-context* (car buffer-ids))
     (gl-bind-texture *gl-context* nil)
     (n-bind-texture :texture-2d
-                    (gl-drawable-input-texture color-invert))
+                    (gl-drawable-input-texture quad))
+
+    ;; TODO support transformations and sprite source
 
     ;; set position, rotation, and size
     (set-uniform-matrix-4fv shader
                             "worldModel"
                             *identity-matrix*
                             nil)
-
     ;; set world projection
     (set-uniform-matrix-4fv shader
                             "worldProjection"
                             *identity-matrix*
                             nil)
-
     ;; set sprite source rectangle
     (set-uniformf shader
                   "spriteSrc"
@@ -178,23 +235,8 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                   0.0 0.0 1.0 1.0)
     (n-draw-arrays :triangle-fan 0 4)))
 
-#+nil
-(with-slots (vao shader enabled-p) (elt (slot-value *scene* 'drawables) 1)
-        (gl:delete-vertex-arrays (list (car vao)))
-        (gl:delete-buffers (cdr vao))
-        (setf vao (%create-inverter-vao))
-
-        (reload-all-shaders)
-        (release-resources shader)
-        (setf shader (make-instance 'shader
-                                    :vertex-source (get-builtin-shader-source 'sprite-shader.vert)
-                                    :fragment-source (get-builtin-shader-source 'inverter-shader.frag)))
-        (load-resources shader)
-
-        (setf enabled-p t)
-        )
-
-(defun %create-inverter-vao ()
+(defun %create-quad-vao ()
+  (assert *gl-context*)
   (let ((vao 0)
         (vbo 0)
         ;; render sprites from upper-left coords
@@ -229,3 +271,21 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
            (gl:bind-buffer :array-buffer 0)
            (list vao vbo))
       (gl:free-gl-array gl-vertices))))
+
+;;;; color invert effect
+
+@export-class
+(defclass gl-color-invert (gl-quad)
+  ())
+
+(defmethod gl-quad-shader-cache-key ((quad gl-quad))
+  'gl-color-invert)
+
+(defmethod gl-quad-load-shader ((inverter gl-color-invert))
+  (let ((shader (getcache-default (gl-quad-shader-cache-key inverter)
+                                  *shader-cache*
+                                  (make-instance 'shader
+                                                 :vertex-source (get-builtin-shader-source 'quad-shader.vert)
+                                                 :fragment-source (get-builtin-shader-source 'inverter-shader.frag)))))
+    (load-resources shader)
+    shader))
