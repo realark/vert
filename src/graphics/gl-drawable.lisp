@@ -162,19 +162,14 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
       (resource-autoloader-add-object *resource-autoloader*
                                       (tg:make-weak-pointer quad)))))
 
-@export
 (defmethod gl-quad-shader-cache-key ((quad gl-quad))
-  %quad-cache-key%)
+  (type-of quad))
 
 @export
-(defmethod gl-quad-load-shader ((quad gl-quad))
-  (let ((shader (getcache-default (gl-quad-shader-cache-key quad)
-                                  *shader-cache*
-                                  (make-instance 'shader
-                                                 :vertex-source (get-builtin-shader-source 'quad-shader.vert)
-                                                 :fragment-source (get-builtin-shader-source 'quad-shader.frag)))))
-    (load-resources shader)
-    shader))
+(defmethod gl-quad-make-shader ((quad gl-quad))
+  (make-instance 'shader
+                 :vertex-source (get-builtin-shader-source 'quad-shader.vert)
+                 :fragment-source (get-builtin-shader-source 'quad-shader.frag)))
 
 (defmethod load-resources ((quad gl-quad))
   (prog1 (call-next-method quad)
@@ -184,7 +179,12 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
               (getcache-default %quad-cache-key%
                                 *sprite-buffer-cache*
                                 (%create-quad-vao)))
-        (setf shader (gl-quad-load-shader quad)))
+        (setf shader
+              (getcache-default (gl-quad-shader-cache-key quad)
+                                *shader-cache*
+                                (let ((s (gl-quad-make-shader quad)))
+                                  (load-resources s)
+                                  s))))
       (let ((shader-key (gl-quad-shader-cache-key quad)))
         (setf (slot-value quad 'quad-releaser)
               (make-resource-releaser (quad)
@@ -278,14 +278,7 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
 (defclass gl-color-invert (gl-quad)
   ())
 
-(defmethod gl-quad-shader-cache-key ((quad gl-quad))
-  'gl-color-invert)
-
-(defmethod gl-quad-load-shader ((inverter gl-color-invert))
-  (let ((shader (getcache-default (gl-quad-shader-cache-key inverter)
-                                  *shader-cache*
-                                  (make-instance 'shader
-                                                 :vertex-source (get-builtin-shader-source 'quad-shader.vert)
-                                                 :fragment-source (get-builtin-shader-source 'inverter-shader.frag)))))
-    (load-resources shader)
-    shader))
+(defmethod gl-quad-make-shader ((inverter gl-color-invert))
+  (make-instance 'shader
+                 :vertex-source (get-builtin-shader-source 'quad-shader.vert)
+                 :fragment-source (get-builtin-shader-source 'inverter-shader.frag)))
