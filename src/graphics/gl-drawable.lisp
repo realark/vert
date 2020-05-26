@@ -282,3 +282,14 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
   (make-instance 'shader
                  :vertex-source (get-builtin-shader-source 'quad-shader.vert)
                  :fragment-source (get-builtin-shader-source 'inverter-shader.frag)))
+
+;;;; color grayscale effect
+
+@export-class
+(defclass gl-color-grayscale (gl-quad)
+  ())
+
+(defmethod gl-quad-make-shader ((grayscale gl-color-grayscale))
+  (make-instance 'shader
+                 :vertex-source (get-builtin-shader-source 'quad-shader.vert)
+                 :fragment-source (get-builtin-shader-source 'grayscale-shader.frag)))

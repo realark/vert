@@ -144,6 +144,9 @@
                                                 (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'inverter-shader.frag
                                (merge-pathnames (pathname "src/graphics/inverter-shader.frag")
+                                                (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'grayscale-shader.frag
+                               (merge-pathnames (pathname "src/graphics/grayscale-shader.frag")
                                                 (asdf:system-source-directory :vert)))))
 
 (defclass shader ()
