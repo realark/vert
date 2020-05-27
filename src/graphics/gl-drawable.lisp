@@ -9,12 +9,7 @@
                   :accessor gl-drawable-input-texture
                   :documentation "When this drawable is used in a GL-PIPELINE, the texture-id of the previous step will be bound in this slot before RENDER is called.
 It is not required that steps actually do anything with the input-texture. They may discard it.
-Slot will be nil if this drawable is the first stage in the pipeline.")
-
-   ;; TODO
-   ;; (render-offset :initform '(0 . 0)
-   ;;                :documentation "offset for the drawable to start rendering at.")
-   )
+Slot will be nil if this drawable is the first stage in the pipeline."))
   (:documentation "A opengl drawable which renders into the currently bound FBO.
 This component is designed to be used in a GL-PIPELINE, thought it doesn't have to be.
 The RENDER method will implement the drawing.
@@ -70,9 +65,11 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
            (update drawable)))))
 
 (defmethod render ((pipeline gl-pipeline) update-percent camera rendering-context)
+  (declare (optimize (speed 3)))
   (let ((num-active-drawables (gl-pipeline-num-active pipeline)))
     (declare ((integer 0 1024) num-active-drawables))
     (with-slots (drawables) pipeline
+      (declare ((vector gl-drawable) drawables))
       (cond ((= 0 num-active-drawables)) ; Nothing to draw.
             ((= 1 num-active-drawables)
              ;; fast path. Draw the single command into the current FBO
@@ -85,7 +82,8 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                (unwind-protect
                     (destructuring-bind (fbo-width fbo-height)
                         (or (getconfig 'game-resolution *config*)
-                            (list 320 180))
+                            '(320 180))
+                      (declare (fixnum fbo-width fbo-height))
                       ;; Note: Currently sizing the tmp FBOs based on the window size
                       ;; it would probably be more optimal to size on the game resolution (usually much smaller)
                       ;; and scale up in the final output. I'm not doing that right now because
@@ -94,10 +92,12 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                       ;; I'll come back to this if performance becomes an issue.
                       (setf fbo-width
                             (* fbo-width
-                               (ceiling (screen-width camera) fbo-width))
+                               (the fixnum
+                                    (ceiling (the fixnum (screen-width camera)) fbo-width)))
                             fbo-height
                             (* fbo-height
-                               (ceiling (screen-height camera) fbo-height)))
+                               (the fixnum
+                                    (ceiling (the fixnum (screen-height camera)) fbo-height))))
                       (with-tmp-framebuffer (input-fbo :width fbo-width :height fbo-height)
                         (with-tmp-framebuffer (output-fbo :width fbo-width :height fbo-height)
                           (gl-context-use-fbo *gl-context* input-fbo)
@@ -116,27 +116,28 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                        num-active-drawables)
                             (loop :for i :from 0
                                :for drawable :across drawables :do
-                                 (when (gl-drawable-enabled-p drawable)
-                                   (if (last-active-drawable-p (+ i 1))
-                                       (progn
-                                         (gl-context-use-fbo *gl-context* orig-fbo)
-                                         (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))
-                                       (progn
-                                         (gl-context-use-fbo *gl-context* output-fbo)
-                                         (gl:viewport 0
-                                                      0
-                                                      fbo-width
-                                                      fbo-height)))
-                                   (gl:clear :color-buffer-bit)
-                                   (log:trace "-- rendering ~A from FBO ~A to FBO ~A"
-                                              drawable
-                                              (slot-value input-fbo 'id)
-                                              (gl-context-fbo *gl-context*))
-                                   (setf (gl-drawable-input-texture drawable)
-                                         (framebuffer-texture-id input-fbo))
-                                   (render drawable update-percent camera rendering-context)
-                                   ;; feed the current drawable's output into the next drawable's input
-                                   (rotatef input-fbo output-fbo)))))))
+                                 (locally (declare ((integer 0 1024) i))
+                                   (when (gl-drawable-enabled-p drawable)
+                                     (if (last-active-drawable-p (+ i 1))
+                                         (progn
+                                           (gl-context-use-fbo *gl-context* orig-fbo)
+                                           (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))
+                                         (progn
+                                           (gl-context-use-fbo *gl-context* output-fbo)
+                                           (gl:viewport 0
+                                                        0
+                                                        fbo-width
+                                                        fbo-height)))
+                                     (gl:clear :color-buffer-bit)
+                                     (log:trace "-- rendering ~A from FBO ~A to FBO ~A"
+                                                drawable
+                                                (slot-value input-fbo 'id)
+                                                (gl-context-fbo *gl-context*))
+                                     (setf (gl-drawable-input-texture drawable)
+                                           (framebuffer-texture-id input-fbo))
+                                     (render drawable update-percent camera rendering-context)
+                                     ;; feed the current drawable's output into the next drawable's input
+                                     (rotatef input-fbo output-fbo))))))))
                  (gl-context-use-fbo *gl-context* orig-fbo)
                  (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))))))))
 

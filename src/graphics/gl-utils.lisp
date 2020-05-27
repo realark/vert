@@ -64,11 +64,13 @@
 
 (defun gl-context-use-fbo (gl-context fbo)
   "Binds the read-write framebuffer for the gl context"
+  (declare (optimize (speed 3)))
   (let ((fbo-id (if (typep fbo 'framebuffer)
                     (slot-value fbo 'id)
                     fbo)))
+    (declare (fixnum fbo-id))
     (unless (= (gl-context-fbo gl-context) fbo-id)
-      (gl:bind-framebuffer :framebuffer fbo-id)
+      (n-bind-framebuffer :framebuffer fbo-id)
       (setf (gl-context-fbo gl-context) fbo-id))))
 
 (defun gl-context-clear-all (gl-context)
@@ -706,6 +708,10 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
   (first :int)
   (count cl-opengl-bindings:sizei)
   (instance-count cl-opengl-bindings:sizei))
+
+(%defglfunction ("glBindFramebuffer" n-bind-framebuffer) :void
+                (target %gl:enum)
+                (framebuffer :unsigned-int))
 
 ;; FIXME: defcfun workaround is incomplete for windows. Will need to be re-thought
 #+win32
