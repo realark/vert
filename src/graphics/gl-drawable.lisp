@@ -311,9 +311,26 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
            :initform
            (make-array 9
                        :element-type 'single-float
-                       :initial-contents (list 0.0  0.0  0.0
-                                               0.0  1.0  0.0
-                                               0.0  0.0  0.0)))))
+                       :initial-contents
+                       ;; see also: https://en.wikipedia.org/wiki/Kernel_(image_processing)
+                       ;; sharpen
+                       ;; (list -1.0 -1.0 -1.0
+                       ;;       -1.0  9.0 -1.0
+                       ;;       -1.0 -1.0 -1.0)
+                       ;; edge-detection
+                       ;; (list 1.0   1.0  1.0
+                       ;;       1.0  -8.0  1.0
+                       ;;       1.0   1.0  1.0)
+                       ;; blur
+                       ;; (list (/ 1.0 16) (/ 2.0 16) (/ 1.0 16)
+                       ;;       (/ 2.0 16) (/ 4.0 16) (/ 2.0 16)
+                       ;;       (/ 1.0 16) (/ 2.0 16) (/ 1.0 16))
+                       ;; no-op
+                       (list 0.0  0.0  0.0
+                             0.0  1.0  0.0
+                             0.0  0.0  0.0))))
+  (:documentation "A gl effect which applies a kernel using the KERNEL slot.
+Subclasses may set or override this slot."))
 
 (defmethod gl-quad-make-shader ((kernel gl-kernel))
   (make-instance 'shader
