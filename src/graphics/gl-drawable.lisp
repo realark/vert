@@ -1,5 +1,6 @@
 (in-package :recurse.vert)
 
+@export-class
 (defclass gl-drawable ()
   ((enabled-p :initform t
               :accessor gl-drawable-enabled-p
@@ -305,7 +306,13 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
 
 @export-class
 (defclass gl-kernel (gl-quad)
-  ())
+  ((kernel :initarg :kernel
+           :initform
+           (make-array 9
+                       :element-type 'single-float
+                       :initial-contents (list 0.0  0.0  0.0
+                                               0.0  1.0  0.0
+                                               0.0  0.0  0.0)))))
 
 (defmethod gl-quad-make-shader ((kernel gl-kernel))
   (make-instance 'shader
@@ -313,10 +320,5 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                  :fragment-source (get-builtin-shader-source 'kernel-shader.frag)))
 
 (defmethod gl-quad-on-render ((kernel-effect gl-kernel))
-  ;; TODO
-  #+nil
-  (with-slots (shader) kernel-effect
-    (set-uniform-matrix-4fv shader
-                            "worldModel"
-                            *identity-matrix*
-                            nil)))
+  (with-slots (shader kernel) kernel-effect
+    (set-uniform-matrix-1fv shader "kernel" kernel)))

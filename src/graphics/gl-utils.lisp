@@ -298,6 +298,23 @@
      matrix
      transpose-p)))
 
+(defun set-uniform-matrix-1fv (shader uniform-name float-vector)
+  (with-slots (uniform-locations) shader
+    (sb-sys:with-pinned-objects (float-vector)
+      (n-uniform-1fv
+       (getcache-default uniform-name
+                         uniform-locations
+                         (progn
+                           (let ((location (n-get-uniform-location (shader-program-id shader) uniform-name)))
+                             (declare (fixnum location))
+                             (log:debug "shader (shader-program-id shader) cache uniform ~A -> ~A"
+                                        uniform-name
+                                        location)
+                             location)))
+       (length float-vector)
+       (sb-sys:vector-sap float-vector)))))
+
+
 ;;;; Texture
 (defclass texture ()
   ((path-to-texture :initarg :path-to-texture
@@ -635,6 +652,11 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
              1)
          tmp-arr)
       (gl:check-error))))
+
+(%defglfunction ("glUniform1fv" n-uniform-1fv) :void
+                (location :int)
+                (count cl-opengl-bindings:sizei)
+                (value (:pointer :float)))
 
 (%defglfunction ("glActiveTexture" n-active-texture) :void
   (texture %gl:enum))

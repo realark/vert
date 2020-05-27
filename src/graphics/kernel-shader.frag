@@ -6,7 +6,7 @@ in VertexData {
 
 // texture sampler
 uniform sampler2D ourTexture;
-// uniform mat3 kernel;
+uniform float kernel[9];
 
 const float offset = 1.0 / 300.0;
 
@@ -25,11 +25,11 @@ void main()
     );
 
     // no-op
-    float kernel[9] = float[](
-        0, 0, 0,
-        0, 1, 0,
-        0, 0, 0
-    );
+    // float kernel[9] = float[](
+    //     0, 0, 0,
+    //     0, 1, 0,
+    //     0, 0, 0
+    // );
     // sharpen
     // float kernel[9] = float[](
     //     -1, -1, -1,
