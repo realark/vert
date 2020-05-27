@@ -74,6 +74,7 @@
                          (:static-file "quad-shader.frag")
                          (:static-file "inverter-shader.frag")
                          (:static-file "grayscale-shader.frag")
+                         (:static-file "kernel-shader.frag")
                          (:file "draw-component")
                          (:file "drawable")
                          (:file "gl-drawable")

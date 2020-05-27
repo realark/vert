@@ -113,23 +113,23 @@
 
   (when (= 0 (hash-table-count %builtin-shaders%))
     (add-builtin-shader-source 'polygon-shader.vert
-                       (merge-pathnames (pathname "src/graphics/polygon-shader.vert")
-                                        (asdf:system-source-directory :vert)))
+                               (merge-pathnames (pathname "src/graphics/polygon-shader.vert")
+                                                (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'polygon-shader.frag
-                       (merge-pathnames (pathname "src/graphics/polygon-shader.frag")
-                                        (asdf:system-source-directory :vert)))
+                               (merge-pathnames (pathname "src/graphics/polygon-shader.frag")
+                                                (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'sprite-shader.vert
-                       (merge-pathnames (pathname "src/graphics/sprite-shader.vert")
-                                        (asdf:system-source-directory :vert)))
+                               (merge-pathnames (pathname "src/graphics/sprite-shader.vert")
+                                                (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'sprite-shader.frag
-                       (merge-pathnames (pathname "src/graphics/sprite-shader.frag")
-                                        (asdf:system-source-directory :vert)))
+                               (merge-pathnames (pathname "src/graphics/sprite-shader.frag")
+                                                (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'font-shader.vert
-                       (merge-pathnames (pathname "src/graphics/font-shader.vert")
-                                        (asdf:system-source-directory :vert)))
+                               (merge-pathnames (pathname "src/graphics/font-shader.vert")
+                                                (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'font-shader.frag
-                       (merge-pathnames (pathname "src/graphics/font-shader.frag")
-                                        (asdf:system-source-directory :vert)))
+                               (merge-pathnames (pathname "src/graphics/font-shader.frag")
+                                                (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'instanced-sprite-shader.vert
                                (merge-pathnames (pathname "src/graphics/instanced-sprite-shader.vert")
                                                 (asdf:system-source-directory :vert)))
@@ -147,6 +147,9 @@
                                                 (asdf:system-source-directory :vert)))
     (add-builtin-shader-source 'grayscale-shader.frag
                                (merge-pathnames (pathname "src/graphics/grayscale-shader.frag")
+                                                (asdf:system-source-directory :vert)))
+    (add-builtin-shader-source 'kernel-shader.frag
+                               (merge-pathnames (pathname "src/graphics/kernel-shader.frag")
                                                 (asdf:system-source-directory :vert)))))
 
 (defclass shader ()

@@ -171,6 +171,11 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                  :vertex-source (get-builtin-shader-source 'quad-shader.vert)
                  :fragment-source (get-builtin-shader-source 'quad-shader.frag)))
 
+@export
+(defmethod gl-quad-on-render ((quad gl-quad))
+  ;; no-op
+  )
+
 (defmethod load-resources ((quad gl-quad))
   (prog1 (call-next-method quad)
     (unless (slot-value quad 'quad-releaser)
@@ -233,6 +238,8 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                   "spriteSrc"
                   ;; x y width height
                   0.0 0.0 1.0 1.0)
+    ;; hook for subclasses
+    (gl-quad-on-render quad)
     (n-draw-arrays :triangle-fan 0 4)))
 
 (defun %create-quad-vao ()
@@ -293,3 +300,23 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
   (make-instance 'shader
                  :vertex-source (get-builtin-shader-source 'quad-shader.vert)
                  :fragment-source (get-builtin-shader-source 'grayscale-shader.frag)))
+
+;;;; kernel effect
+
+@export-class
+(defclass gl-kernel (gl-quad)
+  ())
+
+(defmethod gl-quad-make-shader ((kernel gl-kernel))
+  (make-instance 'shader
+                 :vertex-source (get-builtin-shader-source 'quad-shader.vert)
+                 :fragment-source (get-builtin-shader-source 'kernel-shader.frag)))
+
+(defmethod gl-quad-on-render ((kernel-effect gl-kernel))
+  ;; TODO
+  #+nil
+  (with-slots (shader) kernel-effect
+    (set-uniform-matrix-4fv shader
+                            "worldModel"
+                            *identity-matrix*
+                            nil)))
