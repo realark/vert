@@ -9,6 +9,7 @@ out VertexData {
 uniform mat4 worldModel;
 uniform mat4 worldProjection;
 
+// TODO: rename textureSrc
 uniform vec4 spriteSrc;
 
 void main()

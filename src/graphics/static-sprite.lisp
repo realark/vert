@@ -116,10 +116,26 @@
                           1.0 1.0 1.0 1.0))
 
         ;; set position, rotation, and size
-        (set-uniform-matrix-4fv shader
-                                "worldModel"
-                                (interpolated-obb-matrix static-sprite update-percent)
-                                nil)
+        (flet ((make-transform (obb)
+                 (declare (optimize (speed 3)))
+                 (let ((translate (translation-matrix (width obb)
+                                                      (height obb)
+                                                      0.0))
+                       (dimensions (scale-matrix (width obb)
+                                                 (height obb)
+                                                 1.0)))
+                   (declare (dynamic-extent translate dimensions))
+                   ;; FIXME: consing
+                   (matrix*
+                    (local-to-world-matrix obb)
+                    ;; render with upper-left = object's origin
+                    translate           ; TODO??
+                    dimensions))))
+          (set-uniform-matrix-4fv shader
+                                  "worldModel"
+                                  ;; (interpolated-obb-matrix static-sprite update-percent)
+                                  (make-transform static-sprite)
+                                  nil))
 
         ;; set world projection
         (set-uniform-matrix-4fv shader

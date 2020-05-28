@@ -144,14 +144,23 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
 ;;;; quad texture base class
 (defvar %quad-cache-key% 'gl-quad)
 
+(defconstant %quad-blend-mult% 0)
+(defconstant %quad-blend-add% 1)
+
 @export-class
 (defclass gl-quad (gl-drawable)
   ((buffer-ids :initform nil
                :documentation "(list vao-id vbo-id)")
    (shader :initform nil
            :documentation "quad shader. Subclasses may override and re-use the same vertex shader.")
-   (quad-releaser :initform nil))
-  ;; TODO: An obb may be provided to specify where the quad should render. Nil to fill the entire screen. ;;
+   (quad-releaser :initform nil)
+   (color :initarg :color
+          :initform nil
+          :accessor color
+          :documentation "Optional color mod to apply to the quad. If a texture is also applied the two color values will be blended.")
+   (render-area :initarg :render-area
+                :initform nil
+                :documentation "Optional OBB. When provided the quad will render to the OBB's area. If null the entire screen will be rendered to."))
   (:documentation "Render a quad (rectangle) to the screen.
 A texture may be provided to render into the quad.
 Most gl drawing utils will want to subclass and override the SHADER slot with custom fragment rendering."))
@@ -220,26 +229,79 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
     (gl-use-shader *gl-context* shader)
     (gl-use-vao *gl-context* (car buffer-ids))
     (gl-bind-texture *gl-context* nil)
-    (n-bind-texture :texture-2d
-                    (gl-drawable-input-texture quad))
+
+    ;; color
+    (with-slots (color) quad
+      (if color
+          (set-uniformf shader
+                        "colorMod"
+                        (r color)
+                        (g color)
+                        (b color)
+                        (a color))
+          (set-uniformf shader
+                        "colorMod"
+                        1.0 1.0 1.0 1.0)))
+    ;; input texture and blending function
+    (if (gl-drawable-input-texture quad)
+        (progn
+          (n-bind-texture :texture-2d
+                          (gl-drawable-input-texture quad))
+          (set-uniformi shader
+                        "colorBlendFn"
+                        %quad-blend-mult%))
+        (progn
+          (n-bind-texture :texture-2d
+                          0)
+          (set-uniformi shader
+                        "colorBlendFn"
+                        %quad-blend-add%)))
 
     ;; TODO support transformations and sprite source
 
-    ;; set position, rotation, and size
-    (set-uniform-matrix-4fv shader
-                            "worldModel"
-                            *identity-matrix*
-                            nil)
-    ;; set world projection
-    (set-uniform-matrix-4fv shader
-                            "worldProjection"
-                            *identity-matrix*
-                            nil)
+    ;; set position and size matrices
+    (with-slots (render-area) quad
+      ;; set position, rotation, and size
+      ;; TODO: move this elsewhere
+      (flet ((make-transform (obb &key (x-offset 0.0) (y-offset 0.0))
+               (declare (optimize (speed 3)))
+               (let ((translate (translation-matrix (+ (width obb)  0.0)
+                                                    (- (height obb) y-offset)
+                                                    0.0))
+                     (dimensions (scale-matrix (+ (width obb)  0.0)
+                                               (+ (height obb) y-offset)
+                                               1.0)))
+                 (declare (dynamic-extent translate dimensions))
+                 ;; FIXME: consing
+                 (matrix*
+                  (local-to-world-matrix obb)
+                  ;; render with upper-left = object's origin
+                  translate ; TODO??
+                  dimensions))))
+        (declare (inline make-transform))
+        (set-uniform-matrix-4fv shader
+                                "worldModel"
+                                (if render-area
+                                    ;; FIXME consing?
+                                    ;; FIXME interpolate sprites
+                                    (make-transform render-area)
+                                    (make-transform camera
+                                                    :x-offset 1.0
+                                                    ;; :y-offset 1.0
+                                                    ))
+                                nil))
+      ;; set world projection
+      (set-uniform-matrix-4fv shader
+                              "worldProjection"
+                              (if render-area
+                                  (interpolated-world-projection-matrix camera update-percent)
+                                  (interpolated-world-projection-matrix camera 1.0))
+                              nil))
     ;; set sprite source rectangle
     (set-uniformf shader
                   "spriteSrc"
                   ;; x y width height
-                  0.0 0.0 1.0 1.0)
+                  0.0 0.0 1.0  1.0)
     ;; hook for subclasses
     (gl-quad-on-render quad)
     (n-draw-arrays :triangle-fan 0 4)))
@@ -248,15 +310,22 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
   (assert *gl-context*)
   (let ((vao 0)
         (vbo 0)
-        ;; render sprites from upper-left coords
-        ;; TODO: put coords transform in separate matrix
-        ;; TODO Use a local space which ranges the entire screen centered at 0,0
         (gl-vertices (alloc-gl-array  :float
-                                      ;; positions             texture coords
-                                      1.0  -1.0  0.0          1.0 -1.0 ; bottom right
-                                      1.0   1.0  0.0          1.0  0.0 ; top right
-                                      -1.0   1.0  0.0         0.0  0.0 ; top left
-                                      -1.0  -1.0  0.0         0.0 -1.0 ; bottom left
+                                      ;; render using entire NDC
+                                      ;;  1.0  -1.0  0.0      1.0 -1.0 ; bottom right
+                                      ;;  1.0   1.0  0.0      1.0  0.0 ; top right
+                                      ;; -1.0   1.0  0.0      0.0  0.0 ; top left
+                                      ;; -1.0  -1.0  0.0      0.0 -1.0 ; bottom left
+                                      ;; render from upper-left coords
+                                      ;; texture coords render with 0,0 being the upper-left
+                                      ;; corner of the texture and 1,1 being the lower right.
+                                      ;; TODO vertex coords could be re-worked along with
+                                      ;; transform matrix base class to be more sensible
+                                      ;; vertex coords         texture coords
+                                       0.0   0.0  0.0          1.0  0.0 ; top right
+                                       0.0  -1.0  0.0          1.0  1.0 ; bottom right
+                                      -1.0  -1.0  0.0          0.0  1.0 ; bottom left
+                                      -1.0   0.0  0.0          0.0  0.0 ; top left
                                       )))
     (unwind-protect
          (progn
