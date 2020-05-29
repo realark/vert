@@ -78,6 +78,14 @@
     (%reload-all-shaders)))
 
 @export
+(defgeneric reload-everything ()
+  (:documentation "Reload all shaders and external resources. Very slow. Live-coding/dev only.")
+  (:method ()
+    (when *engine-manager*
+      (reload-all-shaders)
+      (resource-autoloader-reload-all *resource-autoloader*))))
+
+@export
 (defvar *vert-build-version* nil
   "version control id vert was built against.")
 
