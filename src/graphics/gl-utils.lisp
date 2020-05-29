@@ -285,6 +285,19 @@
                        (n-get-uniform-location (shader-program-id shader) uniform-name))
      x y z w)))
 
+(defun set-uniformi (shader uniform-name x &optional y z w)
+  (declare (optimize (speed 3))
+           (shader shader)
+           (string uniform-name)
+           (integer x)
+           ((or null integer) y z w))
+  (with-slots (uniform-locations) shader
+    (n-uniformi
+     (getcache-default uniform-name
+                       uniform-locations
+                       (n-get-uniform-location (shader-program-id shader) uniform-name))
+     x y z w)))
+
 (defun set-uniform-matrix-4fv (shader uniform-name matrix &optional (transpose-p t))
   (with-slots (uniform-locations) shader
     (n-uniform-matrix-4fv
@@ -629,6 +642,37 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
         (z (%n-uniform-3f location (float x) (float y) (float z)))
         (y (%n-uniform-2f location (float x) (float y)))
         (x (%n-uniform-1f location (float x))))
+    (gl:check-error)))
+
+(cffi:defcfun ("glUniform1i" %n-uniform-1i) :void
+  (location :int)
+  (v0 :int))
+
+(cffi:defcfun ("glUniform2i" %n-uniform-2i) :void
+  (location :int)
+  (v0 :int)
+  (v1 :int))
+
+(cffi:defcfun ("glUniform3i" %n-uniform-3i) :void
+  (location :int)
+  (v0 :int)
+  (v1 :int)
+  (v2 :int))
+
+(cffi:defcfun ("glUniform4i" %n-uniform-4i) :void
+  (location :int)
+  (v0 :int)
+  (v1 :int)
+  (v2 :int)
+  (v3 :int))
+
+(defun n-uniformi (location x &optional y z w)
+  (prog1
+      (cond
+        (w (%n-uniform-4i location x y z w))
+        (z (%n-uniform-3i location x y z))
+        (y (%n-uniform-2i location x y))
+        (x (%n-uniform-1i location x)))
     (gl:check-error)))
 
 (cffi:defcfun ("glUniformMatrix4fv" %n-uniform-matrix-4fv) :void
