@@ -278,7 +278,11 @@ It is invoked after the engine is fully started.")
   (declare (optimize (speed 3)))
   (when *live-coding-fn*
     (locally (declare ((function () *) *live-coding-fn*))
-      (funcall *live-coding-fn*)))
+      (funcall *live-coding-fn*))
+    (with-slots (pending-action) *engine-manager*
+      (unless (eq pending-action 'no-action)
+        (funcall (the function pending-action))
+        (setf pending-action 'no-action))))
   nil)
 
 ;;;; on-game-thread macro
