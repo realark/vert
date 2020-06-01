@@ -158,6 +158,8 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
           :initform nil
           :accessor color
           :documentation "Optional color mod to apply to the quad. If a texture is also applied the two color values will be blended.")
+   (texture-src :initform (vector 0.0 0.0 1.0 1.0)
+                :documentation "x y width height. Normalized coords.")
    (render-area :initarg :render-area
                 :initform nil
                 :documentation "Optional OBB. When provided the quad will render to the OBB's area. If null the entire screen will be rendered to."))
@@ -217,6 +219,7 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
       (when quad-releaser
         (%release-quad-resources %quad-cache-key%
                                  (gl-quad-shader-cache-key quad))
+        (cancel-resource-releaser quad-releaser)
         (setf quad-releaser nil)))))
 
 (defmethod render ((quad gl-quad) update-percent camera rendering-context)
@@ -259,6 +262,7 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
     (with-slots (render-area) quad
       (let ((render-area-model (when render-area
                                  (matrix*
+                                  ;; FIXME consing
                                   (local-to-world-matrix render-area)
                                   (scale-matrix (width render-area)
                                                 (height render-area)
@@ -279,10 +283,14 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                                   %fullscreen-ortho-matrix%)
                               nil))
     ;; set sprite source rectangle
-    (set-uniformf shader
-                  "textureSrc"
-                  ;; x y width height
-                  0.0 0.0 1.0 1.0)
+    (with-slots (texture-src) quad
+      (set-uniformf shader
+                    "textureSrc"
+                    ;; x y width height
+                    (elt texture-src 0)
+                    (elt texture-src 1)
+                    (elt texture-src 2)
+                    (elt texture-src 3)))
     ;; hook for subclasses
     (gl-quad-on-render quad)
     (n-draw-arrays :triangle-fan 0 4)))

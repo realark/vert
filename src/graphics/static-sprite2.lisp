@@ -1,55 +1,63 @@
 (in-package :recurse.vert)
 
-;;;; Goals:
-;;;; - be able to use gl-pipeline features on sprite class
-;;;; - be able to set sprite data on the sprite class
-;;;; - call render on the sprite class and have it "do the right thing"
+(defclass %sprite-quad (gl-quad)
+  ((texture-id :initform nil)))
 
+(defmethod render ((quad %sprite-quad) update-percent camera gl-context)
+  (with-slots (texture-id) quad
+    (when texture-id
+      (setf (gl-drawable-input-texture quad)
+            texture-id)
 
-;;;; Options
-;;;; subclass pipeline and store sprite rendering in a separate component
-;;;; - pros:
-;;;;  - easy to add new effects
-;;;;  - can simply call RENDER on object
-;;;; - cons:
-;;;;  - all manipulations to the base sprite would be tricky
-;;;;   - setting sprite-source would require a pass-through method to the underlying draw component
+      (with-slots (texture-src) quad
+        #+nil
+        (setf
+         (elt texture-src 0) 0.0
+         (elt texture-src 1) 0.0
+         (elt texture-src 2) 1.0
+         (elt texture-src 3) -1.0)
+        (setf
+         (elt texture-src 0) 0.0
 
-;;;; subclass drawable and put pipeline in a component
-;;;; - pro/cons are the reverse of the previous options. Easy to manipulate drawing info, but fucky when rendering and fucky when wanting to access the pipeline
-;;;; - con: pipeline would contain itself
+         (elt texture-src 1) 0.0
 
-;;;; subclass pipeline and gl-drawable, then add custom sprite options
-;;;; - cons
-;;;;  - rendering would be super weird, as the pipeline would contain itself
+         (elt texture-src 2)
+         (/ 1.0 7.0)
+
+         (elt texture-src 3)
+         ;; (/ 1.0 4.0)
+         (- (/ 1.0 4.0))
+         ))))
+  (call-next-method quad update-percent camera gl-context))
 
 @export-class
 (defclass sprite (gl-pipeline obb)
   ((path :initarg :path
+         :initform (error ":path required")
          :accessor sprite-path
-         :documentation "Location of the sprite png to render. If null only the color mod will render."
-         :initform nil)
+         :documentation "Location of the sprite png to render. If null only the color mod will render.")
    (color :initarg :color
           :initform nil
           :accessor color
           :documentation "Optional color mod to apply to the sprite.")
-   (texture-id :initform -1
-               :documentation "opengl texture id")
+   (texture :initform nil
+            :documentation "opengl texture wrapper")
    (quad :initform nil)
    (sprite-releaser :initform nil))
-  (:documentation "An object which renders a sprite (or portion of a sprite) to the screen."))
+  (:documentation "A GL-PIPELINE which renders a sprite in the first pipeline stage."))
 
 (defmethod initialize-instance :around ((sprite sprite) &rest args)
   ;; NOTE: consing
   (let ((all-args (append (list sprite) args)))
     (prog1 (apply #'call-next-method all-args)
       (with-slots (path quad color) sprite
-        (setf quad (make-instance 'gl-quad
+        (setf quad (make-instance '%sprite-quad
                                   :color color
                                   :render-area sprite))
         (gl-pipeline-add sprite quad))
-      ;; TODO vvv
-      #+nil
+      (with-slots (texture path) sprite
+        (setf texture (make-instance 'sprite-backed-texture
+                                     :path path)))
       (resource-autoloader-add-object *resource-autoloader*
                                       (tg:make-weak-pointer sprite)))))
 
@@ -68,11 +76,25 @@
 
 (defmethod load-resources ((sprite sprite))
   (prog1 (call-next-method sprite)
-    ;; TODO load up texture and set releaser
-    ;; set texture on the base class so it is automagically scooped up by gl-quad
-    ))
+    (unless (slot-value sprite 'sprite-releaser)
+      (with-accessors ((texture-id gl-drawable-input-texture)) sprite
+        (with-slots (texture quad) sprite
+          (load-resources texture)
+          (setf (slot-value quad 'texture-id)
+                (texture-id texture)))
+        (let ((texture (slot-value sprite 'texture)))
+          (setf (slot-value sprite 'sprite-releaser)
+                (make-resource-releaser (sprite)
+                  (%release-sprite-resources texture))))))))
+
+(defun %release-sprite-resources (texture)
+  (release-resources texture))
 
 (defmethod release-resources ((sprite sprite))
   (prog1 (call-next-method sprite)
-    ;; TODO release texture and unset releaser
-    ))
+    (with-slots (sprite-releaser texture quad) sprite
+      (when sprite-releaser
+        (%release-sprite-resources texture)
+        (cancel-resource-releaser sprite-releaser)
+        (setf (slot-value quad 'texture-id) nil
+              sprite-releaser nil)))))
