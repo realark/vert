@@ -500,6 +500,10 @@ If the texture dimensions are not specified the texture will be sized to the con
              (progn
                (gl-context-use-fbo *gl-context* id)
 
+               (gl:enable :cull-face)
+               (gl:enable :blend)
+               (gl:blend-func :src-alpha :one-minus-src-alpha)
+
                (n-bind-texture :texture-2d texture-id)
                (gl:tex-image-2d :texture-2d 0 :rgba width height 0 :rgba :unsigned-byte nil :raw t)
                (gl:tex-parameter :texture-2d :texture-min-filter :nearest)
