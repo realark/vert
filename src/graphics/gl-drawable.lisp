@@ -223,9 +223,7 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
   (declare (optimize (speed 3)))
   (with-slots (shader buffer-ids) quad
     (declare (shader shader)
-             ;; TODO
-             ;; ((list integer) buffer-ids)
-             )
+             (list buffer-ids))
     (gl-use-shader *gl-context* shader)
     (gl-use-vao *gl-context* (car buffer-ids))
     (gl-bind-texture *gl-context* nil)
@@ -257,75 +255,54 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                         "colorBlendFn"
                         %quad-blend-add%)))
 
-    ;; TODO support transformations and sprite source
-
     ;; set position and size matrices
     (with-slots (render-area) quad
-      ;; set position, rotation, and size
-      ;; TODO: move this elsewhere
-      (flet ((make-transform (obb &key (x-offset 0.0) (y-offset 0.0))
-               (declare (optimize (speed 3)))
-               (let ((translate (translation-matrix (+ (width obb)  0.0)
-                                                    (- (height obb) y-offset)
-                                                    0.0))
-                     (dimensions (scale-matrix (+ (width obb)  0.0)
-                                               (+ (height obb) y-offset)
-                                               1.0)))
-                 (declare (dynamic-extent translate dimensions))
-                 ;; FIXME: consing
-                 (matrix*
-                  (local-to-world-matrix obb)
-                  ;; render with upper-left = object's origin
-                  translate ; TODO??
-                  dimensions))))
-        (declare (inline make-transform))
+      (let ((render-area-model (when render-area
+                                 (matrix*
+                                  (local-to-world-matrix render-area)
+                                  (scale-matrix (width render-area)
+                                                (height render-area)
+                                                1.0)))))
+        (declare (dynamic-extent render-area-model))
         (set-uniform-matrix-4fv shader
                                 "worldModel"
                                 (if render-area
-                                    ;; FIXME consing?
                                     ;; FIXME interpolate sprites
-                                    (make-transform render-area)
-                                    (make-transform camera
-                                                    :x-offset 1.0
-                                                    ;; :y-offset 1.0
-                                                    ))
+                                    render-area-model
+                                    *identity-matrix*)
                                 nil))
       ;; set world projection
       (set-uniform-matrix-4fv shader
                               "worldProjection"
                               (if render-area
                                   (interpolated-world-projection-matrix camera update-percent)
-                                  (interpolated-world-projection-matrix camera 1.0))
+                                  %fullscreen-ortho-matrix%)
                               nil))
     ;; set sprite source rectangle
     (set-uniformf shader
-                  "spriteSrc"
+                  "textureSrc"
                   ;; x y width height
-                  0.0 0.0 1.0  1.0)
+                  0.0 0.0 1.0 1.0)
     ;; hook for subclasses
     (gl-quad-on-render quad)
     (n-draw-arrays :triangle-fan 0 4)))
+
+(defvar %fullscreen-ortho-matrix%
+  (ortho-matrix 0.0  1.0
+                1.0  0.0
+                1.0 -1.0)
+  "ortho matrix for rendering across the entire game window.")
 
 (defun %create-quad-vao ()
   (assert *gl-context*)
   (let ((vao 0)
         (vbo 0)
         (gl-vertices (alloc-gl-array  :float
-                                      ;; render using entire NDC
-                                      ;;  1.0  -1.0  0.0      1.0 -1.0 ; bottom right
-                                      ;;  1.0   1.0  0.0      1.0  0.0 ; top right
-                                      ;; -1.0   1.0  0.0      0.0  0.0 ; top left
-                                      ;; -1.0  -1.0  0.0      0.0 -1.0 ; bottom left
-                                      ;; render from upper-left coords
-                                      ;; texture coords render with 0,0 being the upper-left
-                                      ;; corner of the texture and 1,1 being the lower right.
-                                      ;; TODO vertex coords could be re-worked along with
-                                      ;; transform matrix base class to be more sensible
-                                      ;; vertex coords         texture coords
-                                       0.0   0.0  0.0          1.0  0.0 ; top right
-                                       0.0  -1.0  0.0          1.0  1.0 ; bottom right
-                                      -1.0  -1.0  0.0          0.0  1.0 ; bottom left
-                                      -1.0   0.0  0.0          0.0  0.0 ; top left
+                                      ;; 0,0 == upper-left and 1,1 == lower-right
+                                      0.0   0.0  0.0      0.0  0.0 ; top left
+                                      0.0   1.0  0.0      0.0  1.0 ; bottom left
+                                      1.0   1.0  0.0      1.0  1.0 ; bottom right
+                                      1.0   0.0  0.0      1.0  0.0 ; top right
                                       )))
     (unwind-protect
          (progn

@@ -444,6 +444,21 @@ If the texture dimensions are not specified the texture will be sized to the con
                (gl:tex-image-2d :texture-2d 0 :rgba width height 0 :rgba :unsigned-byte nil :raw t)
                (gl:tex-parameter :texture-2d :texture-min-filter :nearest)
                (gl:tex-parameter :texture-2d :texture-mag-filter :nearest)
+
+               (let ((wrap :clamp-to-border)
+                     #+nil
+                     (wrap :clamp-to-border)
+                     #+nil
+                     (wrap :repeat)
+                     #+nil
+                     (wrap :clamp-to-edge)
+                     #+nil
+                     (wrap :mirrored-repeat))
+                 (gl:tex-parameter :texture-2d :texture-wrap-s wrap)
+                 (gl:tex-parameter :texture-2d :texture-wrap-t wrap)
+                 ;; border clamp color
+                 (gl:tex-parameter :texture-2d :texture-border-color (vector 1.0 1.0 1.0 0.0)))
+
                (gl:framebuffer-texture-2d :framebuffer :color-attachment0 :texture-2d texture-id 0)
 
                (let ((fbo-status (gl:check-framebuffer-status :framebuffer)))

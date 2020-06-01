@@ -82,8 +82,10 @@
   (:documentation "Reload all shaders and external resources. Very slow. Live-coding/dev only.")
   (:method ()
     (when *engine-manager*
+      (assert (on-game-thread-p))
       (reload-all-shaders)
-      (resource-autoloader-reload-all *resource-autoloader*))))
+      (resource-autoloader-reload-all *resource-autoloader*)
+      (clear-cache *framebuffer-cache*))))
 
 @export
 (defvar *vert-build-version* nil

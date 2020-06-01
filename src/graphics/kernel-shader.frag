@@ -10,6 +10,16 @@ uniform float kernel[9];
 
 const float offset = 1.0 / 300.0;
 
+/**
+ *  Vert renders with 0,0 == upper-left and 1,1 == lower-right.
+ *  Glsl considers 1 to be "Up".
+ *  This fn converts Y coord from vert to glsl so texture selection works.
+ */
+float vertYCoordToTextureCoord (float y)
+{
+  return 1.0 - y;
+}
+
 void main()
 {
     vec2 offsets[9] = vec2[](
@@ -27,7 +37,8 @@ void main()
     vec3 sampleTex[9];
     for(int i = 0; i < 9; i++)
       {
-        sampleTex[i] = vec3(texture(ourTexture, fragmentData.textureCoords + offsets[i]));
+        sampleTex[i] = vec3(texture(ourTexture, vec2(fragmentData.textureCoords.x + offsets[i].x,
+                                                     vertYCoordToTextureCoord(fragmentData.textureCoords.y + offsets[i].y))));
       }
     vec3 col = vec3(0.0);
     for(int i = 0; i < 9; i++)

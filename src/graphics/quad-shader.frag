@@ -12,20 +12,29 @@ uniform int colorBlendFn;
 float BLEND_MULT = 0;
 float BLEND_ADD = 1;
 
+/**
+ *  Vert renders with 0,0 == upper-left and 1,1 == lower-right.
+ *  Glsl considers 1 to be "Up".
+ *  This fn converts Y coord from vert to glsl so texture selection works.
+ */
+float vertYCoordToTextureCoord (float y)
+{
+  return 1.0 - y;
+}
+
 void main()
 {
-  // solid color
-  // FragColor = vec4(0.0, 1.0, 1.0, 1.0);
-  // color mod
-  // FragColor = texture(ourTexture, fragmentData.textureCoords) * vec4(0.0, 1.0, 1.0, 1.0) ;
+  vec4 texPixels = vec4(vec3(texture(ourTexture, vec2(fragmentData.textureCoords.x, vertYCoordToTextureCoord(fragmentData.textureCoords.y)))), 1.0);
+
   // render texture if bound
   if (colorBlendFn == BLEND_MULT)
     {
-      FragColor = vec4(vec3(texture(ourTexture, fragmentData.textureCoords)), 1.0) * colorMod;
+      FragColor = texPixels * colorMod;
     }
   else
     {
-      FragColor = vec4(vec3(texture(ourTexture, fragmentData.textureCoords)), 1.0) + colorMod;
+      FragColor = texPixels + colorMod;
     }
-  // FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+  // debugging. 0,0 == black. 1,1 == yellow
+  // FragColor = vec4(fragmentData.textureCoords.x, fragmentData.textureCoords.y, 0.0, 1.0);
 }
