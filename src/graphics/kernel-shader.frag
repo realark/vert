@@ -34,17 +34,17 @@ void main()
         vec2( offset, -offset)  // bottom-right
     );
 
-    vec3 sampleTex[9];
+    vec4 sampleTex[9];
     for(int i = 0; i < 9; i++)
       {
-        sampleTex[i] = vec3(texture(ourTexture, vec2(fragmentData.textureCoords.x + offsets[i].x,
-                                                     vertYCoordToTextureCoord(fragmentData.textureCoords.y + offsets[i].y))));
+        sampleTex[i] = texture(ourTexture, vec2(fragmentData.textureCoords.x,
+                                                vertYCoordToTextureCoord(fragmentData.textureCoords.y + offsets[i].y)));
       }
-    vec3 col = vec3(0.0);
+    vec4 col = vec4(0.0);
     for(int i = 0; i < 9; i++)
       {
         col += sampleTex[i] * kernel[i];
       }
 
-    FragColor = vec4(col, 1.0);
+    FragColor = col;
 }

@@ -20,5 +20,6 @@ float vertYCoordToTextureCoord (float y)
 
 void main()
 {
-  FragColor = vec4(1.0 - vec3(texture(ourTexture, vec2(fragmentData.textureCoords.x, vertYCoordToTextureCoord(fragmentData.textureCoords.y)))), 1.0);
+  vec4 texPixels = texture(ourTexture, vec2(fragmentData.textureCoords.x, vertYCoordToTextureCoord(fragmentData.textureCoords.y)));
+  FragColor = vec4(1.0 - texPixels.rgb, texPixels.a);
 }

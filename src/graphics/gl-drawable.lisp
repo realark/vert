@@ -78,7 +78,8 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                (render drawable update-percent camera rendering-context)))
             (t
              ;; TODO: allow drawables to modify the transform matrix
-             (let ((orig-fbo (gl-context-fbo *gl-context*)))
+             (let ((orig-fbo (gl-context-fbo *gl-context*))
+                   (orig-clear-color (clear-color *engine-manager*)))
                (unwind-protect
                     (destructuring-bind (fbo-width fbo-height)
                         (or (getconfig 'game-resolution *config*)
@@ -100,12 +101,11 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                     (ceiling (the fixnum (screen-height camera)) fbo-height))))
                       (with-tmp-framebuffer (input-fbo :width fbo-width :height fbo-height)
                         (with-tmp-framebuffer (output-fbo :width fbo-width :height fbo-height)
-                          (gl-context-use-fbo *gl-context* input-fbo)
-                          (gl:viewport 0
-                                       0
-                                       fbo-width
-                                       fbo-height)
-                          (gl:clear :color-buffer-bit)
+                          (block clear-input-fbo
+                            (gl-context-use-fbo *gl-context* input-fbo)
+                            (gl:viewport 0 0 fbo-width fbo-height)
+                            (setf (clear-color *engine-manager*) *invisible*)
+                            (gl:clear :color-buffer-bit))
                           (flet ((last-active-drawable-p (index)
                                    (loop :for i :from index :below (length drawables) :do
                                         (when (gl-drawable-enabled-p (elt drawables i))
@@ -124,11 +124,9 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                            (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))
                                          (progn
                                            (gl-context-use-fbo *gl-context* output-fbo)
-                                           (gl:viewport 0
-                                                        0
-                                                        fbo-width
-                                                        fbo-height)))
-                                     (gl:clear :color-buffer-bit)
+                                           (gl:viewport 0 0 fbo-width fbo-height)
+                                           (setf (clear-color *engine-manager*) *invisible*)
+                                           (gl:clear :color-buffer-bit)))
                                      (log:trace "-- rendering ~A from FBO ~A to FBO ~A"
                                                 drawable
                                                 (slot-value input-fbo 'id)
@@ -139,6 +137,8 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                      ;; feed the current drawable's output into the next drawable's input
                                      (rotatef input-fbo output-fbo))))))))
                  (gl-context-use-fbo *gl-context* orig-fbo)
+                 (setf (clear-color *engine-manager*)
+                       orig-clear-color)
                  (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))))))))
 
 ;;;; quad texture base class

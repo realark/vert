@@ -24,8 +24,7 @@ float vertYCoordToTextureCoord (float y)
 
 void main()
 {
-  vec4 texPixels = texture(ourTexture,
-                           vec2(fragmentData.textureCoords.x, vertYCoordToTextureCoord(fragmentData.textureCoords.y)));
+  vec4 texPixels = texture(ourTexture, vec2(fragmentData.textureCoords.x, vertYCoordToTextureCoord(fragmentData.textureCoords.y)));
 
   // render texture if bound
   if (colorBlendFn == BLEND_MULT)
