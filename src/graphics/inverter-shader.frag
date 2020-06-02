@@ -3,23 +3,14 @@ out vec4 FragColor;
 
 in VertexData {
   vec2 textureCoords;
+  vec2 vertexCoords;
 } fragmentData;
 
 // texture sampler
 uniform sampler2D ourTexture;
 
-/**
- *  Vert renders with 0,0 == upper-left and 1,1 == lower-right.
- *  Glsl considers 1 to be "Up".
- *  This fn converts Y coord from vert to glsl so texture selection works.
- */
-float vertYCoordToTextureCoord (float y)
-{
-  return 1.0 - y;
-}
-
 void main()
 {
-  vec4 texPixels = texture(ourTexture, vec2(fragmentData.textureCoords.x, vertYCoordToTextureCoord(fragmentData.textureCoords.y)));
+  vec4 texPixels = texture(ourTexture, vec2(fragmentData.textureCoords.x, fragmentData.textureCoords.y));
   FragColor = vec4(1.0 - texPixels.rgb, texPixels.a);
 }
