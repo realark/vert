@@ -106,6 +106,11 @@ Nil to render the entire sprite.")
       ;; to automatically be reflected in the render area.
       (setf (gl-pipeline-render-area sprite) sprite)
 
+      (with-slots (wrap-width wrap-height sprite-source) sprite
+        (when (and (or wrap-width wrap-height)
+                   sprite-source)
+          (error "using wrap-width/height with sprite-source not supported. ~A" sprite)))
+
       (resource-autoloader-add-object *resource-autoloader*
                                       (tg:make-weak-pointer sprite)))))
 
@@ -113,10 +118,22 @@ Nil to render the entire sprite.")
   (prog1 (call-next-method sprite)
     (unless (slot-value sprite 'sprite-releaser)
       (with-accessors ((texture-id gl-drawable-input-texture)) sprite
-        (with-slots (texture quad) sprite
+        (with-slots (texture quad wrap-width wrap-height sprite-source) sprite
           (load-resources texture)
           (setf (slot-value quad 'texture-id)
-                (texture-id texture)))
+                (texture-id texture))
+
+          (when (or wrap-width wrap-height)
+            (with-accessors ((width width) (height height)) sprite
+              (setf sprite-source
+                    (make-sprite-source 0
+                                        0
+                                        (round
+                                         (* (texture-src-width texture)
+                                            (/ width (or wrap-width width))))
+                                        (round
+                                         (* (texture-src-height texture)
+                                            (/ height (or wrap-height height)))))))))
         (let ((texture (slot-value sprite 'texture)))
           (setf (slot-value sprite 'sprite-releaser)
                 (make-resource-releaser (sprite)
@@ -205,7 +222,6 @@ Nil to render the entire sprite.")
 @export
 (defun get-color-maps (static-sprite)
   (slot-value static-sprite 'color-maps))
-
 
 @export
 (defmethod flip ((sprite static-sprite) direction)
