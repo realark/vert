@@ -172,11 +172,11 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                  (let ((vao 0)
                        (quad-vbo 0)
                        (c-vertices (alloc-gl-array  :float
-                                                    ;; positions             texture coords
-                                                    (+ 0.0 quad-padding)   (+ 0.0 quad-padding)  0.0          1.0  0.0 ; top right
-                                                    (+ 0.0 quad-padding)   (- -1 quad-padding)  0.0          1.0 -1.0 ; bottom right
-                                                    (- -1 quad-padding)    (- -1 quad-padding)  0.0          0.0 -1.0 ; bottom left
-                                                    (- -1 quad-padding)    (+ 0.0 quad-padding)  0.0          0.0  0.0 ; top left
+                                                    ;; positions                                              texture coords
+                                                    (- 0.0 quad-padding)    (- 0.0 quad-padding)  0.0         0.0  0.0 ; top left
+                                                    (- 0.0 quad-padding)    (+ 1.0 quad-padding)  0.0         0.0  1.0 ; bottom left
+                                                    (+ 1.0 quad-padding)   (+ 1.0 quad-padding)  0.0          1.0  1.0 ; bottom right
+                                                    (+ 1.0 quad-padding)   (- 0.0 quad-padding)  0.0          1.0  0.0 ; top right
                                                     )))
                    (unwind-protect
                         (progn
@@ -396,18 +396,28 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                                (/ (float x) total-w)))
                      (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-source-array)
                                           :float (+ c-offset 1))
-                           (if (< flip-y 0)
-                               (/ (float y) total-h)
-                               ;; add src-h to y coord to render coords from upper-left corner instead of lower-left
-                               (/ (float (+ h y)) total-h)))
+                           (if (< flip-y 0.0)
+                               (- 1.0 (/ (float (+ y h)) total-h))
+                               ;; invert y coord for upper-left coord
+                               (- 1.0 (/ (float y) total-h))))
                      (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-source-array)
                                           :float (+ c-offset 2))
                            (float (/ (* w flip-x) total-w)))
                      (setf (cffi:mem-aref (gl::gl-array-pointer c-sprite-source-array)
                                           :float (+ c-offset 3))
-                           (float (/ (* h flip-y) total-h))))
+                           (if (< flip-y 0.0)
+                               (+ (float (/ h total-h)))
+                               (- (float (/ h total-h))))))
 
-                   (loop :with model-matrix = (interpolated-obb-matrix drawable update-percent)
+                   ;; FIXME: user interpolated matrix
+                   (loop ; :with model-matrix = (interpolated-obb-matrix drawable update-percent)
+                      :with model-matrix =
+                        (matrix*
+                         ;; FIXME consing
+                         (local-to-world-matrix drawable)
+                         (scale-matrix (width drawable)
+                                       (height drawable)
+                                       1.0))
                       :for c-index :from (* drawable-index 16)
                       :for i :from 0 :below 16 :do
                         (locally (declare (fixnum c-index i)
