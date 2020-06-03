@@ -104,29 +104,22 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                (render drawable update-percent camera rendering-context)))
             (t
              (let ((orig-fbo (gl-context-fbo *gl-context*))
-                   (orig-clear-color (clear-color *engine-manager*)))
+                   (orig-clear-color (clear-color *engine-manager*))
+                   (orig-reset-p nil))
                (unwind-protect
                     (flet ((compute-fbo-dimensions (pipeline)
-                             (with-slots ((render-area render-area-copy)) pipeline
-                               (destructuring-bind (fbo-width fbo-height)
-                                   (or (getconfig 'game-resolution *config*)
-                                       '(320 180))
-                                 (declare (fixnum fbo-width fbo-height))
-                                 ;; Note: Currently sizing the tmp FBOs based on the window size
-                                 ;; it would probably be more optimal to size on the game resolution (usually much smaller)
-                                 ;; and scale up in the final output. I'm not doing that right now because
-                                 ;; that's complicated (at least, doing it in a generic size agnostic way is complicated).
-                                 ;; Plus, I think scaling might look weird.
-                                 ;; I'll come back to this if performance becomes an issue.
-                                 (setf fbo-width
-                                       (* fbo-width
-                                          (the fixnum
-                                               (ceiling (the fixnum (screen-width camera)) fbo-width)))
-                                       fbo-height
-                                       (* fbo-height
-                                          (the fixnum
-                                               (ceiling (the fixnum (screen-height camera)) fbo-height))))
-                                 (values fbo-width fbo-height))))
+                             (declare (ignore pipeline))
+                             ;; Note: Currently sizing the tmp FBOs based on the window size
+                             ;; it would probably be more optimal to size on the game resolution (usually much smaller)
+                             ;; and scale up in the final output. I'm not doing that right now because
+                             ;; that's complicated (at least, doing it in a generic size agnostic way is complicated).
+                             ;; Plus, I think scaling might look weird.
+                             ;; I'll come back to this if performance becomes an issue.
+                             (multiple-value-bind (x y w h)
+                                 (compute-gl-viewport-for-game-resolution (screen-width camera)
+                                                                          (screen-height camera))
+                               (declare (ignore x y))
+                               (values w h)))
                            (last-active-drawable-p (index)
                              (loop :for i :from index :below (length drawables) :do
                                   (when (gl-drawable-enabled-p (elt drawables i))
@@ -174,7 +167,9 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                            (when (slot-value pipeline 'render-area)
                                              (setf (gl-drawable-render-area drawable)
                                                    (slot-value pipeline 'render-area-copy)))
-                                           (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))
+                                           (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera))
+                                           (setf (clear-color *engine-manager*) orig-clear-color
+                                                 orig-reset-p t))
                                          (progn
                                            (gl-context-use-fbo *gl-context* output-fbo)
                                            (gl:viewport 0 0 fbo-width fbo-height)
@@ -188,10 +183,11 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                            (framebuffer-texture-id input-fbo))
                                      (render drawable update-percent camera rendering-context)
                                      (rotatef input-fbo output-fbo))))))))
-                 (gl-context-use-fbo *gl-context* orig-fbo)
-                 (setf (clear-color *engine-manager*)
-                       orig-clear-color)
-                 (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))))))))
+                 (unless orig-reset-p
+                   (gl-context-use-fbo *gl-context* orig-fbo)
+                   (setf (clear-color *engine-manager*)
+                         orig-clear-color)
+                   (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera))))))))))
 
 ;;;; quad texture base class
 (defvar %quad-cache-key% 'gl-quad)

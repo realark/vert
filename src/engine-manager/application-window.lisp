@@ -80,8 +80,9 @@ The viewport will be centered into the middle of the window defined by the input
 (defun set-gl-viewport-to-game-resolution (width-pixels height-pixels)
   (multiple-value-bind (x y w h)
       (compute-gl-viewport-for-game-resolution width-pixels height-pixels)
-    (gl:viewport x y w h)))
-
+    ;; TODO: Centering the render area causes a strange bug with gl-pipelines when multiple effects are present.
+    ;; (gl:viewport x y w h)
+    (gl:viewport 0 0 w h)))
 (defmethod toggle-fullscreen ((application-window sdl-application-window))
   (with-slots ((win sdl-window) pre-fs-width pre-fs-height pre-fs-x pre-fs-y) application-window
     (let ((currently-fullscreen? (member :FULLSCREEN (sdl2:get-window-flags win))))
