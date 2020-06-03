@@ -1,5 +1,12 @@
 (in-package :recurse.vert)
 
+(defvar %fullscreen-ortho-matrix%
+  (ortho-matrix 0.0  1.0
+                1.0  0.0
+                1.0 -1.0)
+  "ortho matrix for rendering across the entire game window.
+Verts coord system has 0,0 being the upper-left corner. Positive X goes right. Positive Y goes down.")
+
 @export-class
 (defclass gl-drawable ()
   ((enabled-p :initform t
@@ -9,14 +16,30 @@
                   :accessor gl-drawable-input-texture
                   :documentation "When this drawable is used in a GL-PIPELINE, the texture-id of the previous step will be bound in this slot before RENDER is called.
 It is not required that steps actually do anything with the input-texture. They may discard it.
-Slot will be nil if this drawable is the first stage in the pipeline."))
+Slot will be nil if this drawable is the first stage in the pipeline.")
+   (render-area :initarg :render-area
+                :initform nil
+                :accessor gl-drawable-render-area
+                :documentation "Optional OBB. When provided the effect will be clipped to the OBB's area. If null the entire screen will be rendered to."))
   (:documentation "A opengl drawable which renders into the currently bound FBO.
 This component is designed to be used in a GL-PIPELINE, thought it doesn't have to be.
 The RENDER method will implement the drawing.
 If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre once rendering completes."))
 
+@export
+(defgeneric gl-drawable-modify-render-area (gl-drawable obb)
+  (:documentation "Optional hook for a gl-drawable to modify the render-area when used in a pipeline.")
+  (:method (gl-drawable obb)))
+
+@export-class
 (defclass gl-pipeline ()
-  ((drawables :initform (make-array 0
+  ((render-area :initform nil
+                :accessor gl-pipeline-render-area
+                :documentation "Optional OBB to render the pipeline into. Nil renders the entire screen.")
+   (render-area-copy
+    :initform (make-instance 'obb)
+    :documentation "Copy of render-area slot. Used to allow modifications to the render-area without affecting the actual render area.")
+   (drawables :initform (make-array 0
                                     :adjustable t
                                     :fill-pointer 0
                                     :element-type 'gl-drawable)))
@@ -74,43 +97,69 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
             ((= 1 num-active-drawables)
              ;; fast path. Draw the single command into the current FBO
              (let ((drawable (%gl-pipeline-first-enabled-drawable pipeline)))
-               (setf (gl-drawable-input-texture drawable) nil)
+               (setf (gl-drawable-input-texture drawable)
+                     nil
+                     (gl-drawable-render-area drawable)
+                     (gl-pipeline-render-area pipeline))
                (render drawable update-percent camera rendering-context)))
             (t
-             ;; TODO: allow drawables to modify the transform matrix
              (let ((orig-fbo (gl-context-fbo *gl-context*))
                    (orig-clear-color (clear-color *engine-manager*)))
                (unwind-protect
-                    (destructuring-bind (fbo-width fbo-height)
-                        (or (getconfig 'game-resolution *config*)
-                            '(320 180))
-                      (declare (fixnum fbo-width fbo-height))
-                      ;; Note: Currently sizing the tmp FBOs based on the window size
-                      ;; it would probably be more optimal to size on the game resolution (usually much smaller)
-                      ;; and scale up in the final output. I'm not doing that right now because
-                      ;; that's complicated (at least, doing it in a generic size agnostic way is complicated).
-                      ;; Plus, I think scaling might look weird.
-                      ;; I'll come back to this if performance becomes an issue.
-                      (setf fbo-width
-                            (* fbo-width
-                               (the fixnum
-                                    (ceiling (the fixnum (screen-width camera)) fbo-width)))
-                            fbo-height
-                            (* fbo-height
-                               (the fixnum
-                                    (ceiling (the fixnum (screen-height camera)) fbo-height))))
-                      (with-tmp-framebuffer (input-fbo :width fbo-width :height fbo-height)
-                        (with-tmp-framebuffer (output-fbo :width fbo-width :height fbo-height)
-                          (block clear-input-fbo
-                            (gl-context-use-fbo *gl-context* input-fbo)
-                            (gl:viewport 0 0 fbo-width fbo-height)
-                            (setf (clear-color *engine-manager*) *invisible*)
-                            (gl:clear :color-buffer-bit))
-                          (flet ((last-active-drawable-p (index)
-                                   (loop :for i :from index :below (length drawables) :do
-                                        (when (gl-drawable-enabled-p (elt drawables i))
-                                          (return nil))
-                                      :finally (return t))))
+                    (flet ((compute-fbo-dimensions (pipeline)
+                             (with-slots ((render-area render-area-copy)) pipeline
+                               (destructuring-bind (fbo-width fbo-height)
+                                   (or (getconfig 'game-resolution *config*)
+                                       '(320 180))
+                                 (declare (fixnum fbo-width fbo-height))
+                                 ;; Note: Currently sizing the tmp FBOs based on the window size
+                                 ;; it would probably be more optimal to size on the game resolution (usually much smaller)
+                                 ;; and scale up in the final output. I'm not doing that right now because
+                                 ;; that's complicated (at least, doing it in a generic size agnostic way is complicated).
+                                 ;; Plus, I think scaling might look weird.
+                                 ;; I'll come back to this if performance becomes an issue.
+                                 (setf fbo-width
+                                       (* fbo-width
+                                          (the fixnum
+                                               (ceiling (the fixnum (screen-width camera)) fbo-width)))
+                                       fbo-height
+                                       (* fbo-height
+                                          (the fixnum
+                                               (ceiling (the fixnum (screen-height camera)) fbo-height))))
+                                 (values fbo-width fbo-height))))
+                           (last-active-drawable-p (index)
+                             (loop :for i :from index :below (length drawables) :do
+                                  (when (gl-drawable-enabled-p (elt drawables i))
+                                    (return nil))
+                                :finally (return t))))
+                      (declare (inline compute-fbo-dimensions))
+                      (multiple-value-bind (fbo-width fbo-height) (compute-fbo-dimensions pipeline)
+                        (block setup-render-area
+                          (with-slots (render-area render-area-copy) pipeline
+                            (if render-area
+                                (setf (parent render-area-copy) (parent render-area)
+                                      (x render-area-copy) (x render-area)
+                                      (y render-area-copy) (y render-area)
+                                      (z render-area-copy) (z render-area)
+                                      (rotation render-area-copy) (rotation render-area)
+                                      (width render-area-copy) (width render-area)
+                                      (height render-area-copy) (height render-area))
+                                (setf (parent render-area-copy) nil
+                                      (x render-area-copy) 0.0
+                                      (y render-area-copy) 0.0
+                                      (z render-area-copy) 0.0
+                                      (rotation render-area-copy) 0.0
+                                      (width render-area-copy) fbo-width
+                                      (height render-area-copy) fbo-height))
+                            (loop :for drawable :across drawables :do
+                                 (gl-drawable-modify-render-area drawable render-area-copy))))
+                        (with-tmp-framebuffer (input-fbo :width fbo-width :height fbo-height)
+                          (with-tmp-framebuffer (output-fbo :width fbo-width :height fbo-height)
+                            (block clear-input-fbo
+                              (gl-context-use-fbo *gl-context* input-fbo)
+                              (gl:viewport 0 0 fbo-width fbo-height)
+                              (setf (clear-color *engine-manager*) *invisible*)
+                              (gl:clear :color-buffer-bit))
                             (log:trace "~A pipeline rendering ~A drawables"
                                        pipeline
                                        num-active-drawables)
@@ -118,9 +167,13 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                :for drawable :across drawables :do
                                  (locally (declare ((integer 0 1024) i))
                                    (when (gl-drawable-enabled-p drawable)
+                                     (setf (gl-drawable-render-area drawable) nil)
                                      (if (last-active-drawable-p (+ i 1))
                                          (progn
                                            (gl-context-use-fbo *gl-context* orig-fbo)
+                                           (when (slot-value pipeline 'render-area)
+                                             (setf (gl-drawable-render-area drawable)
+                                                   (slot-value pipeline 'render-area-copy)))
                                            (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera)))
                                          (progn
                                            (gl-context-use-fbo *gl-context* output-fbo)
@@ -134,7 +187,6 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                      (setf (gl-drawable-input-texture drawable)
                                            (framebuffer-texture-id input-fbo))
                                      (render drawable update-percent camera rendering-context)
-                                     ;; feed the current drawable's output into the next drawable's input
                                      (rotatef input-fbo output-fbo))))))))
                  (gl-context-use-fbo *gl-context* orig-fbo)
                  (setf (clear-color *engine-manager*)
@@ -159,10 +211,7 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
           :accessor color
           :documentation "Optional color mod to apply to the quad. If a texture is also applied the two color values will be blended.")
    (texture-src :initform (vector 0.0 0.0 1.0 1.0)
-                :documentation "x y width height. Normalized coords.")
-   (render-area :initarg :render-area
-                :initform nil
-                :documentation "Optional OBB. When provided the quad will render to the OBB's area. If null the entire screen will be rendered to."))
+                :documentation "x y width height. Normalized coords."))
   (:documentation "Render a quad (rectangle) to the screen.
 A texture may be provided to render into the quad.
 Most gl drawing utils will want to subclass and override the SHADER slot with custom fragment rendering."))
@@ -185,9 +234,9 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                  :fragment-source (get-builtin-shader-source 'quad-shader.frag)))
 
 @export
-(defmethod gl-quad-on-render ((quad gl-quad))
-  ;; no-op
-  )
+(defgeneric gl-quad-on-render (quad)
+  (:documentation "Hook for gl-quad subclasses. Runs before rendering draw commands.")
+  (:method ((quad gl-quad))))
 
 (defmethod load-resources ((quad gl-quad))
   (prog1 (call-next-method quad)
@@ -294,12 +343,6 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
     ;; hook for subclasses
     (gl-quad-on-render quad)
     (n-draw-arrays :triangle-fan 0 4)))
-
-(defvar %fullscreen-ortho-matrix%
-  (ortho-matrix 0.0  1.0
-                1.0  0.0
-                1.0 -1.0)
-  "ortho matrix for rendering across the entire game window.")
 
 (defun %create-quad-vao ()
   (assert *gl-context*)

@@ -9,6 +9,7 @@
       (setf (gl-drawable-input-texture quad)
             texture-id)
 
+      ;; TODO stop hardcoding texture-src
       (with-slots (texture-src) quad
         #+nil
         (setf
@@ -52,12 +53,16 @@
     (prog1 (apply #'call-next-method all-args)
       (with-slots (path quad color) sprite
         (setf quad (make-instance '%sprite-quad
-                                  :color color
-                                  :render-area sprite))
+                                  :color color))
         (gl-pipeline-add sprite quad))
       (with-slots (texture path) sprite
         (setf texture (make-instance 'sprite-backed-texture
                                      :path path)))
+      ;; setting the render-area of this sprite's pipeline to itself.
+      ;; A little weird, but this allows changes to the sprite's position/dimensions
+      ;; to automatically be reflected in the render area.
+      (setf (gl-pipeline-render-area sprite) sprite)
+
       (resource-autoloader-add-object *resource-autoloader*
                                       (tg:make-weak-pointer sprite)))))
 
