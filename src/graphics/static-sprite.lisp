@@ -49,28 +49,7 @@
   (with-slots (texture-id) quad
     (when texture-id
       (setf (gl-drawable-input-texture quad)
-            texture-id)
-
-      ;; TODO stop hardcoding texture-src
-      (with-slots (texture-src) quad
-        #+nil
-        (setf
-         (elt texture-src 0) 0.0
-         (elt texture-src 1) 0.0
-         (elt texture-src 2) 1.0
-         (elt texture-src 3) -1.0)
-        (setf
-         (elt texture-src 0) 0.0
-
-         (elt texture-src 1) 0.0
-
-         (elt texture-src 2)
-         (/ 1.0 7.0)
-
-         (elt texture-src 3)
-         ;; (/ 1.0 4.0)
-         (- (/ 1.0 4.0))
-         ))))
+            texture-id)))
   (call-next-method quad update-percent camera gl-context))
 
 ;;;; sprite class
@@ -105,9 +84,10 @@ Nil to render the entire sprite.")
    (wrap-height :initform nil
                 :initarg :wrap-height
                 :documentation "repeat the sprite texture vertically after wrap-height is exceeded")
-   ;; TODO: consting vv
-   (flip-list :initform (list)
-              :accessor flip-list))
+   (flip-list :initform (make-array 0
+                                    :fill-pointer 0
+                                    :adjustable t
+                                    :element-type 'keyword)))
   (:documentation "A GL-PIPELINE which renders a sprite in the first pipeline stage."))
 
 (defmethod initialize-instance :around ((sprite static-sprite) &rest args)
@@ -154,6 +134,46 @@ Nil to render the entire sprite.")
         (setf (slot-value quad 'texture-id) nil
               sprite-releaser nil)))))
 
+(defmethod render ((sprite static-sprite) update-percent camera gl-context)
+  (with-slots (quad) sprite
+    ;; TODO stop hardcoding texture-src
+    (block set-sprite-source
+      (with-slots (texture sprite-source sprite-source-flip-vector) sprite
+        (with-slots (texture-src) quad
+          (let* ((source (or sprite-source *default-sprite-source*))
+                 (flip-x (elt sprite-source-flip-vector 0))
+                 (flip-y (elt sprite-source-flip-vector 1))
+                 (x (sprite-source-x source))
+                 (y (sprite-source-y source))
+                 (total-w (texture-src-width texture))
+                 (total-h (texture-src-height texture))
+                 (w (or (sprite-source-w source) total-w))
+                 (h (or (sprite-source-h source) total-h)))
+            (declare ((single-float -1.0 1.0) flip-x flip-y)
+                     ((integer 0 *) x y w h total-w total-h))
+            (setf
+             ;; x
+             (elt texture-src 0)
+             (if (< flip-x 0)
+                 (/ (float (+ x w)) total-w)
+                 (/ (float x) total-w))
+             ;; y
+             (elt texture-src 1)
+             (if (< flip-y 0.0)
+                 (- 1.0 (/ (float (+ y h)) total-h))
+                 ;; invert y coord for upper-left coord
+                 (- 1.0 (/ (float y) total-h)))
+             ;; w
+             (elt texture-src 2)
+             (float (/ (* w flip-x) total-w))
+             ;; h
+             (elt texture-src 3)
+             ;; invert y coord for upper-left coord
+             (if (< flip-y 0.0)
+                 (+ (float (/ h total-h)))
+                 (- (float (/ h total-h))))))))))
+  (call-next-method sprite update-percent camera gl-context))
+
 (defmethod (setf color) :after (new-color (sprite static-sprite))
   (with-slots (quad color) sprite
     (when quad
@@ -188,19 +208,17 @@ Nil to render the entire sprite.")
 
 
 @export
-(defmethod flip (sprite direction)
+(defmethod flip ((sprite static-sprite) direction)
   "Toggle STATIC-SPRITE in the given DIRECTION.
 A DIRECTION of :NONE will clear all flips"
-  ;; TODO
-  ;; (declare (static-sprite sprite) (keyword direction))
-  #+nil
+  (declare (keyword direction))
   (with-slots (flip-list sprite-source-flip-vector) sprite
     (ecase direction
-      (:none (setf flip-list (list)))
+      (:none (setf (fill-pointer flip-list) 0))
       ((:horizontal :vertical)
        (if (find direction flip-list)
            (setf flip-list (delete direction flip-list))
-           (push direction flip-list))))
+           (vector-push-extend direction flip-list))))
     (if (find :horizontal flip-list)
         (setf (elt sprite-source-flip-vector 0) -1.0)
         (setf (elt sprite-source-flip-vector 0) 1.0))

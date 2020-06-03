@@ -85,6 +85,7 @@
       (assert (on-game-thread-p))
       (log:info "Reloading all resources. This may take a few frames...")
       (reload-all-shaders)
+      (clear-cache *texture-cache*)
       (resource-autoloader-reload-all *resource-autoloader*)
       (clear-cache *framebuffer-cache*)
       (log:info "~%All resources reloaded!~%"))))

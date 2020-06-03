@@ -405,7 +405,8 @@
                        :documentation "plist passed to (gl:tex-parameter KEY VAL)")))
 
 (defun texture-src-width (texture)
-  (declare (texture texture))
+  ;; TODO
+  ;; (declare (texture texture))
   (with-slots (path-to-texture texture-id texture-src-width)
       texture
     (when (= 0 texture-id)
@@ -413,7 +414,8 @@
     texture-src-width))
 
 (defun texture-src-height (texture)
-  (declare (texture texture))
+  ;; TODO
+  ;; (declare (texture texture))
   (with-slots (path-to-texture texture-id texture-src-height)
       texture
     (when (= 0 texture-id)
