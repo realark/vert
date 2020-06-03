@@ -51,35 +51,36 @@
 (defmethod after-resize-window :after ((application-window sdl-application-window) width-pixels height-pixels)
   (set-gl-viewport-to-game-resolution width-pixels height-pixels))
 
+(defun compute-gl-viewport-for-game-resolution (width-pixels height-pixels)
+  "compute values that scale the games resolution inside the given width and height.
+returns (values x y w h) to be used to set the gl:viewport.
+The viewport will be scaled to the max size that fits inside the input width and height.
+The viewport will be centered into the middle of the window defined by the input width and height."
+  (destructuring-bind (resolution-width resolution-height)
+      (or (getconfig 'game-resolution *config*)
+          '(320 180))
+    (declare (fixnum resolution-width resolution-height width-pixels height-pixels))
+    ;; first scale down to min resolution
+    (let ((divisor (gcd resolution-width resolution-height)))
+      (setf resolution-width (/ resolution-width divisor)
+            resolution-height (/ resolution-height divisor)))
+    ;; then scale up to as many of the min dimensions can fit into the area
+    (let ((scaling-factor (min (floor width-pixels resolution-width)
+                               (floor height-pixels resolution-height))))
+      (setf resolution-width
+            (* resolution-width scaling-factor)
+            resolution-height
+            (* resolution-height scaling-factor)))
+    (values
+     (floor (- width-pixels resolution-width) 2)
+     (floor (- height-pixels resolution-height) 2)
+     resolution-width
+     resolution-height)))
+
 (defun set-gl-viewport-to-game-resolution (width-pixels height-pixels)
-  (destructuring-bind (game-resolution-w game-resolution-h)
-      (getconfig 'initial-window-size *config*)
-    (labels ((find-nearest-matching-resolution ()
-               (let* ((resolution (/ game-resolution-w game-resolution-h))
-                      (w (numerator resolution))
-                      (h (denominator resolution)))
-                 (loop :for i :from 2 :do
-                      (when (or (> (* i w) width-pixels)
-                                (> (* i h) height-pixels))
-                        (return (list (* (- i 1) w)
-                                      (* (- i 1) h))))
-                      (when (> i 1000)
-                        (error "Failed to compute game resolution"))))))
-      (destructuring-bind (matching-resolution-w matching-resolution-h)
-          (find-nearest-matching-resolution)
-        (assert (= (/ matching-resolution-w matching-resolution-h)
-                   (/ game-resolution-w game-resolution-h)))
-        (let* ((delta-w (- width-pixels matching-resolution-w))
-               (delta-h (- height-pixels matching-resolution-h)))
-          #+nil
-          (format t "win:~Ax~A~%nearest:~Ax~A~%delta:~Ax~A~%~%"
-                  width-pixels height-pixels
-                  matching-resolution-w matching-resolution-h
-                  delta-w delta-h)
-          (gl:viewport (/ delta-w 2)
-                       (/ delta-h 2)
-                       (- width-pixels delta-w)
-                       (- height-pixels delta-h)))))))
+  (multiple-value-bind (x y w h)
+      (compute-gl-viewport-for-game-resolution width-pixels height-pixels)
+    (gl:viewport x y w h)))
 
 (defmethod toggle-fullscreen ((application-window sdl-application-window))
   (with-slots ((win sdl-window) pre-fs-width pre-fs-height pre-fs-x pre-fs-y) application-window
