@@ -87,7 +87,7 @@
                       1.0 1.0 1.0 1.0))
 
     ;; set position, rotation, and size
-    (let* ((render-transform (obb-render-transform game-object)))
+    (let* ((render-transform (old-obb-render-transform game-object)))
       (declare (dynamic-extent render-transform))
       (set-uniform-matrix-4fv shader
                               "worldModel"

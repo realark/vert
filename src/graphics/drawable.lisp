@@ -23,7 +23,7 @@
     (render draw-component update-percent camera context)))
 
 @inline
-(defun obb-render-transform (obb)
+(defun old-obb-render-transform (obb)
   "Construct a rendering transform for OBB."
   (declare (optimize (speed 3))
            (obb obb))
@@ -44,7 +44,7 @@
   (declare (optimize (speed 3))
            (ignore args))
   (with-slots (interpolator) transform
-    (let ((m (obb-render-transform transform)))
+    (let ((m (old-obb-render-transform transform)))
       (declare (dynamic-extent m))
       (interpolator-update interpolator m))))
 
@@ -59,7 +59,7 @@
       drawable
     (when (or 1dirty-p 0dirty-p)
       (with-slots (interpolator) drawable
-        (let ((m (obb-render-transform drawable)))
+        (let ((m (old-obb-render-transform drawable)))
           (declare (dynamic-extent m))
           (interpolator-update interpolator m)))
       ;; it takes two passes to clean ourselves
@@ -80,7 +80,7 @@
   (with-slots (interpolator) drawable
     (unless (= update-percent
                (matrix-interpolator-cached-update-percent interpolator))
-      (let ((m (obb-render-transform drawable)))
+      (let ((m (old-obb-render-transform drawable)))
         (declare (dynamic-extent m))
         (interpolator-compute interpolator
                               m

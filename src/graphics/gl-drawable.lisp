@@ -305,21 +305,22 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
 
     ;; set position and size matrices
     (with-slots (render-area) quad
-      (let ((render-area-model (when render-area
-                                 (matrix*
-                                  ;; FIXME consing
-                                  (local-to-world-matrix render-area)
-                                  (scale-matrix (width render-area)
-                                                (height render-area)
-                                                1.0)))))
-        (declare (dynamic-extent render-area-model))
-        (set-uniform-matrix-4fv shader
-                                "worldModel"
-                                (if render-area
-                                    ;; FIXME interpolate sprites
+      (if render-area
+          (let ((render-area-model (matrix*
+                                    (local-to-world-matrix render-area)
+                                    (scale-matrix (width render-area)
+                                                  (height render-area)
+                                                  1.0))))
+            (declare (dynamic-extent render-area-model))
+            (set-uniform-matrix-4fv shader
+                                    "worldModel"
                                     render-area-model
-                                    *identity-matrix*)
-                                nil))
+                                    nil))
+          (set-uniform-matrix-4fv shader
+                                  "worldModel"
+                                  *identity-matrix*
+                                  nil))
+
       ;; set world projection
       (set-uniform-matrix-4fv shader
                               "worldProjection"
