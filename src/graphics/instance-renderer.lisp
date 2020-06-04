@@ -12,7 +12,7 @@
   (:documentation "An object which renders drawables using opengl instance rendering."))
 
 @export
-(defclass instance-rendered-drawable (game-object)
+(defclass instance-rendered-drawable (interpolated-obb)
   ((instance-renderer :initarg :instance-renderer
                       :initform (error ":instance-renderer required"))
    (sprite-source-flip-vector :initform (vector2 1.0 1.0)
@@ -409,15 +409,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                                (+ (float (/ h total-h)))
                                (- (float (/ h total-h))))))
 
-                   ;; FIXME: user interpolated matrix
-                   (loop ; :with model-matrix = (interpolated-obb-matrix drawable update-percent)
-                      :with model-matrix =
-                        (matrix*
-                         ;; FIXME consing
-                         (local-to-world-matrix drawable)
-                         (scale-matrix (width drawable)
-                                       (height drawable)
-                                       1.0))
+                   (loop :with model-matrix = (compute-transform drawable update-percent)
                       :for c-index :from (* drawable-index 16)
                       :for i :from 0 :below 16 :do
                         (locally (declare (fixnum c-index i)

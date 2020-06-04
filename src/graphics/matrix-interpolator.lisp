@@ -73,10 +73,57 @@ Useful in rendering because often rendering time wants to show a state in betwee
       (declare (dynamic-extent m))
       (interpolator-update interpolator m))))
 
-(defun interpolated-obb-get-transform (obb &key (update-percent 1.0))
-  "Get the transform matrix for the obb. 1.0 = current transform. 0.0 = last frame's transform.
-In-between 0 and 1 will interpolate an appropriate transform matrix."
+(defmethod initialize-instance :after ((obb interpolated-obb) &rest args)
+  (declare (optimize (speed 3))
+           (ignore args))
+  (with-slots (interpolator) obb
+    (let ((m (obb-render-transform obb)))
+      (declare (dynamic-extent m))
+      (interpolator-update interpolator m))))
 
-  ;; FIXME
-  (obb-render-transform obb)
-  )
+(defmethod mark-obb-dirty :after ((obb interpolated-obb))
+  (setf (slot-value obb 'interpolator0-dirty-p) t
+        (slot-value obb 'interpolator1-dirty-p) t))
+
+@inline
+(defun %update-matrix0 (obb)
+  (with-slots ((1dirty-p interpolator0-dirty-p)
+               (0dirty-p interpolator1-dirty-p))
+      obb
+    (when (or 1dirty-p 0dirty-p)
+      (with-slots (interpolator) obb
+        (let ((m (obb-render-transform obb)))
+          (declare (dynamic-extent m))
+          (interpolator-update interpolator m)))
+      ;; it takes two passes to clean ourselves
+      (if 0dirty-p
+          ;; pass 1
+          (setf 0dirty-p nil)
+          ;; pass 2
+          (setf 1dirty-p nil)))))
+
+(defmethod pre-update :before ((obb interpolated-obb))
+  (declare (optimize (speed 3)))
+  (%update-matrix0 obb)
+  (values))
+
+(defmethod recycle ((obb interpolated-obb))
+  (declare (optimize (speed 3)))
+  ;; drop the previous matrix
+  (prog1 (call-next-method obb)
+    (setf (slot-value obb 'interpolator0-dirty-p) t
+          (slot-value obb 'interpolator1-dirty-p) t)
+    (%update-matrix0 obb)))
+
+(defmethod compute-transform ((obb interpolated-obb) update-percent)
+  (declare (optimize (speed 3))
+           ((single-float 0.0 1.0) update-percent))
+  (with-slots (interpolator) obb
+    (unless (= update-percent
+               (matrix-interpolator-cached-update-percent interpolator))
+      (let ((m (obb-render-transform obb)))
+        (declare (dynamic-extent m))
+        (interpolator-compute interpolator
+                              m
+                              update-percent)))
+    (matrix-interpolator-imatrix interpolator)))

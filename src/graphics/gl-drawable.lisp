@@ -7,6 +7,9 @@
   "ortho matrix for rendering across the entire game window.
 Verts coord system has 0,0 being the upper-left corner. Positive X goes right. Positive Y goes down.")
 
+(defgeneric compute-transform (drawable-or-pipeline update-percent)
+  (:documentation "Compute a transform matrix to pass to the pipeline's gl-drawables"))
+
 @export-class
 (defclass gl-drawable ()
   ((enabled-p :initform t
@@ -73,27 +76,35 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
          (gl-drawable-modify-render-area drawable render-area-copy))
     render-area-copy))
 
-(defgeneric gl-pipeline-compute-transform (gl-pipeline update-percent)
-  (:documentation "Compute a transform matrix to pass to the pipeline's gl-drawables")
-  (:method ((pipeline gl-pipeline) update-percent)
-    (declare (optimize (speed 3)))
-    (with-slots (drawables render-area render-area-copy transform-interpolator) pipeline
-      (if render-area
-          (let ((transform (obb-render-transform
-                            (%gl-pipeline-compute-render-area-copy pipeline))))
-            (declare (dynamic-extent transform))
-            (interpolator-compute transform-interpolator transform update-percent))
-          *identity-matrix*))))
+(defmethod compute-transform ((pipeline gl-pipeline) update-percent)
+  (declare (optimize (speed 3)))
+  (with-slots (drawables render-area render-area-copy transform-interpolator) pipeline
+    (if render-area
+        (let ((transform (obb-render-transform
+                          (%gl-pipeline-compute-render-area-copy pipeline))))
+          (declare (dynamic-extent transform))
+          (interpolator-compute transform-interpolator transform update-percent))
+        *identity-matrix*)))
+
+@inline
+(defun %gl-pipeline-drop-matrix0 (pipeline)
+  (declare (optimize (speed 3)))
+  (with-slots (render-area transform-interpolator) pipeline
+    (when render-area
+      (let ((transform (obb-render-transform
+                        (%gl-pipeline-compute-render-area-copy pipeline))))
+        (declare (dynamic-extent transform))
+        (interpolator-update transform-interpolator transform)))))
 
 (defmethod pre-update ((pipeline gl-pipeline))
   (declare (optimize (speed 3)))
   (prog1 (call-next-method pipeline)
-    (with-slots (render-area transform-interpolator) pipeline
-      (when render-area
-        (let ((transform (obb-render-transform
-                          (%gl-pipeline-compute-render-area-copy pipeline))))
-          (declare (dynamic-extent transform))
-          (interpolator-update transform-interpolator transform))))))
+    (%gl-pipeline-drop-matrix0 pipeline)))
+
+(defmethod recycle ((pipeline gl-pipeline))
+  ;; drop the previous matrix
+  (prog1 (call-next-method pipeline)
+    (%gl-pipeline-drop-matrix0 pipeline)))
 
 @export
 (defun gl-pipeline-add (gl-pipeline gl-drawable)
@@ -139,7 +150,7 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                      nil
                      (gl-drawable-transform drawable)
                      (when (slot-value pipeline 'render-area)
-                       (gl-pipeline-compute-transform pipeline update-percent)))
+                       (compute-transform pipeline update-percent)))
                (render drawable update-percent camera rendering-context)))
             (t
              (let ((orig-fbo (gl-context-fbo *gl-context*))
@@ -186,7 +197,7 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                            (gl-context-use-fbo *gl-context* orig-fbo)
                                            (setf (gl-drawable-transform drawable)
                                                  (when (slot-value pipeline 'render-area)
-                                                   (gl-pipeline-compute-transform pipeline update-percent)))
+                                                   (compute-transform pipeline update-percent)))
                                            (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera))
                                            (setf (clear-color *engine-manager*) orig-clear-color
                                                  orig-reset-p t))
