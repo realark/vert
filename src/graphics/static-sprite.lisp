@@ -196,15 +196,14 @@ Nil to render the entire sprite.")
     (when quad
       (setf (color quad) color))))
 
-;; TODO
-#+nil
-(defmethod (setf path-to-sprite) :around (new-sprite-path (static-sprite static-sprite))
-  (let ((old-path (path-to-sprite static-sprite)))
-    (prog1 (call-next-method new-sprite-path static-sprite)
-      (unless (or (equal old-path (path-to-sprite static-sprite))
+(defmethod (setf path-to-sprite) :around (new-path (sprite static-sprite))
+  (let ((old-path (path-to-sprite sprite)))
+    (prog1 (call-next-method new-path sprite)
+      (unless (or (equal old-path (path-to-sprite sprite))
+                  (null (slot-value sprite 'sprite-releaser))
                   (null *engine-manager*))
-        (release-resources static-sprite)
-        (load-resources static-sprite)))))
+        (release-resources sprite)
+        (load-resources sprite)))))
 
 @export
 (defun add-color-map (static-sprite color-map)

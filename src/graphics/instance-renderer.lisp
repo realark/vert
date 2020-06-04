@@ -244,7 +244,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
         (setf texture
               (getcache-default path-to-sprite
                                 *texture-cache*
-                                (make-instance 'texture :path-to-texture path-to-sprite)))
+                                (make-instance 'sprite-backed-texture :path path-to-sprite)))
         (load-resources texture)
         (destructuring-bind (new-vao new-quad-vbo)
             (create-static-buffers (slot-value renderer 'quad-padding))

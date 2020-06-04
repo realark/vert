@@ -75,8 +75,6 @@
                          (:static-file "inverter-shader.frag")
                          (:static-file "grayscale-shader.frag")
                          (:static-file "kernel-shader.frag")
-                         (:file "draw-component")
-                         (:file "drawable")
                          (:file "gl-drawable")
                          (:file "static-sprite")
                          (:file "animated-sprite")

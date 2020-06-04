@@ -332,7 +332,7 @@
 
 ;;;; Texture
 ;; TODO replace texture class
-(defclass texture2 ()
+(defclass texture ()
   ((texture-id :initform 0 :reader texture-id)
    (texture-src-width :initform nil)
    (texture-src-height :initform nil)
@@ -343,7 +343,7 @@
                                    :texture-mag-filter :nearest)
                        :documentation "plist passed to (gl:tex-parameter KEY VAL)")))
 
-(defmethod release-resources ((texture texture2))
+(defmethod release-resources ((texture texture))
   (with-slots (texture-id texture-src-width texture-src-height) texture
     (unless (= 0 texture-id)
       (gl:delete-texture texture-id)
@@ -351,7 +351,7 @@
             texture-src-width nil
             texture-src-height nil))))
 
-(defclass sprite-backed-texture (texture2)
+(defclass sprite-backed-texture (texture)
   ((path :initarg :path
          :initform (error ":path required")
          :documentation "filesystem location of image."))
@@ -391,22 +391,8 @@
           (gl:bind-texture :texture-2d 0)
           (error e))))))
 
-(defclass texture ()
-  ((path-to-texture :initarg :path-to-texture
-                    :initform (error ":path-to-texture required"))
-   (texture-id :initform 0 :reader texture-id)
-   (texture-src-width :initform nil)
-   (texture-src-height :initform nil)
-   (texture-parameters :initarg :texture-parameters
-                       :initform '(:texture-wrap-s :repeat
-                                   :texture-wrap-t :repeat
-                                   :texture-min-filter :nearest
-                                   :texture-mag-filter :nearest)
-                       :documentation "plist passed to (gl:tex-parameter KEY VAL)")))
-
 (defun texture-src-width (texture)
-  ;; TODO
-  ;; (declare (texture texture))
+  (declare (texture texture))
   (with-slots (path-to-texture texture-id texture-src-width)
       texture
     (when (= 0 texture-id)
@@ -414,55 +400,12 @@
     texture-src-width))
 
 (defun texture-src-height (texture)
-  ;; TODO
-  ;; (declare (texture texture))
+  (declare (texture texture))
   (with-slots (path-to-texture texture-id texture-src-height)
       texture
     (when (= 0 texture-id)
       (error "texture ~A is not loaded" texture))
     texture-src-height))
-
-(defmethod load-resources ((texture texture))
-  (with-slots (path-to-texture
-               texture-id
-               texture-src-width
-               texture-src-height
-               texture-parameters)
-      texture
-    (when (= 0 texture-id)
-      (setf texture-id (gl:gen-texture))
-      (handler-case
-          (multiple-value-bind
-                (img-pointer width height component-count-file component-count-data)
-              (cl-soil:load-image path-to-texture :rgba)
-            (gl:bind-texture :texture-2d texture-id)
-            (unwind-protect
-                 (progn
-                   (assert (= 4 component-count-file component-count-data))
-                   (setf texture-src-width width
-                         texture-src-height height)
-                   (gl:tex-image-2d :texture-2d 0 :rgba width height 0 :rgba :unsigned-byte img-pointer :raw t)
-                   (gl:generate-mipmap :texture-2d))
-              (cl-soil:free-image-data img-pointer))
-
-            (loop :for (gl-texture-param gl-texture-param-val) :on texture-parameters :by #'cddr :do
-                 (when (null gl-texture-param-val)
-                   (error "texture params list must be a plist: ~A : ~A"
-                          texture
-                          texture-parameters))
-                 (gl:tex-parameter :texture-2d gl-texture-param gl-texture-param-val)))
-        (error (e)
-          (release-resources texture)
-          (gl:bind-texture :texture-2d 0)
-          (error e))))))
-
-(defmethod release-resources ((texture texture))
-  (with-slots (texture-id texture-src-width texture-src-height) texture
-    (unless (= 0 texture-id)
-      (gl:delete-texture texture-id)
-      (setf texture-id 0
-            texture-src-width nil
-            texture-src-height nil))))
 
 ;;;; Framebuffer
 
