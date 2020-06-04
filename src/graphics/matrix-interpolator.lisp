@@ -43,3 +43,40 @@
     (copy-array-contents new-0matrix 0matrix)
     (setf cached -1.0)
     (values)))
+
+@inline
+(defun obb-render-transform (obb)
+  "Construct a rendering transform for OBB."
+  (declare (optimize (speed 3))
+           (obb obb))
+  (let ((dimensions (scale-matrix (width obb)
+                                  (height obb)
+                                  1.0)))
+    (declare (dynamic-extent dimensions))
+    (matrix*
+     (local-to-world-matrix obb)
+     dimensions)))
+
+(defclass interpolated-obb (obb)
+  ((interpolator0-dirty-p :initform t)
+   (interpolator1-dirty-p :initform t)
+   (interpolator :initform (make-matrix-interpolator)
+                 :documentation "Holds the previous transform of the game-object. Used for interpolating between update frames."))
+  (:documentation "An OBB which stores its previous transform matrix and may interpolate a transform between the OBB's current position and previous positon.
+Useful in rendering because often rendering time wants to show a state in between the current and previous update frames."))
+
+(defmethod initialize-instance :after ((obb interpolated-obb) &rest args)
+  (declare (optimize (speed 3))
+           (ignore args))
+  (with-slots (interpolator) obb
+    (let ((m (obb-render-transform obb)))
+      (declare (dynamic-extent m))
+      (interpolator-update interpolator m))))
+
+(defun interpolated-obb-get-transform (obb &key (update-percent 1.0))
+  "Get the transform matrix for the obb. 1.0 = current transform. 0.0 = last frame's transform.
+In-between 0 and 1 will interpolate an appropriate transform matrix."
+
+  ;; FIXME
+  (obb-render-transform obb)
+  )

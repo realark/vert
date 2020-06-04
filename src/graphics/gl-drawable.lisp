@@ -17,10 +17,10 @@ Verts coord system has 0,0 being the upper-left corner. Positive X goes right. P
                   :documentation "When this drawable is used in a GL-PIPELINE, the texture-id of the previous step will be bound in this slot before RENDER is called.
 It is not required that steps actually do anything with the input-texture. They may discard it.
 Slot will be nil if this drawable is the first stage in the pipeline.")
-   (render-area :initarg :render-area
-                :initform nil
-                :accessor gl-drawable-render-area
-                :documentation "Optional OBB. When provided the effect will be clipped to the OBB's area. If null the entire screen will be rendered to."))
+   (transform :initarg :transform
+              :initform nil
+              :accessor gl-drawable-transform
+              :documentation "Optional transform matrix to apply to the drawable. Nil will use the entire screen."))
   (:documentation "A opengl drawable which renders into the currently bound FBO.
 This component is designed to be used in a GL-PIPELINE, thought it doesn't have to be.
 The RENDER method will implement the drawing.
@@ -38,7 +38,9 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                 :documentation "Optional OBB to render the pipeline into. Nil renders the entire screen.")
    (render-area-copy
     :initform (make-instance 'obb)
-    :documentation "Copy of render-area slot. Used to allow modifications to the render-area without affecting the actual render area.")
+    :documentation "Copy of render-area obb. Used to allow modifications to how the render-area is drawn without affecting the game logic.")
+   (transform-interpolator :initform (make-matrix-interpolator)
+                           :documentation "When render-area is used, this slot hold the matrix interpolator for render-area's transform.")
    (drawables :initform (make-array 0
                                     :adjustable t
                                     :fill-pointer 0
@@ -56,6 +58,42 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
     (with-slots (drawables) pipeline
       (loop :for drawable :across drawables :do
            (release-resources drawable)))))
+
+@inline
+(defun %gl-pipeline-compute-render-area-copy (gl-pipeline)
+  (with-slots (drawables render-area render-area-copy) gl-pipeline
+    (setf (parent render-area-copy) (parent render-area)
+          (x render-area-copy) (x render-area)
+          (y render-area-copy) (y render-area)
+          (z render-area-copy) (z render-area)
+          (rotation render-area-copy) (rotation render-area)
+          (width render-area-copy) (width render-area)
+          (height render-area-copy) (height render-area))
+    (loop :for drawable :across drawables :do
+         (gl-drawable-modify-render-area drawable render-area-copy))
+    render-area-copy))
+
+(defgeneric gl-pipeline-compute-transform (gl-pipeline update-percent)
+  (:documentation "Compute a transform matrix to pass to the pipeline's gl-drawables")
+  (:method ((pipeline gl-pipeline) update-percent)
+    (declare (optimize (speed 3)))
+    (with-slots (drawables render-area render-area-copy transform-interpolator) pipeline
+      (if render-area
+          (let ((transform (obb-render-transform
+                            (%gl-pipeline-compute-render-area-copy pipeline))))
+            (declare (dynamic-extent transform))
+            (interpolator-compute transform-interpolator transform update-percent))
+          *identity-matrix*))))
+
+(defmethod pre-update ((pipeline gl-pipeline))
+  (declare (optimize (speed 3)))
+  (prog1 (call-next-method pipeline)
+    (with-slots (render-area transform-interpolator) pipeline
+      (when render-area
+        (let ((transform (obb-render-transform
+                          (%gl-pipeline-compute-render-area-copy pipeline))))
+          (declare (dynamic-extent transform))
+          (interpolator-update transform-interpolator transform))))))
 
 @export
 (defun gl-pipeline-add (gl-pipeline gl-drawable)
@@ -99,8 +137,9 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
              (let ((drawable (%gl-pipeline-first-enabled-drawable pipeline)))
                (setf (gl-drawable-input-texture drawable)
                      nil
-                     (gl-drawable-render-area drawable)
-                     (gl-pipeline-render-area pipeline))
+                     (gl-drawable-transform drawable)
+                     (when (slot-value pipeline 'render-area)
+                       (gl-pipeline-compute-transform pipeline update-percent)))
                (render drawable update-percent camera rendering-context)))
             (t
              (let ((orig-fbo (gl-context-fbo *gl-context*))
@@ -127,25 +166,6 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                 :finally (return t))))
                       (declare (inline compute-fbo-dimensions))
                       (multiple-value-bind (fbo-width fbo-height) (compute-fbo-dimensions pipeline)
-                        (block setup-render-area
-                          (with-slots (render-area render-area-copy) pipeline
-                            (if render-area
-                                (setf (parent render-area-copy) (parent render-area)
-                                      (x render-area-copy) (x render-area)
-                                      (y render-area-copy) (y render-area)
-                                      (z render-area-copy) (z render-area)
-                                      (rotation render-area-copy) (rotation render-area)
-                                      (width render-area-copy) (width render-area)
-                                      (height render-area-copy) (height render-area))
-                                (setf (parent render-area-copy) nil
-                                      (x render-area-copy) 0.0
-                                      (y render-area-copy) 0.0
-                                      (z render-area-copy) 0.0
-                                      (rotation render-area-copy) 0.0
-                                      (width render-area-copy) fbo-width
-                                      (height render-area-copy) fbo-height))
-                            (loop :for drawable :across drawables :do
-                                 (gl-drawable-modify-render-area drawable render-area-copy))))
                         (with-tmp-framebuffer (input-fbo :width fbo-width :height fbo-height)
                           (with-tmp-framebuffer (output-fbo :width fbo-width :height fbo-height)
                             (block clear-input-fbo
@@ -160,13 +180,13 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                :for drawable :across drawables :do
                                  (locally (declare ((integer 0 1024) i))
                                    (when (gl-drawable-enabled-p drawable)
-                                     (setf (gl-drawable-render-area drawable) nil)
+                                     (setf (gl-drawable-transform drawable) nil)
                                      (if (last-active-drawable-p (+ i 1))
                                          (progn
                                            (gl-context-use-fbo *gl-context* orig-fbo)
-                                           (when (slot-value pipeline 'render-area)
-                                             (setf (gl-drawable-render-area drawable)
-                                                   (slot-value pipeline 'render-area-copy)))
+                                           (setf (gl-drawable-transform drawable)
+                                                 (when (slot-value pipeline 'render-area)
+                                                   (gl-pipeline-compute-transform pipeline update-percent)))
                                            (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera))
                                            (setf (clear-color *engine-manager*) orig-clear-color
                                                  orig-reset-p t))
@@ -304,27 +324,17 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                         %quad-blend-add%)))
 
     ;; set position and size matrices
-    (with-slots (render-area) quad
-      (if render-area
-          (let ((render-area-model (matrix*
-                                    (local-to-world-matrix render-area)
-                                    (scale-matrix (width render-area)
-                                                  (height render-area)
-                                                  1.0))))
-            (declare (dynamic-extent render-area-model))
-            (set-uniform-matrix-4fv shader
-                                    "worldModel"
-                                    render-area-model
-                                    nil))
-          (set-uniform-matrix-4fv shader
-                                  "worldModel"
-                                  *identity-matrix*
-                                  nil))
-
+    (with-slots (transform) quad
+      (set-uniform-matrix-4fv shader
+                              "worldModel"
+                              (if transform
+                                  transform
+                                  *identity-matrix*)
+                              nil)
       ;; set world projection
       (set-uniform-matrix-4fv shader
                               "worldProjection"
-                              (if render-area
+                              (if transform
                                   (interpolated-world-projection-matrix camera update-percent)
                                   %fullscreen-ortho-matrix%)
                               nil))
