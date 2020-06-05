@@ -31,5 +31,6 @@ void main()
 
   vertexData.textureCoords = vec2(textureSrcX + (srcCoord.x * spriteWidth),
                                   vertYCoordToTextureCoord(textureSrcY + (srcCoord.y * spriteHeight)));
+  vertexData.vertexCoords = screenPos.xy;
   gl_Position = worldProjection * worldModel * vec4(screenPos.x, screenPos.y, screenPos.z, 1.0);
 }
