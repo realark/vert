@@ -110,9 +110,9 @@
             shader-source)))
 
   @export
-  (defun get-builtin-shader-source (name)
+  (defun get-builtin-shader-source (name &optional (error-when-missing t))
     (let ((result (gethash name %builtin-shaders%)))
-      (unless result
+      (when (and (null result) error-when-missing)
         (error "builtin shader ~A not found. hint: Check package name symbol" name))
       result))
 
