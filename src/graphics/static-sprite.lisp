@@ -52,6 +52,9 @@
             texture-id)))
   (call-next-method quad update-percent camera gl-context))
 
+(defmethod gl-pipeline-render-priority ((sprite-quad %sprite-quad))
+  -1)
+
 ;;;; sprite class
 
 @export-class

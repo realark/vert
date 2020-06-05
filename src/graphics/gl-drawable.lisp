@@ -112,7 +112,19 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
   (declare (gl-pipeline gl-pipeline)
            (gl-drawable gl-drawable))
   (with-slots (drawables) gl-pipeline
-    (vector-push-extend gl-drawable drawables)))
+    (vector-push-extend gl-drawable drawables)
+    (setf drawables
+          (sort drawables
+                (lambda (d1 d2)
+                  (< (gl-pipeline-render-priority d1)
+                     (gl-pipeline-render-priority d2)))))))
+
+@export
+(defgeneric gl-pipeline-render-priority (gl-drawable)
+  (:documentation "Returns a priority integer which determines the ordering of GL-DRAWABLEs in a gl-pipeline.
+Lower numbers run first. Higher numbers run later. Defaults to zero.
+Drawables with the same priority may run in any order.")
+  (:method (gl-drawable) 0))
 
 (defun gl-pipeline-num-active (gl-pipeline)
   "Return the number of drawables in the pipeline which are actively rendering."
