@@ -111,7 +111,10 @@
 
   @export
   (defun get-builtin-shader-source (name)
-    (gethash name %builtin-shaders%))
+    (let ((result (gethash name %builtin-shaders%)))
+      (unless result
+        (error "builtin shader ~A not found. hint: Check package name symbol" name))
+      result))
 
   (when (= 0 (hash-table-count %builtin-shaders%))
     (add-builtin-shader-source 'polygon-shader.vert
