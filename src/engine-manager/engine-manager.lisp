@@ -89,6 +89,14 @@
   (run-all-free-releasers))
 
 @export
+(defun garbage-collect-block ()
+  "Block the calling thread until a GC occurs."
+  (let ((count (current-gc-count)))
+    (loop :while (= (current-gc-count) count) :do
+         (log:info "Awaiting GC (~A)" count)
+         (garbage-collect-hint))))
+
+@export
 (defun change-scene (engine-manager new-scene &optional (release-existing-scene T) (run-full-gc nil) (preserve-audio nil))
   "At the beginning of the next game loop, Replace the active-scene with NEW-SCENE.
 If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene will be released."
