@@ -160,6 +160,13 @@ COLLISION callbacks will still be invoked when objects collide with a phantom, b
               :accessor phantom-p))
   (:documentation "An object which may toggle its phantom collision property."))
 
+(defmethod (setf phantom-p) :around (new-value (halfa halfa))
+  (let ((old-value (slot-value halfa 'phantom-p)))
+    (prog1 (call-next-method new-value halfa)
+      ;; fire a move event when objects change their phantom state
+      (unless (equalp old-value new-value)
+        (object-moved halfa)))))
+
 (defmethod collidep :around ((halfa1 halfa) (halfa2 halfa))
   (if (and (phantom-p halfa1) (phantom-p halfa2))
       nil
