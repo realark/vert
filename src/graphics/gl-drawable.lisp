@@ -15,6 +15,12 @@ Verts coord system has 0,0 being the upper-left corner. Positive X goes right. P
   ((enabled-p :initform t
               :accessor gl-drawable-enabled-p
               :documentation "When nil, rendering will be a no-op.")
+   (render-priority :initarg :render-priority
+                    :initform 0
+                    :accessor gl-drawable-render-priority
+                    :documentation "A priority integer which determines the ordering of GL-DRAWABLEs in a gl-pipeline.
+Lower numbers run first. Higher numbers run later. Defaults to zero.
+Drawables with the same priority may run in any order.")
    (input-texture :initform nil
                   :accessor gl-drawable-input-texture
                   :documentation "When this drawable is used in a GL-PIPELINE, the texture-id of the previous step will be bound in this slot before RENDER is called.
@@ -116,15 +122,8 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
     (setf drawables
           (sort drawables
                 (lambda (d1 d2)
-                  (< (gl-pipeline-render-priority d1)
-                     (gl-pipeline-render-priority d2)))))))
-
-@export
-(defgeneric gl-pipeline-render-priority (gl-drawable)
-  (:documentation "Returns a priority integer which determines the ordering of GL-DRAWABLEs in a gl-pipeline.
-Lower numbers run first. Higher numbers run later. Defaults to zero.
-Drawables with the same priority may run in any order.")
-  (:method (gl-drawable) 0))
+                  (< (gl-drawable-render-priority d1)
+                     (gl-drawable-render-priority d2)))))))
 
 (defun gl-pipeline-num-active (gl-pipeline)
   "Return the number of drawables in the pipeline which are actively rendering."

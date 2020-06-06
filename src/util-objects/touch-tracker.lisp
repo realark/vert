@@ -11,7 +11,7 @@
                                    :adjustable t)
              :accessor touching
              :documentation "Unordered list of objects this region is touching."))
-  (:documentation "TODO"))
+  (:documentation "Subscction of a touch-tracker."))
 
 (defun %remove-if-not-touching (touch-region object)
   (unless (collidep touch-region object)

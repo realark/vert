@@ -52,9 +52,6 @@
             texture-id)))
   (call-next-method quad update-percent camera gl-context))
 
-(defmethod gl-pipeline-render-priority ((sprite-quad %sprite-quad))
-  -1)
-
 ;;;; sprite class
 
 @export-class
@@ -99,6 +96,7 @@ Nil to render the entire sprite.")
     (prog1 (apply #'call-next-method all-args)
       (with-slots ((path path-to-sprite) quad color) sprite
         (setf quad (make-instance '%sprite-quad
+                                  :render-priority -1
                                   :color color))
         (gl-pipeline-add sprite quad))
       (with-slots (texture (path path-to-sprite)) sprite

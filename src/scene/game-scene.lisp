@@ -25,7 +25,8 @@
 The value of this slot will be the distance between the live area and camera rect.
 When camera moves outside this rect, rebuild objects to render and update
 This is an optimization so we don't have to rebuild the render and update queues every frame.")
-   (render-queue :initform (make-instance 'render-queue))
+   (render-queue :initform (make-instance 'render-queue
+                                          :render-priority -1))
    (updatable-objects :initform (make-array 100
                                             :adjustable t
                                             :fill-pointer 0
