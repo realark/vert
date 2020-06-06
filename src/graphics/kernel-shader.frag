@@ -11,6 +11,11 @@ uniform float kernel[9];
 
 const float offset = 1.0 / 300.0;
 
+uniform vec4 colorMod;
+uniform int colorBlendFn;
+const int BLEND_MULT = 0;
+const int BLEND_ADD = 1;
+
 void main()
 {
     vec2 offsets[9] = vec2[](
@@ -40,4 +45,12 @@ void main()
       }
 
     FragColor = col;
+    if (colorBlendFn == BLEND_MULT)
+      {
+        FragColor *= colorMod;
+      }
+    else
+      {
+        FragColor += colorMod;
+      }
 }

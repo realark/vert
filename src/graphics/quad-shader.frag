@@ -10,8 +10,8 @@ in VertexData {
 uniform sampler2D ourTexture;
 uniform vec4 colorMod;
 uniform int colorBlendFn;
-float BLEND_MULT = 0;
-float BLEND_ADD = 1;
+const int BLEND_MULT = 0;
+const int BLEND_ADD = 1;
 
 void main()
 {

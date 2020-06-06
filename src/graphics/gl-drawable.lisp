@@ -234,8 +234,10 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
 ;;;; quad texture base class
 (defvar %quad-cache-key% 'gl-quad)
 
-(defconstant %quad-blend-mult% 0)
-(defconstant %quad-blend-add% 1)
+@export
+(defconstant +quad-blend-mult+ 0)
+@export
+(defconstant +quad-blend-add+ 1)
 
 @export-class
 (defclass gl-quad (gl-drawable)
@@ -248,7 +250,10 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
           :initform nil
           :accessor color
           :documentation "Optional color mod to apply to the quad. If a texture is also applied the two color values will be blended.")
-   (texture-src :initform (vector 0.0 0.0 1.0 1.0)
+   (color-blend-fn :initarg :color-blend-fn
+                   :initform nil)
+   (texture-src :initarg :texture-src
+                :initform (vector 0.0 0.0 1.0 1.0)
                 :documentation "x y width height. Normalized coords."))
   (:documentation "Render a quad (rectangle) to the screen.
 A texture may be provided to render into the quad.
@@ -331,19 +336,25 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                         "colorMod"
                         1.0 1.0 1.0 1.0)))
     ;; input texture and blending function
-    (if (gl-drawable-input-texture quad)
-        (progn
+    (with-slots (color-blend-fn) quad
+      ;; bind texture if there is one
+      (if (gl-drawable-input-texture quad)
           (n-bind-texture :texture-2d
                           (gl-drawable-input-texture quad))
-          (set-uniformi shader
-                        "colorBlendFn"
-                        %quad-blend-mult%))
-        (progn
           (n-bind-texture :texture-2d
-                          0)
+                          0))
+      ;; use configured blend slot, or set blending based on texture status
+      (if color-blend-fn
           (set-uniformi shader
                         "colorBlendFn"
-                        %quad-blend-add%)))
+                        color-blend-fn)
+          (if (gl-drawable-input-texture quad)
+              (set-uniformi shader
+                            "colorBlendFn"
+                            +quad-blend-mult+)
+              (set-uniformi shader
+                            "colorBlendFn"
+                            +quad-blend-add+))))
 
     ;; set position and size matrices
     (with-slots (transform) quad
@@ -431,30 +442,46 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
 
 ;;;; kernel effect
 
+@export
+(defconstant +gl-kernel-sharpen+
+  (make-array 9
+              :element-type 'single-float
+              :initial-contents
+              (list -1.0 -1.0 -1.0
+                    -1.0  9.0 -1.0
+                    -1.0 -1.0 -1.0)))
+
+@export
+(defconstant +gl-kernel-edge-detect+
+    (make-array 9
+                :element-type 'single-float
+                :initial-contents
+                (list 1.0   1.0  1.0
+                      1.0  -8.0  1.0
+                      1.0   1.0  1.0)))
+
+@export
+(defconstant +gl-kernel-blur+
+    (make-array 9
+                :element-type 'single-float
+                :initial-contents
+                (list (/ 1.0 16) (/ 2.0 16) (/ 1.0 16)
+                      (/ 2.0 16) (/ 4.0 16) (/ 2.0 16)
+                      (/ 1.0 16) (/ 2.0 16) (/ 1.0 16))))
+
+@export
+(defconstant +gl-kernel-no-op+
+    (make-array 9
+                :element-type 'single-float
+                :initial-contents
+                (list 0.0  0.0  0.0
+                      0.0  1.0  0.0
+                      0.0  0.0  0.0)))
+
 @export-class
 (defclass gl-kernel (gl-quad)
   ((kernel :initarg :kernel
-           :initform
-           (make-array 9
-                       :element-type 'single-float
-                       :initial-contents
-                       ;; see also: https://en.wikipedia.org/wiki/Kernel_(image_processing)
-                       ;; sharpen
-                       ;; (list -1.0 -1.0 -1.0
-                       ;;       -1.0  9.0 -1.0
-                       ;;       -1.0 -1.0 -1.0)
-                       ;; edge-detection
-                       ;; (list 1.0   1.0  1.0
-                       ;;       1.0  -8.0  1.0
-                       ;;       1.0   1.0  1.0)
-                       ;; blur
-                       ;; (list (/ 1.0 16) (/ 2.0 16) (/ 1.0 16)
-                       ;;       (/ 2.0 16) (/ 4.0 16) (/ 2.0 16)
-                       ;;       (/ 1.0 16) (/ 2.0 16) (/ 1.0 16))
-                       ;; no-op
-                       (list 0.0  0.0  0.0
-                             0.0  1.0  0.0
-                             0.0  0.0  0.0))))
+           :initform +gl-kernel-no-op+))
   (:documentation "A gl effect which applies a kernel using the KERNEL slot.
 Subclasses may set or override this slot."))
 
