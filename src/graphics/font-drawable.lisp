@@ -748,6 +748,6 @@
     (with-slots (text-atlas) gl-font
       (if text-atlas
           (let ((scaling-factor (%compute-text-scale font-drawable text-atlas (width font-drawable) (height font-drawable)) ))
-            (values (* scaling-factor (%compute-text-width-for-atlas text-atlas (text font-drawable)))
-                    (* scaling-factor (y (glyph-info-size (%text-atlas-info-for-char text-atlas #\y))))))
+            (values (max 1.0 (* scaling-factor (%compute-text-width-for-atlas text-atlas (text font-drawable))))
+                    (max 1.0 (* scaling-factor (y (glyph-info-size (%text-atlas-info-for-char text-atlas #\y)))))))
           (values 100 10)))))
