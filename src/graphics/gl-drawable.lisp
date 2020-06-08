@@ -443,8 +443,8 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
 ;;;; kernel effect
 
 @export
-(defconstant +gl-kernel-sharpen+
-  #.(make-array 9
+(sb-ext:defglobal +gl-kernel-sharpen+
+    (make-array 9
                 :element-type 'single-float
                 :initial-contents
                 (list -1.0 -1.0 -1.0
@@ -452,8 +452,8 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                       -1.0 -1.0 -1.0)))
 
 @export
-(defconstant +gl-kernel-edge-detect+
-  #.(make-array 9
+(sb-ext:defglobal +gl-kernel-edge-detect+
+    (make-array 9
                 :element-type 'single-float
                 :initial-contents
                 (list 1.0   1.0  1.0
@@ -461,8 +461,8 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                       1.0   1.0  1.0)))
 
 @export
-(defconstant +gl-kernel-blur+
-  #.(make-array 9
+(sb-ext:defglobal +gl-kernel-blur+
+    (make-array 9
                 :element-type 'single-float
                 :initial-contents
                 (list (/ 1.0 16) (/ 2.0 16) (/ 1.0 16)
@@ -470,8 +470,8 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
                       (/ 1.0 16) (/ 2.0 16) (/ 1.0 16))))
 
 @export
-(defconstant +gl-kernel-no-op+
-  #.(make-array 9
+(sb-ext:defglobal +gl-kernel-no-op+
+    (make-array 9
                 :element-type 'single-float
                 :initial-contents
                 (list 0.0  0.0  0.0
