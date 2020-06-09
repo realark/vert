@@ -12,7 +12,8 @@ Verts coord system has 0,0 being the upper-left corner. Positive X goes right. P
 
 @export-class
 (defclass gl-drawable ()
-  ((enabled-p :initform t
+  ((enabled-p :initarg :enabled-p
+              :initform t
               :accessor gl-drawable-enabled-p
               :documentation "When nil, rendering will be a no-op.")
    (render-priority :initarg :render-priority
