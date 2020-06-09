@@ -86,8 +86,8 @@
       (log:info "Reloading all resources. This may take a few frames...")
       (reload-all-shaders)
       (clear-cache *texture-cache*)
-      (resource-autoloader-reload-all *resource-autoloader*)
       (clear-cache *framebuffer-cache*)
+      (resource-autoloader-reload-all *resource-autoloader*)
       (log:info "~%All resources reloaded!~%"))))
 
 @export

@@ -482,19 +482,20 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
 ;;;; callbacks which run on sdl-mixer under the audio lock
 (defun %%music-finished-callback ()
   (declare (optimize (speed 3)))
-  (when *audio*
-    (with-slots (audio-state) *audio*
-      (with-slots (music-channel) audio-state
-        (when (sdl-channel-sample music-channel)
-          (log:debug "Reached end of song (~A). Looping back to beginning."
-                     (audio-sample-path-to-audio (sdl-channel-sample music-channel)))
-          (unless (= 0 (the fixnum (sdl2-mixer:play-music (slot-value (sdl-channel-sample music-channel) 'sdl-buffer) 1)))
-            (log:error "sdl-mixer unable to play music: ~A"
-                       (sdl2-ffi.functions:sdl-get-error)))
-          (setf (sdl-channel-start-time-samples music-channel)
-                ;; looping is hardcoded.
-                ;; This means we're just starting to play the song again.
-                (audio-state-current-time-samples audio-state)))))))
+  (let ((audio *audio*))
+    (when audio
+      (with-slots (audio-state) audio
+        (with-slots (music-channel) audio-state
+          (when (sdl-channel-sample music-channel)
+            (log:debug "Reached end of song (~A). Looping back to beginning."
+                       (audio-sample-path-to-audio (sdl-channel-sample music-channel)))
+            (unless (= 0 (the fixnum (sdl2-mixer:play-music (slot-value (sdl-channel-sample music-channel) 'sdl-buffer) 1)))
+              (log:error "sdl-mixer unable to play music: ~A"
+                         (sdl2-ffi.functions:sdl-get-error)))
+            (setf (sdl-channel-start-time-samples music-channel)
+                  ;; looping is hardcoded.
+                  ;; This means we're just starting to play the song again.
+                  (audio-state-current-time-samples audio-state))))))))
 
 (defun %%postmix-callback (udata stream len)
   "Note: This fn runs on the sdl-mixer audio thread."
@@ -507,39 +508,41 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
   ;; 0-1 == Left channel
   ;; 2-3 == Right channel
   ;; Check music format to find LSB/MSB
-  (when *audio*
-    (with-slots (audio-state) *audio*
-      (with-slots (current-time-samples) audio-state
-        (declare (fixnum current-time-samples))
-        (setf current-time-samples
-              (+ current-time-samples
-                 ;;  ;; divide by 4 because LEN is for 8bit array but sample format is 16 bit audio 16. Divide by 2.
-                 ;;  ;; and the sample array is for two channels (left and right speakers). Divide by 2 again.
-                 (the fixnum (/ len 4))))
-        (log:trace "audio thread tick: ~A (~Ams). ~A delta (~A ms)"
-                   (audio-state-current-time-samples audio-state)
-                   (convert-audio-samples->ms
-                    (audio-state-current-time-samples audio-state))
-                   (the fixnum (/ len 4))
-                   (convert-audio-samples->ms
-                    (the fixnum (/ len 4))))))))
+  (let ((audio *audio*))
+    (when audio
+      (with-slots (audio-state) audio
+        (with-slots (current-time-samples) audio-state
+          (declare (fixnum current-time-samples))
+          (setf current-time-samples
+                (+ current-time-samples
+                   ;;  ;; divide by 4 because LEN is for 8bit array but sample format is 16 bit audio 16. Divide by 2.
+                   ;;  ;; and the sample array is for two channels (left and right speakers). Divide by 2 again.
+                   (the fixnum (/ len 4))))
+          (log:trace "audio thread tick: ~A (~Ams). ~A delta (~A ms)"
+                     (audio-state-current-time-samples audio-state)
+                     (convert-audio-samples->ms
+                      (audio-state-current-time-samples audio-state))
+                     (the fixnum (/ len 4))
+                     (convert-audio-samples->ms
+                      (the fixnum (/ len 4)))))))))
 
 (defun %%channel-finished-callback (channel-number)
   (declare (optimize (speed 3))
            (fixnum channel-number))
-  (when *audio*
-    (with-slots (audio-state) *audio*
-      (with-slots (sfx-channels) audio-state
-        (declare ((vector sdl-channel) sfx-channels))
-        (loop :for sdl-channel :across sfx-channels :do
-             (when (equalp (the fixnum (sdl-channel-number sdl-channel))
-                           channel-number)
-               (setf (sdl-channel-sample sdl-channel) nil
-                     (sdl-channel-start-time-samples sdl-channel) nil)
-               (return))
-           :finally
-             (log:debug "Unable to find sdl-channel in audio-state for channel: ~A. This is can happen when a new audio-state is loaded while a channel is playing."
-                        channel-number))))))
+  (let ((audio *audio*))
+    (when audio
+      (with-slots (audio-state) audio
+        (with-slots (sfx-channels) audio-state
+          (declare ((vector sdl-channel) sfx-channels))
+          (loop :for sdl-channel :across sfx-channels :do
+               (when (equalp (the fixnum (sdl-channel-number sdl-channel))
+                             channel-number)
+                 (setf (sdl-channel-sample sdl-channel) nil
+                       (sdl-channel-start-time-samples sdl-channel) nil)
+                 (return))
+             :finally
+               (log:debug "Unable to find sdl-channel in audio-state for channel: ~A. This is can happen when a new audio-state is loaded while a channel is playing."
+                          channel-number)))))))
 
 (defun enable-mixer-callbacks ()
   "Add callbacks to sdl-mixer to hook various audio events."
