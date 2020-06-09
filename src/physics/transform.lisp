@@ -205,8 +205,9 @@
 (defmethod rotation ((transform transform))
   (slot-value transform 'local-rotation))
 (defmethod (setf rotation) (value (transform transform))
-  (setf (slot-value transform 'local-rotation) (coerce value 'single-float))
-  (mark-transform-dirty transform))
+  (prog1 (setf (slot-value transform 'local-rotation)
+               (coerce (mod value tau) 'single-float))
+    (mark-transform-dirty transform)))
 
 (declaim (ftype (function (transform) single-float) scale-x scale-y))
 
