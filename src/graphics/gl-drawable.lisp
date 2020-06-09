@@ -79,7 +79,8 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
           (width render-area-copy) (width render-area)
           (height render-area-copy) (height render-area))
     (loop :for drawable :across drawables :do
-         (gl-drawable-modify-render-area drawable render-area-copy))
+         (when (gl-drawable-enabled-p drawable)
+           (gl-drawable-modify-render-area drawable render-area-copy)))
     render-area-copy))
 
 (defmethod compute-transform ((pipeline gl-pipeline) update-percent)
