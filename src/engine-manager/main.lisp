@@ -36,8 +36,8 @@
                       (log:config :remove 1))
                     (when (getconfig 'log-output *config*)
                       (if (eq :stdout (getconfig 'log-output *config*))
-                          (log:config :console)
-                          (log:config :daily (getconfig 'log-output *config*) :backup nil)))
+                          (log:config :sane :this-console)
+                          (log:config :daily (getconfig 'log-output *config*) :backup nil :this-console)))
                     (assert-units)
                     (sdl2:make-this-thread-main
                      (lambda ()
