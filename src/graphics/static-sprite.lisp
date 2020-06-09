@@ -102,11 +102,6 @@ Nil to render the entire sprite.")
       (with-slots (texture (path path-to-sprite)) sprite
         (setf texture (make-instance 'sprite-backed-texture
                                      :path path)))
-      ;; setting the render-area of this sprite's pipeline to itself.
-      ;; A little weird, but this allows changes to the sprite's position/dimensions
-      ;; to automatically be reflected in the render area.
-      (setf (gl-pipeline-render-area sprite) sprite)
-
       (with-slots (wrap-width wrap-height sprite-source) sprite
         (when (and (or wrap-width wrap-height)
                    sprite-source)

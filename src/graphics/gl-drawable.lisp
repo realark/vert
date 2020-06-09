@@ -57,6 +57,15 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                                     :element-type 'gl-drawable)))
   (:documentation "A list of gl-drawables which render with the first feeding its output into a texture which is passed to the second's input, etc."))
 
+(defmethod initialize-instance :after ((pipeline gl-pipeline) &rest args)
+  (declare (ignore args))
+  (when (and (typep pipeline 'obb)
+             (null (gl-pipeline-render-area pipeline)))
+    ;; This is an OBB. Setting the render-area of the pipeline to itself.
+    ;; A little weird, but it is a common use-case to want to restrict the pipeline render-area
+    ;; to its world transform.
+    (setf (gl-pipeline-render-area pipeline) pipeline)))
+
 (defmethod load-resources ((pipeline gl-pipeline))
   (prog1 (call-next-method pipeline)
     (with-slots (drawables) pipeline
