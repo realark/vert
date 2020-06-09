@@ -799,6 +799,13 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
       (y (gl:uniformf location (float x) (float y)))
       (x (gl:uniformf location (float x)))))
 
+  (defun n-uniformi (location x &optional y z w)
+    (cond
+      (w (gl:uniformi location x y z w))
+      (z (gl:uniformi location x y z))
+      (y (gl:uniformi location x y))
+      (x (gl:uniformi location x))))
+
   (defun n-uniform-matrix-4fv (location matrix &optional (transpose T))
     (gl:uniform-matrix-4fv location matrix transpose))
 
@@ -818,4 +825,7 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
     (gl:draw-arrays-instanced mode first count instance-count))
 
   (defun n-draw-elements (mode count type indices)
-    (gl:draw-elements mode indices :count count)))
+    (gl:draw-elements mode indices :count count))
+
+  (defun n-bind-framebuffer (target framebuffer)
+    (gl:bind-framebuffer target framebuffer)))
