@@ -84,10 +84,13 @@
     (when *engine-manager*
       (assert (on-game-thread-p))
       (log:info "Reloading all resources. This may take a few frames...")
-      (reload-all-shaders)
-      (clear-cache *texture-cache*)
-      (clear-cache *framebuffer-cache*)
-      (resource-autoloader-reload-all *resource-autoloader*)
+      (with-sdl-mixer-lock-held
+        (resource-autoloader-release-all *resource-autoloader*)
+        (do-cache (*engine-caches* key val)
+          (log:info "clearing cache: ~A" key)
+          (clear-cache val))
+        (garbage-collect-hint)
+        (resource-autoloader-load-all *resource-autoloader*))
       (log:info "~%All resources reloaded!~%"))))
 
 @export

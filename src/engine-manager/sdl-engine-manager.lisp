@@ -42,14 +42,26 @@
     (log:info "Running on lisp ~A version ~A~%"
             (lisp-implementation-type)
             (lisp-implementation-version))
-    (log:info "Compiled against SDL Library Version: ~D.~D.~D~%"
-            sdl2-ffi:+sdl-major-version+
-            sdl2-ffi:+sdl-minor-version+
-            sdl2-ffi:+sdl-patchlevel+)
+    (multiple-value-bind (linked-major linked-minor linked-patch)
+        (sdl2:version)
+      (multiple-value-bind (wrapped-major wrapped-minor wrapped-patch)
+          (sdl2:version-wrapped)
+        (if (and (= linked-major wrapped-major)
+                 (= linked-minor wrapped-minor)
+                 (= linked-patch wrapped-patch))
+            (log:info "Compiled and linked against SDL Library Version: ~D.~D.~D"
+                      linked-major linked-minor linked-patch)
+            (log:warn "Compiled and linked SDL Library Versions mismatched:~%linked:  ~D.~D.~D~%wrapped: ~D.~D.~D"
+                      linked-major linked-minor linked-patch
+                      wrapped-major wrapped-minor wrapped-patch))))
     (log:info "opengl version ~A.~A~%profile mask: ~A~%"
             (sdl2:gl-get-attr :CONTEXT-MAJOR-VERSION)
             (sdl2:gl-get-attr :CONTEXT-MINOR-VERSION)
             (sdl2:gl-get-attr :context-profile-mask))
+    (multiple-value-bind (linked-major linked-minor linked-patch)
+        (sdl2-mixer:linked-version)
+      (log:info "linked against SDL_Mixer Library Version: ~D.~D.~D"
+                linked-major linked-minor linked-patch))
 
     ;; disabling the compositor makes the framerate look a lot smoother
     ;; but I could eventually add an option to keep the compositor on

@@ -278,6 +278,7 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
       (resource-autoloader-add-object *resource-autoloader*
                                       (tg:make-weak-pointer quad)))))
 
+@export
 (defmethod gl-quad-shader-cache-key ((quad gl-quad))
   (type-of quad))
 
