@@ -33,27 +33,8 @@
 
 @export
 (defun lerp (from-color to-color percent-to &key (output-color (make-color)))
-  (declare (color from-color to-color output-color)
-           ((single-float 0.0 1.0) percent-to))
-  (flet ((interpolate-color (from-color to-color percent-to)
-           (declare (single-float from-color to-color)
-                    ((float 0.0 1.0) percent-to))
-           (let ((percent-from (- 1.0 percent-to)))
-             (+ (* from-color percent-from)
-                (* to-color percent-to)))))
-    (setf (r output-color) (interpolate-color (r from-color)
-                                              (r to-color)
-                                              percent-to)
-          (g output-color) (interpolate-color (g from-color)
-                                              (g to-color)
-                                              percent-to)
-          (b output-color) (interpolate-color (b from-color)
-                                              (b to-color)
-                                              percent-to)
-          (a output-color) (interpolate-color (a from-color)
-                                              (a to-color)
-                                              percent-to)))
-  output-color)
+  ;; TODO: remove this method and convert all callers to new naming convention
+  (color-lerp from-color to-color percent-to :output-color output-color))
 
 @export
 (defun color* (color1 color2 &optional (product-color (make-color)))
@@ -108,6 +89,32 @@
         (b to-color) (or b (b from-color))
         (a to-color) (or a (a from-color)))
   to-color)
+
+@export
+(defun color-lerp (from-color to-color percent-to &key (output-color (make-color)))
+  (declare (optimize (speed 3))
+           (color from-color to-color output-color)
+           ((single-float 0.0 1.0) percent-to))
+  (flet ((interpolate-color (from-color to-color percent-to)
+           (declare (single-float from-color to-color)
+                    ((float 0.0 1.0) percent-to))
+           (let ((percent-from (- 1.0 percent-to)))
+             (+ (* from-color percent-from)
+                (* to-color percent-to)))))
+    (declare (inline interpolate-color ))
+    (setf (r output-color) (interpolate-color (r from-color)
+                                              (r to-color)
+                                              percent-to)
+          (g output-color) (interpolate-color (g from-color)
+                                              (g to-color)
+                                              percent-to)
+          (b output-color) (interpolate-color (b from-color)
+                                              (b to-color)
+                                              percent-to)
+          (a output-color) (interpolate-color (a from-color)
+                                              (a to-color)
+                                              percent-to)))
+  output-color)
 
 ;;;; color utils
 
