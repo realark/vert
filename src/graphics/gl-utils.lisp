@@ -370,25 +370,22 @@
     (when (= 0 texture-id)
       (setf texture-id (gl:gen-texture))
       (handler-case
-          (multiple-value-bind
-                (img-pointer width height component-count-file component-count-data)
-              (cl-soil:load-image path-to-texture :rgba)
-            (gl:bind-texture :texture-2d texture-id)
-            (unwind-protect
-                 (progn
-                   (assert (= 4 component-count-file component-count-data))
-                   (setf texture-src-width width
-                         texture-src-height height)
-                   (gl:tex-image-2d :texture-2d 0 :rgba width height 0 :rgba :unsigned-byte img-pointer :raw t)
-                   (gl:generate-mipmap :texture-2d))
-              (cl-soil:free-image-data img-pointer))
+          (pngload:with-png-in-static-vector (png path-to-texture)
+           (assert (equal :TRUECOLOUR-ALPHA (pngload:color-type png)))
+           (gl:bind-texture :texture-2d texture-id)
+           (let ((data (pngload:data png)))
+             (sb-sys:with-pinned-objects (data)
+              (setf texture-src-width (pngload:width png)
+                    texture-src-height (pngload:height png))
+              (gl:tex-image-2d :texture-2d 0 :rgba (pngload:width png) (pngload:height png) 0 :rgba :unsigned-byte (sb-sys:vector-sap data) :raw t)
+              (gl:generate-mipmap :texture-2d)))
 
-            (loop :for (gl-texture-param gl-texture-param-val) :on texture-parameters :by #'cddr :do
-                 (when (null gl-texture-param-val)
-                   (error "texture params list must be a plist: ~A : ~A"
-                          texture
-                          texture-parameters))
-                 (gl:tex-parameter :texture-2d gl-texture-param gl-texture-param-val)))
+           (loop :for (gl-texture-param gl-texture-param-val) :on texture-parameters :by #'cddr :do
+                (when (null gl-texture-param-val)
+                  (error "texture params list must be a plist: ~A : ~A"
+                         texture
+                         texture-parameters))
+                (gl:tex-parameter :texture-2d gl-texture-param gl-texture-param-val)))
         (error (e)
           (release-resources texture)
           (gl:bind-texture :texture-2d 0)

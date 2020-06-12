@@ -83,26 +83,22 @@
                                :title (getconfig 'game-name *config*))
           (when (getconfig 'window-icon *config*)
             (let* ((img-path (resource-path (getconfig 'window-icon *config*)))
-                   (soil-image-pointer nil)
                    (surf nil))
               (when img-path
                 (unwind-protect
-                     (progn
-                       (setf surf (multiple-value-bind
-                                        (img-pointer width height component-count-file component-count-data)
-                                      (cl-soil:load-image img-path :rgba)
-                                    (assert (= 4 component-count-file component-count-data))
-                                    (setf soil-image-pointer img-pointer)
-                                    (sdl2:create-rgb-surface-with-format-from
-                                     img-pointer
-                                     width
-                                     height
-                                     (* component-count-data 8)
-                                     (* component-count-data width)
-                                     :format sdl2:+pixelformat-rgba32+)))
-                       (sdl2-ffi.functions:sdl-set-window-icon win surf))
-                  (when surf (sdl2:free-surface surf))
-                  (when soil-image-pointer (cl-soil:free-image-data soil-image-pointer))))))
+                     (pngload:with-png-in-static-vector (png img-path)
+                       (let ((data (pngload:data png)))
+                         (sb-sys:with-pinned-objects (data)
+                           (setf surf
+                                 (sdl2:create-rgb-surface-with-format-from
+                                  (sb-sys:vector-sap (pngload:data png))
+                                  (pngload:width png)
+                                  (pngload:height png)
+                                  (pngload:bit-depth png)
+                                  (* (pngload:width png) 4) ; 4 bytes per pixel (RGBA)
+                                  :format sdl2:+pixelformat-rgba32+)))
+                         (sdl2-ffi.functions:sdl-set-window-icon win surf)))
+                  (when surf (sdl2:free-surface surf))))))
           (sdl2:with-gl-context (sdl-glcontext win)
             (sdl2:gl-make-current win sdl-glcontext)
             (gl:viewport 0 0 win-w-px win-h-px)

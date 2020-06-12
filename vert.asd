@@ -157,7 +157,7 @@
   :depends-on (#:sdl2
                #:sdl2-mixer
                #:cl-opengl
-               #:cl-soil
+               #:pngload
                #:cl-freetype2
                #:glkit
                #:cl-annot
