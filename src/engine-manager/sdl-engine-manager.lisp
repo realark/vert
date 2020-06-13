@@ -87,6 +87,7 @@
               (when img-path
                 (unwind-protect
                      (pngload:with-png-in-static-vector (png img-path)
+                       (assert (equal :TRUECOLOUR-ALPHA (pngload:color-type png)))
                        (let ((data (pngload:data png)))
                          (sb-sys:with-pinned-objects (data)
                            (setf surf
