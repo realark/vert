@@ -80,6 +80,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
     (with-slots (audio-sample-releaser type sdl-buffer) sample
       (when audio-sample-releaser
         (%release-audio-sample-resources type sdl-buffer)
+        (cancel-resource-releaser audio-sample-releaser)
         (setf audio-sample-releaser nil)))))
 
 (defun %audio-samples-equalp (sample1 sample2)
