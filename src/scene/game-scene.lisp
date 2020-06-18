@@ -324,7 +324,7 @@ This is an optimization so we don't have to rebuild the render and update queues
                     (unless (find instance-renderer reset-instance-renderers)
                       (incf num-objects-to-render)
                       (vector-push-extend instance-renderer reset-instance-renderers)
-                      (instance-renderer-reset instance-renderer)))
+                      (instance-renderer-reset instance-renderer game-scene)))
                   (incf num-objects-to-render)))
               (render-queue-add queue game-object))
             (block check-add-to-updatable-objects

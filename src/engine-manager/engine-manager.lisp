@@ -240,7 +240,7 @@ It is invoked after the engine is fully started.")
          (log:info "-- stop hook: ~A" label)
          (funcall hook))
     (log:info "running final GC")
-    (garbage-collect-hint) ; run any resource finalizers
+    (garbage-collect-block) ; run any resource finalizers
     (log:info "stopping audio system")
     (stop-audio-system)
     (log:info "clearing all caches")

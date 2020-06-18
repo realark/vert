@@ -37,7 +37,7 @@
 Returns the instanced-id of drawables (i.e. its position in the instance queue with 0 being the first element)."))
 
 @export
-(defgeneric instance-renderer-reset (instance-renderer)
+(defgeneric instance-renderer-reset (instance-renderer scene)
   (:documentation "Remove all queued objects from INSTANCE-RENDERER."))
 
 (defmethod render-queue-add ((queue render-queue) (object instance-rendered-drawable))
@@ -86,6 +86,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
    (static-objects-p :initarg :static-objects-p
                      :initform nil
                      :documentation "Optimization hint. Inform the renderer it will be rendering static objects.")
+   (last-scene-rendered :initform nil)
    (releaser :initform nil))
   (:documentation "An object which renders a large number of STATIC-SPRITEs using instanced rendering."))
 
@@ -114,7 +115,8 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                                                              :object-id 'dummy-array-filler))))
         (when objects ; copy existing array elements to the new buffer
           (when (<= new-size fill-pointer)
-            (log:warn "shrinking instance array size: ~A -> ~A" fill-pointer new-size))
+            (log:debug "shrinking instance array size: ~A -> ~A" fill-pointer new-size)
+            (setf fill-pointer 0))
           (loop :for i :from 0 :below (min fill-pointer new-size) :do
                (setf (elt new i)
                      (elt objects i))))
@@ -159,6 +161,7 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
 
 (defmethod load-resources ((renderer sprite-instance-renderer))
   (unless (slot-value renderer 'releaser)
+    (%resize-sprite-instance-buffers renderer 128)
     (with-slots (path-to-sprite
                  shader texture
                  vao quad-vbo
@@ -275,8 +278,9 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
   (values))
 
 (defmethod release-resources ((renderer sprite-instance-renderer))
-  (with-slots (releaser path-to-sprite shader texture vao quad-vbo transform-vbo sprite-source-vbo sprite-color-vbo c-transform-array c-sprite-source-array c-sprite-color-array) renderer
+  (with-slots (releaser path-to-sprite shader texture vao quad-vbo transform-vbo sprite-source-vbo sprite-color-vbo c-transform-array c-sprite-source-array c-sprite-color-array objects-to-render last-scene-rendered) renderer
     (when releaser
+      (%resize-sprite-instance-buffers renderer 0)
       (%release-sprite-instance-renderer-resources texture path-to-sprite
                                                    vao quad-vbo
                                                    transform-vbo sprite-source-vbo sprite-color-vbo
@@ -292,7 +296,9 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
             c-transform-array nil
             c-sprite-source-array nil
             c-sprite-color-array nil
-            releaser nil)))
+            releaser nil
+            objects-to-render nil
+            last-scene-rendered nil)))
   (values))
 
 (defun %release-sprite-instance-renderer-resources (texture path-to-sprite
@@ -331,9 +337,15 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
       (incf fill-pointer)
       next-object-index)))
 
-(defmethod instance-renderer-reset ((renderer sprite-instance-renderer))
-  (with-slots (fill-pointer) renderer
-    (setf fill-pointer 0)))
+(defmethod instance-renderer-reset ((renderer sprite-instance-renderer) scene)
+  (with-slots (fill-pointer last-scene-rendered (objects objects-to-render)) renderer
+    (setf fill-pointer 0)
+    (unless (eq scene last-scene-rendered)
+      ;; if the scene has changed, nil out all the objects so they can GC
+      (setf last-scene-rendered scene)
+      (let ((size (length objects)))
+        (setf objects nil)
+        (%resize-sprite-instance-buffers renderer size)))))
 
 (defmethod render ((renderer sprite-instance-renderer) update-percent camera gl-context)
   (declare (optimize (speed 3)))
