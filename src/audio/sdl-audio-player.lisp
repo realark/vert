@@ -291,6 +291,8 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                        (sdl2-ffi.functions:sdl-get-error)))
               (if (sdl-channel-start-time-samples new-music-channel)
                   ;; resume music playback
+                  (log:warn "FIXME Music resume not yet supported for WAV music. Will need a similar hack to SFX resume. Please fix this!")
+                  #+nil
                   (let ((music-position-seconds (/ (convert-audio-samples->ms
                                                     (- (audio-state-current-time-samples new-audio-state)
                                                        (sdl-channel-start-time-samples new-music-channel)))
@@ -461,6 +463,11 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
 Long term plan is to cache audio samples in the game-objects or scenes which need the audio using the *SDL-AUDIO-SAMPLES-CACHE*.")
 
 (defmethod audio-player-load-sfx ((audio-player sdl-audio-player) path-to-sfx &key (volume 1.0))
+  (unless (and (> (length path-to-sfx) 4)
+               (equalp ".wav"
+                       (subseq path-to-sfx
+                               (- (length path-to-sfx) 4))))
+    (error "Only .wav file supported. Got: ~A" path-to-sfx))
   (getcache-default path-to-sfx
                     *legacy-sdl-audio-cache*
                     (make-instance 'audio-sample
@@ -470,10 +477,10 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
 
 (defmethod audio-player-load-music ((audio-player sdl-audio-player) path-to-music)
   (unless (and (> (length path-to-music) 4)
-               (equalp ".ogg"
+               (equalp ".wav"
                        (subseq path-to-music
                                (- (length path-to-music) 4))))
-    (error "Only .ogg file supported. Got: ~A" path-to-music))
+    (error "Only .wav file supported. Got: ~A" path-to-music))
   (getcache-default path-to-music
                     *legacy-sdl-audio-cache*
                     (make-instance 'audio-sample
