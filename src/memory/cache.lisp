@@ -124,5 +124,6 @@ METADATA-BINDINGS should be keyword symbol pars. E.g. :foo foo-binding"
 (defvar *engine-caches* (make-instance 'cache
                                         :on-evict (lambda (cache-name cache)
                                                     (declare (ignore cache-name))
-                                                    (clear-cache cache)))
+                                                    (when (typep cache 'cache)
+                                                      (clear-cache cache))))
   "Global Cache of all caches used by the engine.")

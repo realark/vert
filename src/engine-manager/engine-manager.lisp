@@ -196,7 +196,11 @@ It is invoked after the engine is fully started.")
          (progn
            (start-live-coding)
            (do-cache (*engine-caches* cache-name cache)
-             (clear-cache cache))
+             (if (typep cache 'cache)
+                 (progn
+                   (log:info " -- clearing ~A" cache-name)
+                   (clear-cache cache))
+                 (remcache cache-name *engine-caches*)))
            ;; start services
            (start-audio-system)
            ;; fire events
@@ -239,14 +243,17 @@ It is invoked after the engine is fully started.")
        :do
          (log:info "-- stop hook: ~A" label)
          (funcall hook))
-    (log:info "running final GC")
-    (garbage-collect-block) ; run any resource finalizers
     (log:info "stopping audio system")
     (stop-audio-system)
     (log:info "clearing all caches")
     (do-cache (*engine-caches* cache-name cache)
-      (log:info " -- clearing ~A" cache-name)
-      (clear-cache cache))
+      (if (typep cache 'cache)
+          (progn
+            (log:info " -- clearing ~A" cache-name)
+            (clear-cache cache))
+          (remcache cache-name *engine-caches*)))
+    (log:info "running final GC")
+    (garbage-collect-block) ; run any resource finalizers
     (log:info "removing gl context")
     (setf *gl-context* nil)
     (format t "~%~%")))
