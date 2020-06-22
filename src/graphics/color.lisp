@@ -116,6 +116,15 @@
                                               percent-to)))
   output-color)
 
+@export
+(defun color-inverse (color &key (output-color (make-color)))
+  (setf
+   (r output-color) (- 1.0 (r color))
+   (g output-color) (- 1.0 (g color))
+   (b output-color) (- 1.0 (b color))
+   (a output-color) (a color))
+  output-color)
+
 ;;;; color utils
 
 @export
