@@ -331,9 +331,9 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
                        next-object-index
                        (* 2 next-object-index))
              (%resize-sprite-instance-buffers renderer (* 2 next-object-index))))
+      (setf buffers-dirty-p t)
       (unless (eq (elt objects next-object-index) drawable)
-        (setf (elt objects next-object-index) drawable
-              buffers-dirty-p t))
+        (setf (elt objects next-object-index) drawable))
       (incf fill-pointer)
       next-object-index)))
 
