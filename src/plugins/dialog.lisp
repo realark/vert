@@ -205,6 +205,8 @@
             initiator nil))
     (when advance-prompt
       (setf (parent advance-prompt) nil)
+      (when (color advance-prompt)
+        (setf (a (color advance-prompt)) 1.0))
       (recycle advance-prompt))
     (setf (active-input-device dialog-hud) *no-input-id*
           speaker nil
