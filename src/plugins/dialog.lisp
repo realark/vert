@@ -291,7 +291,7 @@
                                     (y line) (+ text-y
                                                 (* (height line) line-number)
                                                 ;; TODO: slot value for line spacing
-                                                (* line-number 1))
+                                                (* line-number 4))
                                     ;; hack: force reload of font vbo
                                     (font-size line) 1
                                     (font-size line) (slot-value dialog-hud 'font-size))))
