@@ -26,7 +26,8 @@ The value of this slot will be the distance between the live area and camera rec
 When camera moves outside this rect, rebuild objects to render and update
 This is an optimization so we don't have to rebuild the render and update queues every frame.")
    (render-queue :initform (make-instance 'render-queue
-                                          :render-priority -1))
+                                          :render-priority -1)
+                 :documentation "Render scene objects and backgrounds.")
    (updatable-objects :initform (make-array 100
                                             :adjustable t
                                             :fill-pointer 0
@@ -77,7 +78,7 @@ This is an optimization so we don't have to rebuild the render and update queues
     (with-slots (scene-overlays render-queue) scene
       (unless (find overlay scene-overlays)
         (vector-push-extend overlay scene-overlays)
-        (render-queue-add render-queue overlay)
+        ;; (render-queue-add render-queue overlay)
         overlay)))
   (:method ((scene game-scene) (object game-object))
     (if (updating-p scene)
@@ -106,7 +107,7 @@ This is an optimization so we don't have to rebuild the render and update queues
     (with-slots (scene-overlays) scene
       (when (find overlay scene-overlays)
         (setf scene-overlays (delete overlay scene-overlays))
-        (render-queue-remove (slot-value scene 'render-queue) overlay)
+        ;; (render-queue-remove (slot-value scene 'render-queue) overlay)
         overlay)))
   (:method ((scene game-scene) (object game-object))
     (with-slots (pending-adds pending-removes) scene
@@ -338,8 +339,9 @@ This is an optimization so we don't have to rebuild the render and update queues
       (update (camera game-scene))
       (loop :for overlay :across (the (vector overlay) scene-overlays) :do
            (update overlay)
+           #+nil
            (when rebuild-live-objects-p
-             (render-queue-add queue overlay)))
+             (render-queue-add render-queue overlay)))
       (when rebuild-live-objects-p
         (render-queue-add queue camera))
       (when bg
@@ -349,6 +351,12 @@ This is an optimization so we don't have to rebuild the render and update queues
            (found-object-to-update game-scene game-object)
            (update game-object))
       (values))))
+
+(defmethod render ((scene game-scene) update-percent camera gl-context)
+  (prog1 (call-next-method scene update-percent camera gl-context)
+    (with-slots (scene-overlays) scene
+      (loop :for overlay :across (the (vector overlay) scene-overlays) :do
+           (render overlay update-percent (camera scene) gl-context)))))
 
 (defevent-callback killed ((object obb) (game-scene game-scene))
   (remove-from-scene game-scene object))
