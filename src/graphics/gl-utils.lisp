@@ -806,6 +806,9 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
   (defun n-uniform-matrix-4fv (location matrix &optional (transpose T))
     (gl:uniform-matrix-4fv location matrix transpose))
 
+  (defun n-uniform-1fv (location count value)
+    (%gl:uniform-1fv location count value))
+
   (defun n-active-texture (texture)
     (gl:active-texture texture))
 
