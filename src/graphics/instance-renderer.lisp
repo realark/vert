@@ -340,9 +340,11 @@ Currently used to workaround bugs where a temporary gap can appear between adjac
 (defmethod instance-renderer-reset ((renderer sprite-instance-renderer) scene)
   (with-slots (fill-pointer last-scene-rendered (objects objects-to-render)) renderer
     (setf fill-pointer 0)
-    (unless (eq scene last-scene-rendered)
+    (unless (and last-scene-rendered
+                 (eq scene (tg:weak-pointer-value last-scene-rendered)))
       ;; if the scene has changed, nil out all the objects so they can GC
-      (setf last-scene-rendered scene)
+      (setf last-scene-rendered
+            (tg:make-weak-pointer scene))
       (let ((size (length objects)))
         (setf objects nil)
         (%resize-sprite-instance-buffers renderer size)))))
