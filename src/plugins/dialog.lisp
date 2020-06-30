@@ -257,7 +257,8 @@
                              (setf line-ending (move-index-to-after-current-word line-ending))
                              (setf (text font-draw)
                                    (subseq text current-line-beginning line-ending))
-                             (when (> (width font-draw) (x (slot-value dialog-hud 'window-size)))
+                             (when (> (width font-draw) (- (x (slot-value dialog-hud 'window-size))
+                                                           (slot-value dialog-hud 'window-padding)))
                                ;; current line-ending has hit the end of the allowed width
                                (setf line-ending (max (+ current-line-beginning 1)
                                                       ;; ^^ unlikely, but just in case a single word exceeds boundary
