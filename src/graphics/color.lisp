@@ -7,7 +7,6 @@
     (g 0.0 :type single-float)
     (b 0.0 :type single-float)
     (a 1.0 :type single-float))
-  (export '(copy-color))
   (export '(make-color)))
 
 @export
@@ -152,6 +151,28 @@
             (type-of color-or-scalar))))
 
   output-color)
+
+;;;; color caching
+
+(defvar %color-cache%
+  (getcache-default "color-cache"
+                    *engine-caches*
+                    (make-array 0
+                                :element-type 'color
+                                :adjustable t
+                                :fill-pointer 0)))
+
+(defun cached-color-get ()
+  "Get a color out of the system color cache, or make a new one if the cache is empty."
+  (if (> (length %color-cache%) 0)
+      (vector-pop %color-cache%)
+      (make-color)))
+
+(defun cached-color-return (cached-color)
+  "return CACHED-COLOR to the system color cache."
+  (vector-push-extend cached-color
+                      %color-cache%)
+  (values))
 
 ;;;; basic color globals
 @export
