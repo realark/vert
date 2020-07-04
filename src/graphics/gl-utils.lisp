@@ -604,181 +604,182 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
 ;;;; FFIs
 ;;;; cl-opengl wrapper is consing so we'll redefine some non-consing alternatives to use in hot code.
 
-(defmacro %defglfunction ((gl-fn-name lisp-fn-name) return-type &rest arguments)
-  (assert (stringp gl-fn-name))
-  (assert (symbolp lisp-fn-name))
-  `(progn
-     (cffi:defcfun (,gl-fn-name ,(alexandria:symbolicate '% lisp-fn-name)) ,return-type
-       ,@arguments)
-     (defun ,lisp-fn-name (,@(loop :for arg :in arguments :collect (first arg)))
-       (prog1
-           (,(alexandria:symbolicate '% lisp-fn-name) ,@(loop :for arg :in arguments :collect (first arg)))
-         (gl:check-error)))))
+#+nil
+(progn
+  (defmacro %defglfunction ((gl-fn-name lisp-fn-name) return-type &rest arguments)
+    (assert (stringp gl-fn-name))
+    (assert (symbolp lisp-fn-name))
+    `(progn
+       (cffi:defcfun (,gl-fn-name ,(alexandria:symbolicate '% lisp-fn-name)) ,return-type
+         ,@arguments)
+       (defun ,lisp-fn-name (,@(loop :for arg :in arguments :collect (first arg)))
+         (prog1
+             (,(alexandria:symbolicate '% lisp-fn-name) ,@(loop :for arg :in arguments :collect (first arg)))
+           (gl:check-error)))))
 
-(%defglfunction ("glBindVertexArray" n-bind-vertex-array) :void
-        (array :unsigned-int))
+  (%defglfunction ("glBindVertexArray" n-bind-vertex-array) :void
+                  (array :unsigned-int))
 
-(%defglfunction ("glUseProgram" n-use-program) :void
-  (program :unsigned-int))
+  (%defglfunction ("glUseProgram" n-use-program) :void
+                  (program :unsigned-int))
 
-(cffi:defcfun ("glGetUniformLocation" %n-get-uniform-location) :int
-  (program :unsigned-int)
-  (name (:pointer :char)))
+  (cffi:defcfun ("glGetUniformLocation" %n-get-uniform-location) :int
+    (program :unsigned-int)
+    (name (:pointer :char)))
 
-(defun n-get-uniform-location (program name)
-  (cffi:with-foreign-string (c-str name)
+  (defun n-get-uniform-location (program name)
+    (cffi:with-foreign-string (c-str name)
+      (prog1
+          (%n-get-uniform-location
+           program
+           c-str)
+        (gl:check-error))))
+
+  (cffi:defcfun ("glUniform1f" %n-uniform-1f) :void
+    (location :int)
+    (v0 :float))
+
+  (cffi:defcfun ("glUniform2f" %n-uniform-2f) :void
+    (location :int)
+    (v0 :float)
+    (v1 :float))
+
+  (cffi:defcfun ("glUniform3f" %n-uniform-3f) :void
+    (location :int)
+    (v0 :float)
+    (v1 :float)
+    (v2 :float))
+
+  (cffi:defcfun ("glUniform4f" %n-uniform-4f) :void
+    (location :int)
+    (v0 :float)
+    (v1 :float)
+    (v2 :float)
+    (v3 :float))
+
+  (defun n-uniformf (location x &optional y z w)
     (prog1
-        (%n-get-uniform-location
-         program
-         c-str)
-      (gl:check-error))))
+        (cond
+          (w (%n-uniform-4f location (float x) (float y) (float z) (float w)))
+          (z (%n-uniform-3f location (float x) (float y) (float z)))
+          (y (%n-uniform-2f location (float x) (float y)))
+          (x (%n-uniform-1f location (float x))))
+      (gl:check-error)))
 
-(cffi:defcfun ("glUniform1f" %n-uniform-1f) :void
-  (location :int)
-  (v0 :float))
+  (cffi:defcfun ("glUniform1i" %n-uniform-1i) :void
+    (location :int)
+    (v0 :int))
 
-(cffi:defcfun ("glUniform2f" %n-uniform-2f) :void
-  (location :int)
-  (v0 :float)
-  (v1 :float))
+  (cffi:defcfun ("glUniform2i" %n-uniform-2i) :void
+    (location :int)
+    (v0 :int)
+    (v1 :int))
 
-(cffi:defcfun ("glUniform3f" %n-uniform-3f) :void
-  (location :int)
-  (v0 :float)
-  (v1 :float)
-  (v2 :float))
+  (cffi:defcfun ("glUniform3i" %n-uniform-3i) :void
+    (location :int)
+    (v0 :int)
+    (v1 :int)
+    (v2 :int))
 
-(cffi:defcfun ("glUniform4f" %n-uniform-4f) :void
-  (location :int)
-  (v0 :float)
-  (v1 :float)
-  (v2 :float)
-  (v3 :float))
+  (cffi:defcfun ("glUniform4i" %n-uniform-4i) :void
+    (location :int)
+    (v0 :int)
+    (v1 :int)
+    (v2 :int)
+    (v3 :int))
 
-(defun n-uniformf (location x &optional y z w)
-  (prog1
-      (cond
-        (w (%n-uniform-4f location (float x) (float y) (float z) (float w)))
-        (z (%n-uniform-3f location (float x) (float y) (float z)))
-        (y (%n-uniform-2f location (float x) (float y)))
-        (x (%n-uniform-1f location (float x))))
-    (gl:check-error)))
-
-(cffi:defcfun ("glUniform1i" %n-uniform-1i) :void
-  (location :int)
-  (v0 :int))
-
-(cffi:defcfun ("glUniform2i" %n-uniform-2i) :void
-  (location :int)
-  (v0 :int)
-  (v1 :int))
-
-(cffi:defcfun ("glUniform3i" %n-uniform-3i) :void
-  (location :int)
-  (v0 :int)
-  (v1 :int)
-  (v2 :int))
-
-(cffi:defcfun ("glUniform4i" %n-uniform-4i) :void
-  (location :int)
-  (v0 :int)
-  (v1 :int)
-  (v2 :int)
-  (v3 :int))
-
-(defun n-uniformi (location x &optional y z w)
-  (prog1
-      (cond
-        (w (%n-uniform-4i location x y z w))
-        (z (%n-uniform-3i location x y z))
-        (y (%n-uniform-2i location x y))
-        (x (%n-uniform-1i location x)))
-    (gl:check-error)))
-
-(cffi:defcfun ("glUniformMatrix4fv" %n-uniform-matrix-4fv) :void
-  (location :int)
-  (count cl-opengl-bindings:sizei)
-  (transpose :int)
-  (value (:pointer :float)))
-
-(let ((tmp-arr nil))
-  (defun n-uniform-matrix-4fv (location matrix &optional (transpose T))
-    (declare (optimize (speed 3))
-             ((simple-array single-float (16)) matrix))
-    (when (null tmp-arr)
-      (setf tmp-arr (cffi:foreign-alloc :float :count 16)))
-    (loop :for i :from 0 :below (length matrix) :do
-         (setf (cffi:mem-aref tmp-arr :float i) (elt matrix i)))
+  (defun n-uniformi (location x &optional y z w)
     (prog1
-        (%n-uniform-matrix-4fv
-         location
-         1
-         (if (or (null transpose) (equalp 0 transpose))
-             0
-             1)
-         tmp-arr)
-      (gl:check-error))))
+        (cond
+          (w (%n-uniform-4i location x y z w))
+          (z (%n-uniform-3i location x y z))
+          (y (%n-uniform-2i location x y))
+          (x (%n-uniform-1i location x)))
+      (gl:check-error)))
 
-(%defglfunction ("glUniform1fv" n-uniform-1fv) :void
-                (location :int)
-                (count cl-opengl-bindings:sizei)
-                (value (:pointer :float)))
+  (cffi:defcfun ("glUniformMatrix4fv" %n-uniform-matrix-4fv) :void
+    (location :int)
+    (count cl-opengl-bindings:sizei)
+    (transpose :int)
+    (value (:pointer :float)))
 
-(%defglfunction ("glActiveTexture" n-active-texture) :void
-  (texture %gl:enum))
+  (let ((tmp-arr nil))
+    (defun n-uniform-matrix-4fv (location matrix &optional (transpose T))
+      (declare (optimize (speed 3))
+               ((simple-array single-float (16)) matrix))
+      (when (null tmp-arr)
+        (setf tmp-arr (cffi:foreign-alloc :float :count 16)))
+      (loop :for i :from 0 :below (length matrix) :do
+           (setf (cffi:mem-aref tmp-arr :float i) (elt matrix i)))
+      (prog1
+          (%n-uniform-matrix-4fv
+           location
+           1
+           (if (or (null transpose) (equalp 0 transpose))
+               0
+               1)
+           tmp-arr)
+        (gl:check-error))))
 
-(%defglfunction ("glBindBuffer" n-bind-buffer) :void
-  (target %gl:enum)
-  (buffer :unsigned-int))
+  (%defglfunction ("glUniform1fv" n-uniform-1fv) :void
+                  (location :int)
+                  (count cl-opengl-bindings:sizei)
+                  (value (:pointer :float)))
 
-(%defglfunction ("glBindTexture" n-bind-texture) :void
-  (target %gl:enum)
-  (texture :unsigned-int))
+  (%defglfunction ("glActiveTexture" n-active-texture) :void
+                  (texture %gl:enum))
 
-(cffi:defcfun ("glBufferSubData" %n-buffer-sub-data) :void
-  (target %gl:enum)
-  (offset cl-opengl-bindings:intptr)
-  (size cl-opengl-bindings:sizeiptr)
-  (data (:pointer :void)))
+  (%defglfunction ("glBindBuffer" n-bind-buffer) :void
+                  (target %gl:enum)
+                  (buffer :unsigned-int))
 
-(defun n-buffer-sub-data (target array &key (offset 0) (buffer-offset 0)
-                                         (size (gl::gl-array-byte-size array)))
-  (prog1
-      (%n-buffer-sub-data target
-                          buffer-offset
-                          size
-                          (gl::gl-array-pointer-offset array offset))
-    (gl:check-error)))
+  (%defglfunction ("glBindTexture" n-bind-texture) :void
+                  (target %gl:enum)
+                  (texture :unsigned-int))
 
-(%defglfunction ("glBufferData" n-buffer-data) :void
-  (target %gl:enum)
-  (size :int)
-  (data (:pointer :void))
-  (usage %gl:enum))
+  (cffi:defcfun ("glBufferSubData" %n-buffer-sub-data) :void
+    (target %gl:enum)
+    (offset cl-opengl-bindings:intptr)
+    (size cl-opengl-bindings:sizeiptr)
+    (data (:pointer :void)))
 
-(%defglfunction ("glDrawArrays" n-draw-arrays) :void
-  (mode %gl:enum)
-  (first :int)
-  (count cl-opengl-bindings:sizei))
+  (defun n-buffer-sub-data (target array &key (offset 0) (buffer-offset 0)
+                                           (size (gl::gl-array-byte-size array)))
+    (prog1
+        (%n-buffer-sub-data target
+                            buffer-offset
+                            size
+                            (gl::gl-array-pointer-offset array offset))
+      (gl:check-error)))
 
-(%defglfunction ("glDrawElements" n-draw-elements) :void
-  (mode %gl:enum)
-  (count cl-opengl-bindings:sizei)
-  (type %gl:enum)
-  (indices cl-opengl-bindings::offset-or-pointer))
+  (%defglfunction ("glBufferData" n-buffer-data) :void
+                  (target %gl:enum)
+                  (size :int)
+                  (data (:pointer :void))
+                  (usage %gl:enum))
 
-(%defglfunction ("glDrawArraysInstanced" n-draw-arrays-instanced) :void
-  (mode %gl:enum)
-  (first :int)
-  (count cl-opengl-bindings:sizei)
-  (instance-count cl-opengl-bindings:sizei))
+  (%defglfunction ("glDrawArrays" n-draw-arrays) :void
+                  (mode %gl:enum)
+                  (first :int)
+                  (count cl-opengl-bindings:sizei))
 
-(%defglfunction ("glBindFramebuffer" n-bind-framebuffer) :void
-                (target %gl:enum)
-                (framebuffer :unsigned-int))
+  (%defglfunction ("glDrawElements" n-draw-elements) :void
+                  (mode %gl:enum)
+                  (count cl-opengl-bindings:sizei)
+                  (type %gl:enum)
+                  (indices cl-opengl-bindings::offset-or-pointer))
+
+  (%defglfunction ("glDrawArraysInstanced" n-draw-arrays-instanced) :void
+                  (mode %gl:enum)
+                  (first :int)
+                  (count cl-opengl-bindings:sizei)
+                  (instance-count cl-opengl-bindings:sizei))
+
+  (%defglfunction ("glBindFramebuffer" n-bind-framebuffer) :void
+                  (target %gl:enum)
+                  (framebuffer :unsigned-int)))
 
 ;; FIXME: defcfun workaround is incomplete for windows. Will need to be re-thought
-#+win32
 (progn
   (defun n-bind-vertex-array (array)
     (gl:bind-vertex-array array))
@@ -815,6 +816,9 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
   (defun n-bind-buffer (target buffer)
     (gl:bind-buffer target buffer))
 
+  (defun n-bind-texture (target texture)
+    (gl:bind-texture target texture))
+
   (defun n-buffer-data (target size data usage)
     (%gl:buffer-data target size data usage))
 
@@ -829,3 +833,28 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
 
   (defun n-bind-framebuffer (target framebuffer)
     (gl:bind-framebuffer target framebuffer)))
+
+;; Patching cl-opengl fn generator to work around consing issue.
+;; See: https://github.com/3b/cl-opengl/issues/97
+(in-package #:cl-opengl-bindings)
+
+(defun generate-gl-function (foreign-name lisp-name result-type body &rest args)
+  (let ((address (gl-get-proc-address foreign-name))
+        (arg-list (mapcar #'first body)))
+    (when (or (not (pointerp address)) (null-pointer-p address))
+      (error "Couldn't find function ~A" foreign-name))
+    (compile lisp-name
+             `(lambda ,arg-list
+                (declare (optimize (speed 3)))
+                (multiple-value-prog1
+                    (with-float-traps-maybe-masked ()
+                      (foreign-funcall-pointer
+                       ,address
+                       (:library opengl)
+                       ,@(loop for i in body
+                            collect (second i)
+                            collect (first i))
+                       ,result-type))
+                  #-cl-opengl-no-check-error
+                  (check-error ',lisp-name))))
+    (apply lisp-name args)))
