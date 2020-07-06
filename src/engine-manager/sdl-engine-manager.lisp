@@ -53,7 +53,9 @@
                       linked-major linked-minor linked-patch)
             (log:warn "Compiled and linked SDL Library Versions mismatched:~%linked:  ~D.~D.~D~%wrapped: ~D.~D.~D"
                       linked-major linked-minor linked-patch
-                      wrapped-major wrapped-minor wrapped-patch))))
+                      wrapped-major wrapped-minor wrapped-patch))
+        (log:info "Using SDL Video driver: ~A" (sdl2:get-current-video-driver))
+        (log:info "Using SDL Audio driver: ~A" (sdl2-ffi.functions:sdl-get-current-audio-driver))))
     (log:info "opengl version ~A.~A~%profile mask: ~A~%"
             (sdl2:gl-get-attr :CONTEXT-MAJOR-VERSION)
             (sdl2:gl-get-attr :CONTEXT-MINOR-VERSION)
