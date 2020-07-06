@@ -104,7 +104,14 @@ The viewport will be centered into the middle of the window defined by the input
                         pre-fs-y y)))
               (resize-window application-window max-screen-width max-screen-height)
               (handler-case
-                  (sdl2:set-window-fullscreen win T)
+                  (cond
+                    ((or #+win32 t)
+                     ;; TODO: real fullscreen mode lags on win32 platform.
+                     ;; This is possibly a bug in SDL, but will require more research and a small sample app.
+                     ;; Setting desktop fullscreen as an attempted workaround
+                     (sdl2:set-window-fullscreen win :desktop))
+                    (t
+                     (sdl2:set-window-fullscreen win T)))
                 (sdl2::sdl-error (sdl-error)
                   (log:error "unable to set \"real\" fullscreen mode: ~A~%Falling back to :desktop. See https://wiki.libsdl.org/SDL_SetWindowFullscreen for details."
                              sdl-error)
