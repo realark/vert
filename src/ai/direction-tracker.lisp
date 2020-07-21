@@ -3,7 +3,7 @@
 (in-package :recurse.vert)
 
 @export
-(defclass direction-tracker (agent obb)
+(defclass direction-tracker (obb)
   ((facing :initarg :facing
            :initform (make-array 2
                                  :adjustable nil

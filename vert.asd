@@ -101,8 +101,7 @@
                         :pathname "src/ai"
                         :serial T
                         :components
-                        ((:file "agent")
-                         (:file "direction-tracker")))
+                        ((:file "direction-tracker")))
                (:module scene
                         :depends-on (:core :physics :graphics :audio :ai :input)
                         :pathname "src/scene"
