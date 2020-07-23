@@ -7,8 +7,11 @@
 
 (defsystem vert
   :name "vert"
-  :version "0.1"
+  :version "0.1.0"
   :author "Ark"
+  :maintainer "Ark"
+  :description "A 2d game engine. Alpha quality; Frequently updated API. Here be dragons."
+  :homepage "https://github.com/realark/vert"
   :components ((:file "packages")
                (:module core
                         :pathname "src/core"
