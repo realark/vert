@@ -472,6 +472,18 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
            (list vao vbo))
       (gl:free-gl-array gl-vertices))))
 
+@export
+(defgeneric add-color-map (drawable color-map)
+  (:documentation "Apply COLOR-MAP to DRAWABLE. See doc for color-map struct for details.")
+  (:method ((quad gl-quad) (color-map color-map))
+    (with-slots (color-maps) quad
+      (if color-maps
+          (error "multiple color maps not yet supported")
+          (setf color-maps (make-array 1
+                                       :element-type 'color-map
+                                       :initial-contents (list color-map)
+                                       :adjustable t))))))
+
 ;;;; color invert effect
 
 @export-class

@@ -53,6 +53,9 @@
           :initform nil
           :accessor color
           :documentation "Optional color mod to apply to the sprite.")
+   (color-maps :initform nil
+               ;;  Copies will be passed through to the sprite's internal quad.
+               :documentation "color maps for the sprite.")
    (texture :initform nil
             :documentation "opengl texture wrapper")
    (quad :initform nil)
@@ -135,6 +138,11 @@ Nil to render the entire sprite.")
 
 (defmethod render ((sprite static-sprite) update-percent camera gl-context)
   (with-slots (quad) sprite
+    (block set-color
+      (with-slots ((sprite-color color) (sprite-maps color-maps)) sprite
+        (with-slots ((quad-color color) (quad-maps color-maps)) quad
+          (setf quad-color sprite-color
+                quad-maps sprite-maps))))
     ;; TODO stop hardcoding texture-src
     (block set-sprite-source
       (with-slots (texture sprite-source sprite-source-flip-vector) sprite
@@ -187,18 +195,17 @@ Nil to render the entire sprite.")
         (release-resources sprite)
         (load-resources sprite)))))
 
-@export
-(defun add-color-map (static-sprite color-map)
-  "Apply COLOR-MAP to STATIC-SPRITE. See doc for color-map struct for details."
-  (declare (static-sprite static-sprite)
-           (color-map color-map))
-  (with-slots (color-maps) (slot-value static-sprite 'quad)
+(defmethod add-color-map ((sprite static-sprite) (color-map color-map))
+  (with-slots (color-maps quad) sprite
     (if color-maps
         (error "multiple color maps not yet supported")
-        (setf color-maps (make-array 1
-                                     :element-type 'color-map
-                                     :initial-contents (list color-map)
-                                     :adjustable t)))))
+        (progn
+          (setf color-maps (make-array 1
+                                       :element-type 'color-map
+                                       :initial-contents (list color-map)
+                                       :adjustable t))
+          (when quad
+            (add-color-map quad color-map))))))
 
 @export
 (defun get-color-maps (static-sprite)
