@@ -18,18 +18,6 @@
   (make-sprite-source 0 0 nil nil)
   "A sprite-source which shows the entire sprite")
 
-@export-structure
-(defstruct color-map
-  "A COLOR-MAP can be applied to a sprite to convert all matching FROM-COLORs to TO-COLOR in the sprite within the TOLERANCE range."
-  (from-color *white* :type color)
-  (to-color *white* :type color)
-  (tolerance (/ 3.0 255.0) :type (single-float 0.0 1.0)))
-
-(defvar %no-op-color-map%
-  (make-color-map :from-color *white*
-                  :to-color *white*
-                  :tolerance 0.0))
-
 (defvar *sprite-buffer-cache*
   (getcache-default "sprite-buffer-cache"
                     *engine-caches*
@@ -68,8 +56,6 @@
    (texture :initform nil
             :documentation "opengl texture wrapper")
    (quad :initform nil)
-   (color-maps :initform nil
-               :documentation "Before color mod is applied, allow mapping src colors to dest colors")
    (sprite-source :initarg :sprite-source
                   :initform nil
                   :accessor sprite-source
@@ -206,7 +192,7 @@ Nil to render the entire sprite.")
   "Apply COLOR-MAP to STATIC-SPRITE. See doc for color-map struct for details."
   (declare (static-sprite static-sprite)
            (color-map color-map))
-  (with-slots (color-maps) static-sprite
+  (with-slots (color-maps) (slot-value static-sprite 'quad)
     (if color-maps
         (error "multiple color maps not yet supported")
         (setf color-maps (make-array 1
@@ -216,7 +202,8 @@ Nil to render the entire sprite.")
 
 @export
 (defun get-color-maps (static-sprite)
-  (slot-value static-sprite 'color-maps))
+  (slot-value (slot-value static-sprite 'quad)
+              'color-maps))
 
 @export
 (defmethod flip ((sprite static-sprite) direction)

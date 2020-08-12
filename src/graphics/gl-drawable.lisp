@@ -242,6 +242,20 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
                          orig-clear-color)
                    (set-gl-viewport-to-game-resolution (screen-width camera) (screen-height camera))))))))))
 
+;;;; color maps
+@export-structure
+(defstruct color-map
+  "A COLOR-MAP can be applied to a sprite to convert all matching FROM-COLORs to TO-COLOR in the sprite within the TOLERANCE range."
+  (from-color *white* :type color)
+  (to-color *white* :type color)
+  (tolerance (/ 3.0 255.0) :type (single-float 0.0 1.0)))
+
+(defvar %no-op-color-map%
+  (make-color-map :from-color *white*
+                  :to-color *white*
+                  :tolerance 0.0))
+
+
 ;;;; quad texture base class
 (defvar %quad-cache-key% 'gl-quad)
 
@@ -261,6 +275,8 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
           :initform nil
           :accessor color
           :documentation "Optional color mod to apply to the quad. If a texture is also applied the two color values will be blended.")
+   (color-maps :initform nil
+               :documentation "Before color mod is applied, allow mapping src colors to dest colors")
    (color-blend-fn :initarg :color-blend-fn
                    :initform nil)
    (texture-src :initarg :texture-src
@@ -334,6 +350,32 @@ Most gl drawing utils will want to subclass and override the SHADER slot with cu
     (gl-use-shader *gl-context* shader)
     (gl-use-vao *gl-context* (car buffer-ids))
     (gl-bind-texture *gl-context* nil)
+
+    ;; color mapping
+    (with-slots (color-maps) quad
+      (if (and color-maps (> (length (the vector color-maps)) 0))
+          (let ((color-map (elt color-maps 0)))
+            (set-uniformf shader
+                          "colorMapFrom"
+                          (r (color-map-from-color color-map))
+                          (g (color-map-from-color color-map))
+                          (b (color-map-from-color color-map))
+                          (a (color-map-from-color color-map)))
+            (set-uniformf shader
+                          "colorMapTo"
+                          (r (color-map-to-color color-map))
+                          (g (color-map-to-color color-map))
+                          (b (color-map-to-color color-map))
+                          (a (color-map-to-color color-map)))
+            (set-uniformf shader
+                          "colorMapTolerance"
+                          (color-map-tolerance color-map)))
+          (progn
+            (set-uniformf shader "colorMapFrom"
+                          1.0 1.0 1.0 1.0)
+            (set-uniformf shader "colorMapTo"
+                          1.0 1.0 1.0 1.0)
+            (set-uniformf shader "colorMapTolerance" 0.0))))
 
     ;; color
     (with-slots (color) quad
