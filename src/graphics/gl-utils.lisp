@@ -360,6 +360,35 @@
          :documentation "filesystem location of image."))
   (:documentation "A textured created from an image on disk."))
 
+#+nil
+(pngload:with-png-in-static-vector (png "/home/ark/prog/syn/resources/art/story-images/synstorysnake.png")
+  (break "png: ~A" png)
+  #+gl-skip
+  (gl:bind-texture :texture-2d texture-id)
+  (let ((data (pngload:data png)))
+    (sb-sys:with-pinned-objects (data)
+      (setf texture-src-width (pngload:width png)
+            texture-src-height (pngload:height png))
+      (case (pngload:color-type png)
+        (:truecolor-alpha
+         (gl:tex-image-2d :texture-2d 0 :rgba (pngload:width png) (pngload:height png) 0 :rgba :unsigned-byte (sb-sys:vector-sap data) :raw t)
+         (gl:generate-mipmap :texture-2d))
+        (:indexed-colour
+         (:truecolor-alpha
+          (gl:tex-image-2d :texture-2d 0 :rgba (pngload:width png) (pngload:height png) 0 :rgba :unsigned-byte (sb-sys:vector-sap data) :raw t)
+          (gl:generate-mipmap :texture-2d))
+         )
+        (otherwise
+         (error "Unsupported png color type: ~A" (pngload:color-type png))))))
+
+  #+gl-skip
+  (loop :for (gl-texture-param gl-texture-param-val) :on texture-parameters :by #'cddr :do
+    (when (null gl-texture-param-val)
+      (error "texture params list must be a plist: ~A : ~A"
+             texture
+             texture-parameters))
+    (gl:tex-parameter :texture-2d gl-texture-param gl-texture-param-val)))
+
 (defmethod load-resources ((texture sprite-backed-texture))
   (with-slots ((path-to-texture path)
                texture-id
