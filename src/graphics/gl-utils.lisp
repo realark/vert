@@ -371,21 +371,27 @@
       (setf texture-id (gl:gen-texture))
       (handler-case
           (pngload:with-png-in-static-vector (png path-to-texture)
-           (assert (equal :TRUECOLOUR-ALPHA (pngload:color-type png)))
-           (gl:bind-texture :texture-2d texture-id)
-           (let ((data (pngload:data png)))
-             (sb-sys:with-pinned-objects (data)
-              (setf texture-src-width (pngload:width png)
-                    texture-src-height (pngload:height png))
-              (gl:tex-image-2d :texture-2d 0 :rgba (pngload:width png) (pngload:height png) 0 :rgba :unsigned-byte (sb-sys:vector-sap data) :raw t)
-              (gl:generate-mipmap :texture-2d)))
+            (gl:bind-texture :texture-2d texture-id)
+            (let ((data (pngload:data png)))
+              (sb-sys:with-pinned-objects (data)
+                (setf texture-src-width (pngload:width png)
+                      texture-src-height (pngload:height png))
+                (case (pngload:color-type png)
+                  (:TRUECOLOUR-ALPHA ; blimey!
+                   (gl:tex-image-2d :texture-2d 0 :rgba (pngload:width png) (pngload:height png) 0 :rgba :unsigned-byte (sb-sys:vector-sap data) :raw t)
+                   (gl:generate-mipmap :texture-2d))
+                  (:INDEXED-COLOUR
+                   (gl:tex-image-2d :texture-2d 0 :rgba (pngload:width png) (pngload:height png) 0 :rgb :unsigned-byte (sb-sys:vector-sap data) :raw t)
+                   (gl:generate-mipmap :texture-2d))
+                  (otherwise
+                   (error "Unsupported png color type: ~A" (pngload:color-type png))))))
 
-           (loop :for (gl-texture-param gl-texture-param-val) :on texture-parameters :by #'cddr :do
-                (when (null gl-texture-param-val)
-                  (error "texture params list must be a plist: ~A : ~A"
-                         texture
-                         texture-parameters))
-                (gl:tex-parameter :texture-2d gl-texture-param gl-texture-param-val)))
+            (loop :for (gl-texture-param gl-texture-param-val) :on texture-parameters :by #'cddr :do
+              (when (null gl-texture-param-val)
+                (error "texture params list must be a plist: ~A : ~A"
+                       texture
+                       texture-parameters))
+              (gl:tex-parameter :texture-2d gl-texture-param gl-texture-param-val)))
         (error (e)
           (release-resources texture)
           (gl:bind-texture :texture-2d 0)
