@@ -137,8 +137,8 @@
   (defun last-gc-time-ms ()
     last-gc-time-ms)
   #+sbcl
-  (push #'gc-callback
-        sb-ext:*after-gc-hooks*))
+  (pushnew #'gc-callback
+           sb-ext:*after-gc-hooks*))
 
 ;;;; builtin vert stats
 (defclass builtin-vert-stats (game-stats)
