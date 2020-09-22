@@ -160,3 +160,8 @@ The second half will be populated with INITIAL-ELEMENT."
   (loop :for i :from ending-index :above starting-index :do
        (setf (elt array i)
              (elt array (- i 1)))))
+
+(defun array-null-out (array &optional val)
+  "Replace all values in ARRAY with VAL (defaults to nil)."
+  (loop :for i :from 0 :below (length array) :do
+    (setf (elt array i) val)))
