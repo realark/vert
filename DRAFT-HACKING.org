@@ -35,106 +35,69 @@ You will almost always want to use SCENE-TICKS to implement in-game timers.
 ;; *scene* internal timer is the same because it was not recieveing updates while paused.
 (scene-ticks *scene*) ; -> 4000
 #+END_SRC
-* Event System
-** scratch
+* Core Components
+Vert provides a series of core components used to create a game. Several of these components may be extended to allow
+** Events
+Vert's event api allows for objects or systems to broadcast events globally.
+
+Interested parties may hook and respond to events in a number of ways.
+*** Defining and Publishing Events
+The defevent macro defines an event and an optional body of code to run when the publisher fires an event.
+
 #+BEGIN_SRC lisp
-  ;; Goals:
-  ;; - object instance can subscribe to another object instance
-  ;;   - e.g. scene subscribes to objects getting killed
-  ;; - object instance can subscribe to a type of event
-  ;;   - e.g. scene subscribes to a screen resize and pauses itself
-  ;; - anonymous callbacks to events
-  ;;   - e.g. on-engine-start event, set up the resource-autoloader
-
-  (publish-event GAME-WINDOW-RESIZED)
-  (publish-event GAME-WINDOW-MOVED)
-
-
-  ;;;; api
-
-  ;; first you define the event and a docstring.
-  (defevent game-window-resized
-      "Vert's game window has been resized.")
+  (defevent game-window-resized (game-window old-width old-height new-width new-height)
+    "Docstring goes here"
+    (log:debug "Optional body of code to run. goes here"))
 
   ;; now any lisp object can publish that event
-  (event-publish game-window-resized *engine-manager*)
-  (event-publish game-window-resized *player*) ; not that the player publishing window resize events make sense...
-
-  ;; ways to handle events
-
-  ;; 1. manually iterate all events and run desired action
-  (do-events (event-name event-publisher)
-    'dispatch-on-event)
-
-  ;; 2. define an anonymous handler for named events
-  (defevent-handler-lambda game-window-resized (publisher)
-    'body)
-
-  ;; 3. add a handler for specific pub/sub instances
-  (defevent-handler game-window-resized ((pub pub-class) (sub sub-class))
-    ;; handler will run for all SUBs which have EVENT-SUBSCRIBE'd to PUBs
-    ...)
-  (event-subscribe game-window-resized *engine-man* *graphics-hlpr*)
-
-  ;;;; implementation
-
-  (defun event-publish (publisher event-name-symbol)
-    "Have PUBLISHER publish an event named EVENT-NAME-SYMBOL"
-    ...)
-
-  (defclass event ()
-    ((name :initarg :name
-           :type symbol
-           :initform (error ":name required"))
-     (publisher :initform 'required)))
-
-  (defparameter *pending-events*
-    (make-some-array)
-    "Events which will be published next frame.")
-
-  (defparameter *event-bus*
-    (make-some-array)
-    "Events which have been published in the previous update frame.")
-
-  (defun publish-event (event-name-symbol &rest event-args)
-    ;; make or reuse an event-node?
-    ;; push event name and all args to pending-events
-    )
-
-  ;;;; event api
-
-  ;; define a type of event
-  (defevent game-window-resized (old-width old-height new-width new-height)
-      "docstring")
-
-  ;; next frame run the game-window-resized event
-  (publish-event game-window-resized 100 75 200 150)
-
-  ;; how sprites will react to window resizes
-  (defevent-callback game-window-resized ((sprite static-sprite) old-width old-height new-width new-height)
-    )
-
-  ;; function which runs every time the window is resized
-  (on-event game-window-resized (old-width old-height new-width new-height)
-    (log:info "game window resized"))
-
-  ;; TODO how to subscribe to a particular instance
-
-  (progn
-
-    (add-subscriber wolf other-wolf 'howling
-      (howl other-wolf)
-      )
-
-    )
+  (event-publish game-window-resized *engine-manager* 16 9 32 18)
+  ;; of course, the player publishing window resize events make no sense. Please use responsibly.
+  (event-publish game-window-resized *player* 16 9 32 18)
 #+END_SRC
-** Adding an anonymous event handler
-** Subscribing to Events from a specific instance
-* Vert Systems
-** Config
-*** Interesting Globals
-** Graphics
-Graphics use OpenGL 3.3.1. The window and gl-context are created by sdl2 (see sdl-engine-manager for implementation).
+*** Reacting to events
+**** Subscribing to Events from a specific subscriber instance
+It's often the case that one instance of a class wishes to subscribe to events from another instance.
+
+Rather than requiring subscribers to manually scan the event bus, DEFEVENT-HANDLER and EVENT-SUBSCRIBE provide a convenient way to hook these events.
+
+#+BEGIN_SRC lisp
+  (defevent-handler agent-killed ((pub agent) (sub scene))
+    ;; handler will run for all SUBs which have EVENT-SUBSCRIBE'd to PUBs
+    (log:debug "Agent killed (~A). Removing from scene ~A" pub sub)
+    (remove-from-scene sub pub))
+
+  ;; Simply defining a handler does nothing. A specific sub instance must subscribe to a specific pub instance
+  (event-subscribe agent-killed *agent1* *scene*)
+  (event-subscribe agent-killed *agent2* *scene*)
+  ;; now *scene* can run a hook when either *agent1* or *agent2* is killed
+#+END_SRC
+**** Global callbacks to events
+In addition to specific subscriber instances, the event system allows for global subscribers to hook all types of an event.
+
+For example, define a handler to run every time the window is resized.
+
+#+BEGIN_SRC lisp
+  (defevent-handler-global log-game-window-resized (game-window-resized (window system-window) old-w old-h new-w new-h)
+    (log:info "Game window resized! ~Ax~A" new-w new-h))
+#+END_SRC
+**** Manually Scanning the Event Bus
+At the lower level, it's possible to manually scan the event bus. This can be a costly operation, so it's best to use the higher level event handlers.
+
+The ~do-events~ macro will iterate every event published in the previous update frame.
+#+BEGIN_SRC lisp
+  (do-events (event-name event-publisher event-args)
+    (when (equal event-name DESIRED-EVENT)
+      'dispatch-on-event
+      (return)))
+#+END_SRC
+*** Ordering of pub/sub body invokes
+Event bodies are guaranteed to run before any subscriber callbacks. There is no guarantee on the order in which sub callbacks are run.
+** Systems
+Systems are globals which provide access to shared resources.
+*** Config
+**** Interesting Globals
+*** Graphics
+Graphics use OpenGL 3.3.1. The window and gl-context are created by sdl2 (see sdl-engine-manager for context creation).
 
 # *** Rendering Pipeline
 # - each game scene stores a self-sorting render-queue
@@ -157,7 +120,7 @@ Graphics use OpenGL 3.3.1. The window and gl-context are created by sdl2 (see sd
 #   - finally
 #     - run matrix transformations and interpolations
 #     - if effects ran, write the object-FBO into the scene-FBO
-*** Rendering Overview
+**** Rendering Overview
 A lisp wrapper over the opengl context is stored in the global ~*GL-CONTEXT*~.
 
 Rendering is implemented with the RENDER method for the component you wish to render. Within the render method's body, modify the gl-context to make the changes required to render your component.
@@ -172,7 +135,7 @@ Rendering is implemented with the RENDER method for the component you wish to re
 #+END_SRC
 
 RENDER will be called for every visible object once per render frame.
-*** Effects with gl-pipeline
+**** Effects with gl-pipeline
 Often it is desired to add rendering effects to a component (glow, explosion, etc). Vert provides the ~gl-pipeline~ utility to combine certain opengl operations.
 
 #+BEGIN_SRC lisp
@@ -191,7 +154,7 @@ Often it is desired to add rendering effects to a component (glow, explosion, et
   ;; set up remaining effects here, or dynamically if you wish.
   )
 #+END_SRC
-*** Base Rendering Classes
+**** Base Rendering Classes
 You probably don't need to implement rendering yourself. Instead consider using or extending the built-in rendering components.
 
 All of these utils are subclasses of ~gl-pipeline~
@@ -200,7 +163,7 @@ All of these utils are subclasses of ~gl-pipeline~
 - animated-sprite : render a sequence of component-defined static-sprites to create an animation.
 - font-drawable : render text
 # - polygon-drawable : render a solid-color concave polygon.
-*** Post-Process Effects
+**** Post-Process Effects
 To modify an entire scene a post-process effect may be added to the scene.
 
 Each post-process effect defines an input and output FBO. The scene will render into the input-texture and pass the output-fbo to the next effect's input-texture. When it reaches the final effect the output will be sent to opengl's final output buffer.
@@ -221,10 +184,10 @@ As with game-object components, each post-process-effect is implemented by speci
   ;; modifications to the gl context go here
   )
 #+END_SRC
-*** Other Rendering Utils
-**** TODO instance-renderer
-**** TODO render-queue
-**** TODO OpengGL Utils
+**** Other Rendering Utils
+***** TODO instance-renderer
+***** TODO render-queue
+***** TODO OpengGL Utils
 Vert provides a series of opengl utils to implement rendering or add a new rendering effect.
 
 - The gl-utils file contains classes to represent opengl objects
@@ -241,20 +204,100 @@ gl-drawable
 scene
 - effects-pipeline ; runs on entire image
 
-** Audio
-** Caches
-** Resource Autloader
-** Everything else
-* Game-Object and Scene
+*** Audio
+*** Caches
+*** Resource Autoloader
+*** Everything else
 ** Game-Object
-** Game Components
-*** Transform
-*** 2D Physics
-*** Sprite Rendering
-*** Font Rendering
-*** Instanced Sprite Rendering
-*** State Machine util
-** Components which load external resources
+*** Vert Primitives
+- Event
+- Systems
+- Game-Object
+- Scene
+*** Game-Object
+GAME-OBJECT is one of the foundational elements of vert.
+
+A game object has the following
+- Position (x y z) and dimensions (width height).
+- color ()
+
+The base game-object provides default implementations of these methods. Various game-components can (and will) override these default implementations to provide the interesting game logic.
+
+In Vert, the distinction between a game-object and game-component is entirely a matter of convention. Game Components and Game Objects are both extensions of game-object.
+
+**** Extending Game-Object to create custom game-objects and components
+Game-Object presents a clos-like api for slot access, function invocation, and inheritance. The game-object api is currently implemented with clos, but this may change over time. Game programmers should not directly extend game-object or specialize its methods.
+
+Instead, a series of macros are provided to define custom game-object behavior. These macros allow the implementation of Vert to change over time and reduce clos boilerplate code that would otherwise be required.
+***** Extending Game-Object example
+Let's say you wanted to create a new "landmine" game-object. For simplicity, we'll have our landmine check its proximity every update frame and log a message if it finds anything.
+
+Game-Object Macros:
+- extension and creation
+  - defgame-object
+  - make-game-object-instance
+- slot access
+  - game-object-slot
+  - with-game-object-slots
+  - with-game-object-accessors
+- invoking game object functions
+  - game-object-call-next
+  - game-object-funcall
+
+#+BEGIN_SRC lisp
+  (defgame-object landmine (game-object) ; parent game-objects/components
+    (:documentation "Log a message if another object is in its proximity")
+    ;; slots are created like clos slots. Accessed with `game-object-slot`
+    (:slots (radius :documentation "proximity radius (from center) the landmine will check" :initform 4.0))
+    (:init (landmine) ; constructor
+           (log:info "Landmine created: ~A" landmine))
+    (:update (landmine)
+             (prog1 (game-object-call-next-method landmine) ; call and return parent method
+               ;; NOTE: For simplicity, we'll iterate all objects in the scene. This is not best practice.
+               (do-spatial-partition (neighbor (spatial-partition *scene*))
+                 (unless (eq landmine neighbor)
+                   (when (< (distance-between neighbor landmine)
+                            (game-object-slot-value landmine 'radius))
+                     (log:info "BOOM! ~A <> ~A" landmine neighbor)))))))
+  ;;; now create and use it
+  (add-to-scene *scene*
+                (make-game-object-instance 'landmine))
+#+END_SRC
+
+You may have noticed that ~defgame-object~ takes a series of :keyword arguments which define various behaviors. It's possible for a game-object to define its own keyword initializer as well.
+
+Going back to our landmine example, it may be vary common for different game objects to know if there's another object near them. For example, maybe a powerup would like to glow when the player is nearby.
+
+To avoid duplicating the "is there something near me?" logic of landmine, we'll extract the logic to a shared ~proximity~ game component. This will allow us to simplify our landmine code to this:
+
+#+BEGIN_SRC lisp
+  (defgame-object proximity (game-object)
+    (:documentation "utility component to allow objects to respond to other, nearby objects.")
+    (:object-init-symbols
+       ;; can be a keyword or just a regular symbol
+     (on-proximity :function (proximity neighbor distance-between)
+                   (log:info "Optional, default proximity fn defined here.")))
+    (:update (proximity)
+             (prog1 (game-object-call-next-method proximity)
+               ;; NOTE: For simplicity, we'll iterate all objects in the scene. This is not best practice.
+               (do-spatial-partition (neighbor (spatial-partition *scene*))
+                 (unless (eq proximity neighbor)
+                   ;; use GAME-OBJECT-FUNCALL to invoke the function we definied with :OBJECT-INIT-KEYWORDS
+                   (game-object-funcall on-proximity proximity neighbor (distance-between proximity neighbor)))))))
+
+  ;; now it's trivial for subclasses to define proximity logic
+
+  (defgame-object landmine (proximity) ; we'll simply extend proximity
+    (:documentation "Log a message if another object is in its proximity")
+    (:slots (radius :documentation "proximity radius (from center) the landmine will check" :initform 4.0))
+    (:init (landmine) ; constructor
+           (log:info "Landmine created: ~A" landmine))
+    ;; now we can use its :proximity keyword when we define our landmine game-object
+    (on-proximity (landmine neighbor distance-between)
+                  (when (< distance-between (game-object-slot-value landmine 'radius))
+                    (log:info "BOOM! ~A <> ~A" landmine neighbor))))
+#+END_SRC
+*** Components which load external resources
 Scenario: your game component requires external resources (CFFI array, opengl bits, sfx bits).
 
 Your component must:
@@ -263,7 +306,7 @@ Your component must:
 3. When the engine stops, release the appropriate resources
 4. When the component is dereferenced, release the appropriate resources before the engine shuts down
 
-*** Recommended Approach
+**** Recommended Approach
 How resources are managed is ultimately up to the component developer, but it is highly recommended to do the following:
 1. Hook LOAD-RESOURCES and RELEASE-RESOURCES for your component (either use an :AROUND, :AFTER, or simpley CALL-NEXT-METHOD)
 2. When the object is initialized, register it with the *RESOURCE-AUTOLOADER*
@@ -314,10 +357,20 @@ As an example, we'll consider a bomb component. This is a contrived example for 
                 spritesheet nil
                 explode-sfx nil)))))
 #+END_SRC
-** Scene
-A scene is something which can be rendered and updated, just like a game-object. There is only one active scene, which is updated and rendered in the main game loop.
+*** Utility Components
+Vert exposes utility components for common game operations.
 
-The active scene may be accessed with the *SCENE* variable. To change, call the CHANGE-SCENE fn.
+Game devs aren't required to use any of these, but it's very likely a dev will want to use or extend many of these utils.
+- Transform
+- 2D Physics
+- Sprite Rendering
+- Font Rendering
+- Instanced Sprite Rendering
+- State Machine util
+** Scene
+A scene is something which can be rendered and updated, just like a game-object. The main game loop maintains one scene instance, stored in *SCENE* global. The game loop will update and render this scene to keep a fixed timestep.
+
+The CHANGE-SCENE fn will change the game loop's active scene.
 *** GAME-SCENE
 A game-scene holds a collection of GAME-OBJECTs, calls UPDATE and RENDER, and provides an api to access objects in the scene in an efficient manner.
 *** Menu
