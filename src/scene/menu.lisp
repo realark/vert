@@ -56,7 +56,7 @@
   (declare (ignore args))
   (when (node menu)
     (setf (node menu) (node menu)))
-  (add-subscriber (camera menu) menu camera-screen-resized))
+  (event-subscribe (camera menu) menu camera-screen-resized))
 
 (defun %set-menu-position-and-color (menu)
   (with-slots (node
@@ -120,7 +120,8 @@
            ;; node below active not fully visible
            (incf (y camera) (* 2 (height active-node)))))))))
 
-(defevent-callback camera-screen-resized ((camera camera) (menu menu))
+(defevent-handler camera-screen-resized ((camera camera) (menu menu))
+    ""
   (%set-menu-position-and-color menu))
 
 (set-default-input-command-map

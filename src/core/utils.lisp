@@ -165,3 +165,14 @@ The second half will be populated with INITIAL-ELEMENT."
   "Replace all values in ARRAY with VAL (defaults to nil)."
   (loop :for i :from 0 :below (length array) :do
     (setf (elt array i) val)))
+
+(defmacro optional-quote (symb)
+  "Turn SYMB into a quoted symbol, or do nothing if it is already quoted."
+  (if (symbolp symb)
+      `',symb
+      (progn
+        (unless (and (eql 'cl:quote (first symb))
+                     (= 2 (length symb))
+                     (symbolp (second symb)))
+          (error "~A must be a symbol" symb))
+        symb)))

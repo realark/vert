@@ -70,23 +70,23 @@
               (values 100 100))
         (setf screen-width w
               screen-height h)))
-    (fire-event camera camera-screen-resized)))
+    (event-publish camera-screen-resized camera)))
 
 (defmethod (setf screen-width) :around (value (camera simple-camera))
   (prog1
       (call-next-method (coerce value 'screen-unit) camera)
-    (fire-event camera camera-screen-resized)))
+    (event-publish camera-screen-resized camera)))
 
 (defmethod (setf screen-height) :around (value (camera simple-camera))
   (prog1
       (call-next-method (coerce value 'screen-unit) camera)
-    (fire-event camera camera-screen-resized)))
+    (event-publish camera-screen-resized camera)))
 
 (defmethod (setf x) :after (new-val (camera simple-camera))
-  (fire-event camera camera-screen-resized))
+  (event-publish camera-screen-resized camera))
 
 (defmethod (setf y) :after (new-val (camera simple-camera))
-  (fire-event camera camera-screen-resized))
+  (event-publish camera-screen-resized camera))
 
 (defmethod (setf zoom) :around (new-zoom (camera simple-camera))
   (prog1
@@ -94,7 +94,7 @@
     (with-slots (unzoomed-width unzoomed-height zoom) camera
       (setf (width camera) (/ unzoomed-width zoom))
       (setf (height camera) (/ unzoomed-height zoom)))
-    (fire-event camera camera-screen-resized)))
+    (event-publish camera-screen-resized camera)))
 
 ;;;; bounded-camera
 
@@ -254,10 +254,10 @@ Used to favor areas of the screen where the upcoming action will be.")
                    (camera-track-target camera)
                    (progn
                      (when new-target
-                       (add-subscriber new-target camera object-moved)
+                       (event-subscribe new-target camera object-moved)
                        (camera-track-target camera))
                      (when target
-                       (remove-subscriber target camera object-moved))))))
+                       (event-unsubscribe target camera object-moved))))))
 
   @export
   (defmethod camera-get-offset ((camera target-tracking-camera))
@@ -276,7 +276,8 @@ Used to favor areas of the screen where the upcoming action will be.")
     (camera-track-target camera)
     camera)
 
-  (defevent-callback object-moved ((object game-object) (camera target-tracking-camera))
+  (defevent-handler object-moved ((object game-object) (camera target-tracking-camera))
+      ""
     (camera-track-target camera))
 
   @export

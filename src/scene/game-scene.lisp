@@ -166,7 +166,7 @@ This is an optimization so we don't have to rebuild the render and update queues
            (game-object object))
   (with-slots (spatial-partition render-queue updatable-objects) scene
     (when (start-tracking spatial-partition object)
-      (add-subscriber object scene killed)
+      (event-subscribe object scene killed)
       (when (%in-live-object-area-p scene object)
         (render-queue-add render-queue object)
         (unless (find object updatable-objects :test #'eq)
@@ -180,7 +180,7 @@ This is an optimization so we don't have to rebuild the render and update queues
     (declare (vector pending-removes updatable-objects))
     (when (> (length pending-removes) 0)
       (loop :for removed-object :across pending-removes :do
-           (remove-subscriber removed-object scene killed)
+           (event-unsubscribe removed-object scene killed)
            (stop-tracking spatial-partition removed-object)
            (when (%in-live-object-area-p scene removed-object)
              (render-queue-remove render-queue removed-object)
@@ -358,7 +358,8 @@ This is an optimization so we don't have to rebuild the render and update queues
       (loop :for overlay :across (the (vector overlay) scene-overlays) :do
            (render overlay update-percent (camera scene) gl-context)))))
 
-(defevent-callback killed ((object obb) (game-scene game-scene))
+(defevent-handler killed ((object obb) (game-scene game-scene))
+    ""
   (remove-from-scene game-scene object))
 
 ;; TODO: remove this fn and use scheduler util directly

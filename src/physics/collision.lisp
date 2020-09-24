@@ -165,7 +165,7 @@ COLLISION callbacks will still be invoked when objects collide with a phantom, b
     (prog1 (call-next-method new-value halfa)
       ;; fire a move event when objects change their phantom state
       (unless (equalp old-value new-value)
-        (object-moved halfa)))))
+        (event-publish object-moved halfa)))))
 
 (defmethod collidep :around ((halfa1 halfa) (halfa2 halfa))
   (if (and (phantom-p halfa1) (phantom-p halfa2))

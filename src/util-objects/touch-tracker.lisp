@@ -17,7 +17,7 @@
   (unless (collidep touch-region object)
     (with-slots (touch-tracker touching) touch-region
       (setf touching (delete object touching))
-      (remove-subscriber object touch-region object-moved)
+      (event-unsubscribe object touch-region object-moved)
       (%refresh-all-objects-touching touch-tracker))))
 
 (defun %add-if-touching (touch-region object)
@@ -25,18 +25,21 @@
     (when (and (not (find object touching))
                (collidep touch-region object))
       (unless (typep object 'static-object)
-        (add-subscriber object touch-region object-moved))
+        (event-subscribe object touch-region object-moved))
       (vector-push-extend object touching)
       (log:trace "~A : add object ~A" touch-region object)
       (with-slots (all-objects-touching) touch-tracker
         (unless (find object all-objects-touching)
           (vector-push-extend object all-objects-touching))))))
 
-(defmethod object-moved :after ((touch-region touch-region))
-  (loop :for touched-object :across (touching touch-region) do
-       (%remove-if-not-touching touch-region touched-object)))
+(defevent object-moved ((touch-region touch-region))
+    ""
+  (prog1 (call-next-method touch-region)
+    (loop :for touched-object :across (touching touch-region) do
+      (%remove-if-not-touching touch-region touched-object))))
 
-(defevent-callback object-moved ((touched-object obb) (region touch-region))
+(defevent-handler object-moved ((touched-object obb) (region touch-region))
+    ""
   (%remove-if-not-touching region touched-object))
 
 ;;;; Touch Tracker
@@ -104,10 +107,13 @@
         (when (> (length (touching region)) 0)
           (touching region)))))
 
-(defmethod object-moved :after ((touch-tracker touch-tracker))
-  (with-slots (touch-regions) touch-tracker
-    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
-         (object-moved (elt touch-regions (+ i 1))))))
+(defevent object-moved ((touch-tracker touch-tracker))
+    ""
+  (prog1 (call-next-method touch-tracker)
+    (with-slots (touch-regions) touch-tracker
+      (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+        (event-publish object-moved
+                       (elt touch-regions (+ i 1)))))))
 
 ;; TODO: move :around width/height scaling updates to pinned-objects
 (defmethod (setf width) :around (new-width (touch-tracker touch-tracker))

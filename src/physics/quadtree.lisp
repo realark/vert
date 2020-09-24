@@ -262,7 +262,7 @@ OBJECT may or may not be present in the quadtree."
                                ;; instead of using the remove fn just unsubscribe
                                ;; and skip adjusting the array (since it's about to be dereferenced anyways)
                                ;; (%quadtree-node-remove-object node (elt objects i))
-                                 (remove-subscriber (elt objects i) node object-moved)
+                                 (event-unsubscribe (elt objects i) node object-moved)
                                  (start-tracking quadtree (elt objects i)))
                             (return))
                         :finally
@@ -275,7 +275,7 @@ OBJECT may or may not be present in the quadtree."
           (progn
             (log:debug "Adding object ~A to node ~A" object node)
             (%%quadtree-node-insert-objects-array node object)
-            (add-subscriber object node object-moved))))
+            (event-subscribe object node object-moved))))
     ;; return non-nil to indicate the object was added instead of skipped for already existing in node
     t))
 
@@ -287,7 +287,7 @@ OBJECT may or may not be present in the quadtree."
     (when (slot-value (slot-value node 'quadtree) 'iterating-p)
       (error "Cannot mutate nodes while iterating"))
     (log:debug "Removing object ~A from node ~A" object node)
-    (remove-subscriber object node object-moved)
+    (event-unsubscribe object node object-moved)
     (%%quadtree-node-remove-objects-array node object)
     (values)))
 
@@ -340,12 +340,13 @@ OBJECT may or may not be present in the quadtree."
 
 ;;; implement spatial-partition
 
-(defevent-callback object-moved ((object game-object) (node %quadtree-node))
+(defevent-handler object-moved ((object game-object) (node %quadtree-node))
+    ""
   (log:trace "~A : ~A moved" node object)
   (unless (%%overlaps-boundary-p object
-                               (x node) (+ (x node) (width node))
-                               (y node) (+ (y node) (height node))
-                               nil nil)
+                                 (x node) (+ (x node) (width node))
+                                 (y node) (+ (y node) (height node))
+                                 nil nil)
     (log:debug "~A : ~A out of bounds" node object)
     (%quadtree-node-remove-object node object)
     (start-tracking (slot-value node 'quadtree) object)))
@@ -384,7 +385,7 @@ OBJECT may or may not be present in the quadtree."
          (let ((node (elt nodes i)))
            (with-slots (objects objects-fill-pointer) node
              (loop :for j :from 0 :below objects-fill-pointer :do
-                  (remove-subscriber (elt objects j) node object-moved)
+                  (event-unsubscribe (elt objects j) node object-moved)
                   (setf (elt objects j) nil))
              (setf objects-fill-pointer 0))))))
 

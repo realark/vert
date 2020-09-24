@@ -166,6 +166,7 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
                (loop :for stats :across game-stats :do
                     (when (typep stats 'builtin-vert-stats)
                       (pre-update-frame stats))))
+             (events-run-pending)
              (update active-scene)
              (when (get-dev-config 'dev-mode-performance-hud)
                (loop :for stats :across game-stats :do
@@ -204,7 +205,7 @@ It is invoked after the engine is fully started.")
            ;; start services
            (start-audio-system)
            ;; fire events
-           (fire-event engine-manager engine-started)
+           (event-publish engine-started engine-manager)
            ;; set up initial active-scene
            (setf (slot-value engine-manager 'initial-scene-creator-fn) initial-scene-creator)
            (log:info "Running ~A engine start hooks" (hash-table-size *engine-start-hooks*))
@@ -236,7 +237,9 @@ It is invoked after the engine is fully started.")
       (when pending-scene-changes
         (funcall pending-scene-changes)
         (setf pending-scene-changes nil)))
-    (fire-event engine-manager engine-stopped)
+    (events-flush)
+    (event-publish engine-stopped engine-manager)
+    ;; TODO remove special hooks and use events
     (log:info "Running ~A engine stop hooks" (hash-table-size *engine-stop-hooks*))
     (loop :for label :being :the hash-keys :of *engine-stop-hooks*
        :using (hash-value hook)
@@ -245,6 +248,8 @@ It is invoked after the engine is fully started.")
          (funcall hook))
     (log:info "stopping audio system")
     (stop-audio-system)
+    (events-run-pending)
+    (events-flush)
     (log:info "clearing all caches")
     (do-cache (*engine-caches* cache-name cache)
       (if (typep cache 'cache)

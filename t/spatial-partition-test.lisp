@@ -153,14 +153,17 @@
                                           :x 10
                                           :y 10)))
       (start-tracking qtree object)
+      (events-run-pending)
       (prove:isnt (find-object 0 15)
             nil
             "found object in qtree before move")
       (setf (x object) 100
             (y object) 100)
+      (events-run-pending)
       (prove:is (find-object 0 15)
           nil
           "object not fond in x partition search parameters")
+      (events-run-pending)
       (prove:isnt (find-object 90 110)
             nil
             "found object in qtree after move"))))

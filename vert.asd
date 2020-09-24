@@ -19,7 +19,7 @@
                         :components
                         ((:file "utils")
                          (:file "config")
-                         (:file "clos-events")
+                         (:file "events")
                          (:file "game-object")
                          (:file "resource")
                          (:file "scheduler")))
@@ -175,6 +175,7 @@
   :serial t
   :components ((:file "test-runner")
                (:file "core-test")
+               (:file "events-test")
                (:file "cache-test")
                (:file "spatial-partition-test")
                (:file "integration-tests"))

@@ -52,7 +52,7 @@
   (:documentation "TRANSFORM's position, rotation, or scale has been altered. Mark it dirty to recompute matrices the next time they are needed.")
   (:method ((transform transform))
     (with-slots (dirty-p inverse-dirty-p transform-children) transform
-      (fire-event transform object-moved)
+      (event-publish object-moved transform)
       (setf dirty-p t
             inverse-dirty-p t)
       (loop :for child :across (the (vector transform) transform-children) :do

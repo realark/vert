@@ -1,5 +1,4 @@
-(in-package :vertdev) ; TODO put in vert package
-;; (in-package :recurse.vert)
+(in-package :recurse.vert)
 
 (defparameter %test-thing-pub-body-invokes% (list))
 (defparameter %test-thing-sub-body-invokes% (list))
@@ -24,7 +23,7 @@
   (push (list pub arg1 arg2)
         %test-thing-global-invokes%))
 
-(prove:deftest events-do-not-cons
+(prove:deftest test-events-do-not-cons
   (block warm-up
     (loop :for i :from 1 :below 1024 :do
       (event-publish 'input-happened
@@ -35,8 +34,9 @@
                      'arg-four
                      'arg-five)
           :finally
+             (events-run-pending)
              (events-run-pending)))
-  (sb-ext:gc :full t)
+  (garbage-collect-block)
 
   (loop :with pub-size = 256
         :and starting-heap-size = (sb-kernel:dynamic-usage)
@@ -62,7 +62,7 @@
                      :test #'<=
                      (format t "No more than ~A bytes consed." test-cons-max-bytes))))
 
-(prove:deftest events-low-level
+(prove:deftest test-events-low-level
   (events-run-pending)
 
   (let ((%test-thing-pub-body-invokes% (list))
@@ -81,14 +81,14 @@
                                 'some-other-event (vector sub3)))
               :test #'%hash-tables-equalp
               "All subs in subscriber list")
-    (event-remove pub sub3 test-thing)
+    (event-unsubscribe pub sub3 test-thing)
     (prove:is (slot-value pub 'event-subscribers)
               (%make-hash (list 'test-thing (vector sub1 sub2)
                                 'some-other-event (vector sub3)))
               :test #'%hash-tables-equalp
               "sub3 removed from test-thing event")
     ;; (event-subscribe pub sub3 test-thing some-other-event)
-    ;; (event-remove pub sub3 test-thing)
+    ;; (event-unsubscribe pub sub3 test-thing)
     (loop :for i :from 0 :below num-events :do
       (event-publish 'test-thing pub 1 2))
     (events-run-pending)

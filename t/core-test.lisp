@@ -1,58 +1,5 @@
 (in-package :recurse.vert)
 
-;;;; events
-
-(prove:deftest test-event-sub
-  'TODO
-  (labels ((has-subscriber-p (pub sub event-name)
-             "t of SUB is subscribed to PUB's EVENT-NAME"
-             (let ((subs (gethash event-name
-                                  (slot-value pub 'recurse.vert::event-subscribers))))
-               (find sub subs)))
-           (num-subs (pub event-name)
-             "count of all of PUB's subs for EVENT-NAME"
-             (let ((sub-arr (gethash event-name
-                                     (slot-value pub 'recurse.vert::event-subscribers))))
-               (loop :with count = 0
-                  :for sub :across sub-arr :do
-                    (when sub (incf count))
-                    :finally (return count)))))
-    (let ((pub (make-instance 'camera))
-          ;; keep a strong ref to all subs to prevent GC finalizer cleanup
-          (all-subs (list)))
-      (loop :for i :from 0 :below 1000 :do
-           (let ((sub (make-instance 'obb)))
-             (push sub all-subs)
-             (add-subscriber pub sub recurse.vert::object-moved)))
-      (loop :for i :from 0 :below 20 :do
-           (let ((sub (make-instance 'obb)))
-             (push sub all-subs)
-             (add-subscriber pub sub recurse.vert::camera-screen-resized)))
-      (setf all-subs (nreverse all-subs))
-
-      (prove:is (num-subs pub 'recurse.vert::object-moved) 1000
-          "correct number of move subs")
-      (prove:is (num-subs pub 'recurse.vert::camera-screen-resized) 20
-          "correct number of screen resize subs")
-
-      ;; first 1000 element should be in the moved subs, last 20 in the resize subs
-      (loop :for i :from 0
-         :with first-subs-moved-p = t
-         :and second-subs-resized-p = t
-         :for sub :in all-subs :do
-           (if (< i 1000)
-               (unless (or (numberp first-subs-moved-p)
-                           (has-subscriber-p pub sub 'recurse.vert::object-moved))
-                 (setf first-subs-moved-p i))
-               (unless (or (numberp second-subs-resized-p)
-                           (has-subscriber-p pub sub 'recurse.vert::camera-screen-resized))
-                 (setf second-subs-resized-p i)))
-         :finally
-           (prove:is first-subs-moved-p t
-               "First section of all-subs should be subbed to move")
-           (prove:is second-subs-resized-p t
-               "Second section of all-subs should be subbed to resize")))))
-
 ;;;; coord transforms
 
 (prove:deftest test-obb-local-world-points

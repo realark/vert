@@ -1,7 +1,4 @@
-;;;; A simple event system api
-(defpackage :vertdev ; TODO put in vert package
-  (:use #:cl #:bordeaux-threads))
-(in-package :vertdev)
+(in-package :recurse.vert)
 
 (defclass event-publisher ()
   ((event-subscribers :documentation "event-name-symbol -> (weak) array of subs"))
@@ -55,6 +52,26 @@ NOTE: frequent scans of the event bus can prove costly. Please consider using ev
       (with-slots ((,event-publisher publisher) (,event-name name) (,event-args args)) ,event-obj
         ,@body))))
 
+(defun events-flush ()
+  "Clear all events without running any callbacks."
+  (loop :for old-event :across %pending-events% :do
+    (with-slots (name publisher args) old-event
+      (array-null-out args)
+      (setf name 'recycled
+            publisher nil
+            (fill-pointer args) 0))
+    (vector-push-extend old-event %event-object-pool%)
+        :finally (setf (fill-pointer %pending-events%) 0))
+
+  (loop :for old-event :across %event-bus% :do
+    (with-slots (name publisher args) old-event
+      (array-null-out args)
+      (setf name 'recycled
+            publisher nil
+            (fill-pointer args) 0))
+    (vector-push-extend old-event %event-object-pool%)
+        :finally (setf (fill-pointer %event-bus%) 0)))
+
 (defun events-run-pending ()
   "Run events from the previous frame. Called at the beginning of an update frame.
 Do not call this function from game code. It will be invoked by the engine at the beginning of the update frame."
@@ -65,8 +82,7 @@ Do not call this function from game code. It will be invoked by the engine at th
     ;; NOTE if this proves inefficient consider only doing this when the engine does an explicit GC
     (loop :for old-event :across %pending-events% :do
       (with-slots (name publisher args) old-event
-        (loop :for arg :across args :do
-          (setf arg nil))
+        (array-null-out args)
         (setf name 'recycled
               publisher nil
               (fill-pointer args) 0))
@@ -119,7 +135,11 @@ Do not call this function from game code. It will be invoked by the engine at th
      ',event-name))
 
 @export
-(defun event-publish (name publisher &rest args)
+(defmacro event-publish (name publisher &rest args)
+  "Publish EVENT and run callbacks in the next update frame."
+  `(%event-publish (optional-quote ,name) ,publisher ,@args))
+
+(defun %event-publish (name publisher &rest args)
   (declare (optimize (speed 3))
            ((not null) publisher)
            (symbol name)
@@ -161,6 +181,7 @@ Do not call this function from game code. It will be invoked by the engine at th
        (setf (documentation ',event-name 'variable)
              ,doc-string))
      (defmethod %event-sub ((event-name (eql ',event-name)) ,pub ,sub &optional event-args)
+       (declare (ignorable event-args))
        (let (,@(loop :with i = -1
                      :for arg :in event-args :collect
                      `(,arg (elt event-args ,(incf i)))))
@@ -203,7 +224,7 @@ Do not call this function from game code. It will be invoked by the engine at th
                            ,subscriber))))))))
 
 @export
-(defmacro event-remove (publisher subscriber &rest event-names)
+(defmacro event-unsubscribe (publisher subscriber &rest event-names)
   "Stop notifying SUBSCRIBER of PUBLISHER's events."
   (assert (every #'symbolp event-names))
   `(with-slots (event-subscribers) ,publisher

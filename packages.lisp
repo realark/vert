@@ -5,13 +5,6 @@
   (:nicknames #:vert)
   (:import-from :cl-annot.class :export-structure :export-slots :export-class)
   (:export
-   ;; event system
-   :event-publisher
-   :add-subscriber
-   :remove-subscriber
-   :defevent
-   :fire-event
-
    ;; memory management
    :cache
    :getcache
