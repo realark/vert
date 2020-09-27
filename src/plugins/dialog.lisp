@@ -37,7 +37,9 @@
          :type string
          :initform "")
    (color :initarg :dialog-color
-          :initform nil)
+          :initform nil
+          :accessor color
+          :documentation "Color of the dialog text")
    (font-size :initarg :dialog-font-size
               :initform 8)
    (lines :initform (make-array 0
@@ -45,8 +47,10 @@
                                 :fill-pointer 0
                                 :element-type 'font-drawable))
    (background :initarg :background
+               :accessor dialog-hud-background
                :initform nil)
    (outline :initarg :outline
+            :accessor dialog-hud-outline
             :initform nil)
    (auto-resize-background-p
     :initarg :auto-resize-background-p
@@ -67,7 +71,11 @@
    (advance-delay :initarg :advance-delay
                   :initform 0
                   :documentation "time (ms) before player is allowed to advance the dialog.")))
-(export '(dialog-hud-initiator dialog-hud-speaker dialog-hud-reading-speed-wpm))
+(export '(dialog-hud-initiator
+          dialog-hud-speaker
+          dialog-hud-reading-speed-wpm
+          dialog-hud-background
+          dialog-hud-outline))
 
 (defmethod initialize-instance :after ((hud dialog-hud) &rest args)
   (declare (ignore args))
@@ -91,6 +99,11 @@
             (x background) (x window-position)
             (y background) (y window-position))
       (%resize-dialog-box hud (width background) (height background)))))
+
+(defmethod (setf color) :after (new-color (hud dialog-hud))
+  (with-slots (lines (new-color color)) hud
+    (loop :for line :across lines :do
+      (setf (color line) new-color))))
 
 (defun %wpm-ms-between-chars (wpm)
   "Compute (approximate) milliseconds between chars for the given WPM"
@@ -287,7 +300,7 @@
                                         0 ; hide text initially if a reading speed is set
                                         nil)
                                     (font-size line) (slot-value dialog-hud 'font-size)
-                                    (color line) (slot-value dialog-hud 'color)
+                                    (color line) (color dialog-hud)
                                     (x line) text-x
                                     (y line) (+ text-y
                                                 (* (height line) line-number)
