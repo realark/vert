@@ -64,11 +64,10 @@
             (change-state jumper delta-t-ms scene :jump-state :falling))
           (%apply-jump-forces jumper))))
    (:on-deactivate
-    (setf (tmp-jump-boost jumper) nil)))
-  (:falling
-   (:on-activate
+    (setf (tmp-jump-boost jumper) nil)
     (with-slots (num-jumps-available target-y) jumper
-      (setf num-jumps-available 0)))
+      (setf num-jumps-available 0))))
+  (:falling
    (:while-active
     (when (%is-touching-ground jumper)
       (change-state jumper delta-t-ms scene :jump-state :on-ground)))))
