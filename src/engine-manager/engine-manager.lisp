@@ -186,7 +186,9 @@ If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene wil
           (loop :for stats :across game-stats :do
                (when (typep stats 'builtin-vert-stats)
                  (post-render-frame stats))))
-        (render-game-window engine-manager)))))
+        (render-game-window engine-manager)
+        (when (get-dev-config 'dev-powersave-render-cap)
+          (sleep 0.1))))))
 
 (defgeneric run-game (engine-manager initial-scene-creator)
   (:documentation "Initialize ENGINE-MANAGER and start the game.

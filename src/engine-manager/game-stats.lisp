@@ -176,6 +176,13 @@
       (when (>= now next-refresh-timestamp-ms)
         (setf next-refresh-timestamp-ms (+ now refresh-frequency-ms))
         (let ((index 0))
+          (with-slots ((fps-prefix prefix)) (slot-value builtin-stats 'render-timer)
+            ;; if we are specifically capping the framerate prefix two asterixis to stat string
+            (if (get-dev-config 'dev-powersave-render-cap)
+                (unless (equalp "**" (subseq fps-prefix 0 2))
+                  (setf fps-prefix (concatenate 'string "**" fps-prefix)))
+                (when (equalp "**" (subseq fps-prefix 0 2))
+                  (setf fps-prefix (subseq fps-prefix 2)))))
           (loop :for timer-stat :across (get-stats-strings (slot-value builtin-stats 'render-timer)) :do
                (setf (elt stats-array index) timer-stat)
                (incf index))

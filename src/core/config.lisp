@@ -125,6 +125,8 @@ Example:
  'dev-mode-performance-hud "Render a hud with performance stats.")
 (export-config-key
  'dev-mode-render-collision-hitboxes "Render collision hitboxes in transparent red and phantoms in transparent blue.")
+(export-config-key
+ 'dev-powersave-render-cap "Powersave feature useful for live dev. Sleep for 100 ms after each game loop iteration.")
 
 @export
 (defun toggle-dev-mode (&optional new-dev-config)
