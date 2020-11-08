@@ -127,6 +127,8 @@ Example:
  'dev-mode-render-collision-hitboxes "Render collision hitboxes in transparent red and phantoms in transparent blue.")
 (export-config-key
  'dev-powersave-render-cap "Powersave feature useful for live dev. Sleep for 100 ms after each game loop iteration.")
+(export-config-key
+ 'dev-live-code-on-game-thread-p "When T and when swank is present, process swank events on the game thread.")
 
 @export
 (defun toggle-dev-mode (&optional new-dev-config)

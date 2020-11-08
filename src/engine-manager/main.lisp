@@ -43,8 +43,7 @@
                        *vert-thread* nil
                        *dev-mode* nil))))
       ;; osx will crash if any thread other than thread0 issues drawing calls
-      (%run-on-main-thread
-        (run-engine)))))
+      (%run-on-main-thread #'run-engine))))
 
 (defun %get-main-thread ()
   (or #+sbcl (sb-thread:main-thread)
@@ -52,14 +51,12 @@
              (lisp-implementation-type)
              (lisp-implementation-version))))
 
-(defmacro %run-on-main-thread (&body body)
-  (alexandria:with-gensyms (main)
-    `(let ((,main (%get-main-thread)))
-       (if (eq ,main (current-thread))
-           (progn ,@body)
-           (interrupt-thread ,main
-                             (lambda ()
-                               ,@body))))))
+(defun %run-on-main-thread (fn)
+  (declare (function fn))
+  (let ((main (%get-main-thread)))
+    (if (eq main (current-thread))
+        (funcall fn)
+        (interrupt-thread main fn))))
 
 (defun quit ()
   "Stop the running game engine."

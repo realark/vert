@@ -286,19 +286,22 @@ It is invoked after the engine is fully started.")
                    (values)))
                nil)")))
   (if *live-coding-fn*
-      (log:info "Live coding started.")
+      (log:info "Live coding fn found: ~A -- ~A"
+                *live-coding-fn*
+                (get-dev-config 'dev-live-code-on-game-thread-p))
       (log:info "Live coding unavailable.")))
 
 (defun stop-live-coding ()
   "Disable live coding"
   (when *live-coding-fn*
     (setf *live-coding-fn* nil)
-    (log:info "Live coding stopped.")))
+    (log:info "Live coding fn deleted.")))
 
 (defun update-live-coding ()
   "Update swank events."
   (declare (optimize (speed 3)))
-  (when *live-coding-fn*
+  (when (and *live-coding-fn*
+             (get-dev-config 'dev-live-code-on-game-thread-p))
     (locally (declare ((function () *) *live-coding-fn*))
       (funcall *live-coding-fn*))
     (with-slots (pending-action) *engine-manager*
