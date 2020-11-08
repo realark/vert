@@ -193,6 +193,8 @@ Nil to render the entire sprite.")
                   (null (slot-value sprite 'sprite-releaser))
                   (null *engine-manager*))
         (release-resources sprite)
+        (with-slots (texture path-to-sprite) sprite
+          (setf (slot-value texture 'path) path-to-sprite))
         (load-resources sprite)))))
 
 (defmethod add-color-map ((sprite static-sprite) (color-map color-map))
