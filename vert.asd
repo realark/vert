@@ -166,6 +166,7 @@
                #:log4cl
                #:bordeaux-threads
                #:trivial-garbage
+               #:arrow-macros
                #:alexandria))
 
 (defsystem vert/test
