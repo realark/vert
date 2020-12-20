@@ -303,11 +303,11 @@ It is invoked after the engine is fully started.")
   (when (and *live-coding-fn*
              (get-dev-config 'dev-live-code-on-game-thread-p))
     (locally (declare ((function () *) *live-coding-fn*))
-      (funcall *live-coding-fn*))
-    (with-slots (pending-action) *engine-manager*
-      (unless (eq pending-action 'no-action)
-        (funcall (the function pending-action))
-        (setf pending-action 'no-action))))
+      (funcall *live-coding-fn*)))
+  (with-slots (pending-action) *engine-manager*
+    (unless (eq pending-action 'no-action)
+      (funcall (the function pending-action))
+      (setf pending-action 'no-action)))
   nil)
 
 ;;;; on-game-thread macro
