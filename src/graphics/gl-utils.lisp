@@ -612,6 +612,8 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
 
 #+nil
 (progn
+  ;; defcfun workaround is incomplete for windows, but with cl-opengl monkey-patch, this should be okay
+
   (defmacro %defglfunction ((gl-fn-name lisp-fn-name) return-type &rest arguments)
     (assert (stringp gl-fn-name))
     (assert (symbolp lisp-fn-name))
@@ -785,7 +787,6 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
                   (target %gl:enum)
                   (framebuffer :unsigned-int)))
 
-;; FIXME: defcfun workaround is incomplete for windows. Will need to be re-thought
 (progn
   (defun n-bind-vertex-array (array)
     (gl:bind-vertex-array array))

@@ -227,6 +227,16 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
   (with-slots (audio-state) audio-player
     (declare (audio-state audio-state destination-audio-state))
     (with-sdl-mixer-lock-held
+      #+nil ; print sfx channel info for an audio state
+      (flet ((log-state-channel-info (state)
+               (with-slots ((channels vert::sfx-channels)) state
+                 (loop :for chan :across channels :do
+                   (with-slots ((num vert::channel-number) (sample vert::sample)) chan
+                     (format t "~A -> ~A~%" num (when sample
+                                                  (slot-value sample 'vert::path-to-audio))))))))
+        (log:info "-- copy state SRC --")
+        (log-state-channel-info audio-state)
+        (break))
       (with-slots ((current-time current-time-samples)
                    (current-music-channel music-channel)
                    (current-sfx-channels sfx-channels)
@@ -324,120 +334,132 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
 @export
 (defun sdl-audio-player-load-sfx-state (audio-player new-audio-state)
   "Load sfx info from NEW-AUDIO-STATE into AUDIO-PLAYER's internal state. Must be called under AUDIO-PLAYER's lock."
-  (flet ((set-channel-position (channel-number buffer sfx-position-samples)
-           ;; https://stackoverflow.com/questions/14691530/sdl-mixer-set-sound-position
-           ;; https://github.com/aduros/SDL_mixer/blob/ac2df1b04a424c507839303ffb1c9cf000a95ac3/mixer.c#L815
-           ;; from sdl mixer header
-           ;; typedef struct Mix_Chunk {
-           ;; 	int allocated;
-           ;; 	Uint8 *abuf;
-           ;; 	Uint32 alen;
-           ;; 	Uint8 volume;		/* Per-sample volume, 0-128 */
-           ;; } Mix_Chunk;
-           ;; seeking for sound effect channels is not officially supported.
-           ;; as a hack, we'll modify the Mix_Chunk struct and pass the modified struct to the play channel fn
-           ;;  - inc the array starting position
-           ;;  - dec the array length
-           ;; the play channel fn will copy our modified values
-           ;; finally we'll reset the ffi values to their original settings
-           (log:debug "Seek to position ~Ams for channel ~A"
-                      (convert-audio-samples->ms sfx-position-samples)
-                      channel-number)
-           (cffi:with-foreign-slots ((allocated abuf alen volume)
-                                     (slot-value buffer 'autowrap::ptr)
-                                     (:struct my-mix-chunk))
-             (let ((foreign-offset-bytes (* sfx-position-samples
-                                            ;; multiply by 4. Array is uint8. 8 -> 16 (1 samp), and 16 -> 32 (LR output)
-                                            #.(+ (/ +output-bit-depth+ 8) +output-num-channels+)
-                                            (cffi:foreign-type-size :uint8)))
-                   (reset-pointer-p nil)
-                   (reset-len-p nil))
-               (log:trace "sfx pointer moved -> ~A" foreign-offset-bytes)
-               (unwind-protect
-                    (progn
-                      (cffi:incf-pointer abuf foreign-offset-bytes)
-                      (setf reset-pointer-p t
-                            alen (- alen foreign-offset-bytes)
-                            reset-len-p t)
-                      (sdl2-ffi.functions:mix-halt-channel channel-number)
-                      (sdl2-ffi.functions:mix-play-channel-timed
-                       channel-number
-                       buffer
-                       ;; hardcoding a one-time play
-                       0 -1)
-                      (sdl2-ffi.functions:mix-pause channel-number))
-                 (when reset-pointer-p
-                   (cffi:incf-pointer abuf (- foreign-offset-bytes)))
-                 (when reset-len-p
-                   (setf alen (+ alen foreign-offset-bytes))))))))
-    (with-slots (audio-state) audio-player
-      (declare (audio-state audio-state new-audio-state))
-      (with-slots ((current-sfx-channels sfx-channels)
-                   (current-sfx-volume sfx-volume))
-          audio-state
-        (with-slots ((new-sfx-channels sfx-channels)
-                     (new-sfx-volume sfx-volume))
-            new-audio-state
-          (block add-new-channels
-            (loop :while (< (length current-sfx-channels)
-                            (length new-sfx-channels))
-               :do
-                 (vector-push-extend (sdl-audio-player-get-channel audio-player)
-                                     current-sfx-channels)
-                 (log:debug "Added new sfx channel for state change: ~A"
-                            (length current-sfx-channels))))
-          (block remove-extra-channels
-            (when (< (length new-sfx-channels)
-                     (length current-sfx-channels))
-              (log:debug "state change truncate existing mixer channels: ~A -> ~A"
-                         (length current-sfx-channels)
-                         (length new-sfx-channels))
-              (loop :for i :from (length new-sfx-channels) :below (length current-sfx-channels)
-                 :do
-                   (log:debug "-- halting channel ~A" i)
-                   (sdl2-mixer:halt-channel
-                    (sdl-channel-number (elt current-sfx-channels i)))
-                   ;; return to object pool
-                   (sdl-audio-player-return-channel audio-player (elt current-sfx-channels i)))
-              (setf (fill-pointer current-sfx-channels)
-                    (length new-sfx-channels))))
-          (block copy-existing-channels
-            (loop :for i :from 0
-               :for new-channel :across new-sfx-channels :do
-                 (let ((current-channel (elt current-sfx-channels i)))
-                   (unless (%sdl-channels-equal-p new-channel current-channel)
-                     ;; be mindful that calling HALT-CHANNEL will invoke %%CHANNEL-FINISHED-CALLBACK
-                     (sdl2-mixer:halt-channel (sdl-channel-number new-channel))
-                     (%sdl-channel-copy new-channel current-channel)
-                     (when (sdl-channel-sample new-channel)
-                       (sdl2-ffi.functions:mix-play-channel-timed
-                        (sdl-channel-number new-channel)
-                        (slot-value (sdl-channel-sample new-channel) 'sdl-buffer)
-                        ;; hardcoding a one-time play
-                        0 -1)
-                       (sdl2-ffi.functions:mix-pause (sdl-channel-number new-channel))
-                       (log:debug "queuing sfx play on mixer channel: ~A -> ~A"
-                                  (sdl-channel-number new-channel)
-                                  (audio-sample-path-to-audio (sdl-channel-sample new-channel)))
-                       (if (and (sdl-channel-start-time-samples current-channel)
-                                (/= (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state)))
-                           (let ((sfx-position-samples (- (audio-state-current-time-samples new-audio-state)
-                                                          (sdl-channel-start-time-samples current-channel))))
-                             (when *audio*
-                               (when (< sfx-position-samples 0)
-                                 (log:warn "Invalid start time for sdl channel: ~A -- ~A. Setting to zero."
-                                           (sdl-channel-number current-channel)
-                                           (audio-sample-path-to-audio (sdl-channel-sample current-channel)))
-                                 (setf sfx-position-samples 0))
-                               (set-channel-position (sdl-channel-number new-channel) (slot-value (sdl-channel-sample new-channel) 'sdl-buffer) sfx-position-samples)))
-                           ;; resume channel playback channel began playing. mark start time
-                           (setf (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state))))))))
-          (setf current-sfx-volume new-sfx-volume)
-          (when *audio*
-            (sdl2-ffi.functions:mix-volume
-             +all-channels+
-             (floor (* new-sfx-volume sdl2-ffi:+mix-max-volume+)))
-            (sdl2-ffi.functions:mix-resume +all-channels+)))))))
+  (with-slots (audio-state) audio-player
+    (declare (audio-state audio-state new-audio-state))
+    (with-slots ((current-sfx-channels sfx-channels)
+                 (current-sfx-volume sfx-volume))
+        audio-state
+      (with-slots ((new-sfx-channels sfx-channels)
+                   (new-sfx-volume sfx-volume))
+          new-audio-state
+        (block add-new-channels
+          (loop :while (< (length current-sfx-channels)
+                          (length new-sfx-channels))
+                :do
+                   (vector-push-extend (sdl-audio-player-get-channel audio-player)
+                                       current-sfx-channels)
+                   (log:debug "Added new sfx channel for state change: ~A"
+                              (length current-sfx-channels))))
+        (block remove-extra-channels
+          (when (< (length new-sfx-channels)
+                   (length current-sfx-channels))
+            (log:debug "state change truncate existing mixer channels: ~A -> ~A"
+                       (length current-sfx-channels)
+                       (length new-sfx-channels))
+            (loop :for i :from (length new-sfx-channels) :below (length current-sfx-channels)
+                  :do
+                     (log:debug "-- halting channel ~A" i)
+                     (sdl2-mixer:halt-channel
+                      (sdl-channel-number (elt current-sfx-channels i)))
+                     ;; return to object pool
+                     (sdl-audio-player-return-channel audio-player (elt current-sfx-channels i)))
+            (setf (fill-pointer current-sfx-channels)
+                  (length new-sfx-channels))))
+        (block copy-existing-channels
+          (loop :for i :from 0
+                :for new-channel :across new-sfx-channels :do
+                  (let ((current-channel (elt current-sfx-channels i)))
+                    (unless (%sdl-channels-equal-p new-channel current-channel)
+                      ;; be mindful that calling HALT-CHANNEL will invoke %%CHANNEL-FINISHED-CALLBACK
+                      (sdl2-mixer:halt-channel (sdl-channel-number new-channel))
+                      (%sdl-channel-copy new-channel current-channel)
+
+                      (when (sdl-channel-sample new-channel)
+                        (sdl2-ffi.functions:mix-play-channel-timed
+                         (sdl-channel-number new-channel)
+                         (slot-value (sdl-channel-sample new-channel) 'sdl-buffer)
+                         ;; hardcoding a one-time play
+                         0 -1)
+                        (sdl2-ffi.functions:mix-pause (sdl-channel-number new-channel))
+                        (log:debug "queuing sfx play on mixer channel: ~A -> ~A"
+                                   (sdl-channel-number new-channel)
+                                   (audio-sample-path-to-audio (sdl-channel-sample new-channel)))
+
+                        (if (and (sdl-channel-start-time-samples current-channel)
+                                 (/= (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state)))
+                            (let ((sfx-position-samples (- (audio-state-current-time-samples new-audio-state)
+                                                           (sdl-channel-start-time-samples current-channel))))
+                              (when (< sfx-position-samples 0)
+                                (log:warn "Invalid start time for sdl channel: ~A -- ~A. Setting to zero."
+                                          (sdl-channel-number current-channel)
+                                          (audio-sample-path-to-audio (sdl-channel-sample current-channel)))
+                                (setf sfx-position-samples 0))
+                              (when *audio*
+                                (log:debug "Seek to position ~Ams for channel ~A"
+                                           (convert-audio-samples->ms sfx-position-samples)
+                                           (sdl-channel-number new-channel))
+                                (%%seek-sdl-mix-chunk (slot-value (sdl-channel-sample new-channel) 'sdl-buffer)
+                                                      sfx-position-samples
+                                                      (lambda ()
+                                                        (sdl2-ffi.functions:mix-play-channel-timed
+                                                         (sdl-channel-number new-channel)
+                                                         (slot-value (sdl-channel-sample new-channel) 'sdl-buffer)
+                                                         ;; hardcoding a one-time play
+                                                         0 -1)
+                                                        (sdl2-ffi.functions:mix-pause (sdl-channel-number new-channel))))
+                                ;; need to copy and update state again because channel position change will invoke sdl mixer callbacks
+                                (%sdl-channel-copy new-channel current-channel)
+                                (setf (sdl-channel-start-time-samples current-channel) (- (audio-state-current-time-samples new-audio-state) sfx-position-samples))))
+                            ;; resume channel playback channel began playing. mark start time
+                            (setf (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state))))))))
+        (setf current-sfx-volume new-sfx-volume)
+
+        (when *audio*
+          (sdl2-ffi.functions:mix-volume
+           +all-channels+
+           (floor (* new-sfx-volume sdl2-ffi:+mix-max-volume+)))
+          (sdl2-ffi.functions:mix-resume +all-channels+))))))
+
+(defun %%seek-sdl-mix-chunk (sdl-buffer position-samples fn)
+  "Seek SDL-BUFFER to POSITION-SAMPLES and invoke FN. Buffer will be reset after this fn completes."
+  (declare (fixnum position-samples)
+           ((function ()) fn))
+  ;; https://stackoverflow.com/questions/14691530/sdl-mixer-set-sound-position
+  ;; https://github.com/aduros/SDL_mixer/blob/ac2df1b04a424c507839303ffb1c9cf000a95ac3/mixer.c#L815
+  ;; from sdl mixer header
+  ;; typedef struct Mix_Chunk {
+  ;; 	int allocated;
+  ;; 	Uint8 *abuf;
+  ;; 	Uint32 alen;
+  ;; 	Uint8 volume;		/* Per-sample volume, 0-128 */
+  ;; } Mix_Chunk;
+  ;; seeking for sound effect channels is not officially supported.
+  ;; as a hack, we'll modify the Mix_Chunk struct
+  ;;  - inc the array starting position
+  ;;  - dec the array length
+  ;; FNs like play-channel will copy the modified buffer when they are invoked (i.e. during the FN funcall)
+  ;; finally we'll reset the ffi values to their original settings
+  (cffi:with-foreign-slots ((allocated abuf alen volume)
+                            (slot-value sdl-buffer 'autowrap::ptr)
+                            (:struct my-mix-chunk))
+    (let ((foreign-offset-bytes (* position-samples
+                                   ;; multiply by 4. Array is uint8. 8 -> 16 (1 samp), and 16 -> 32 (LR output)
+                                   #.(+ (/ +output-bit-depth+ 8) +output-num-channels+)
+                                   (cffi:foreign-type-size :uint8)))
+          (reset-pointer-p nil)
+          (reset-len-p nil))
+      (log:trace "sfx pointer moved -> ~A" foreign-offset-bytes)
+      (unwind-protect
+           (progn
+             (cffi:incf-pointer abuf foreign-offset-bytes)
+             (setf reset-pointer-p t
+                   alen (- alen foreign-offset-bytes)
+                   reset-len-p t)
+             (funcall fn))
+        (when reset-pointer-p
+          (cffi:incf-pointer abuf (- foreign-offset-bytes)))
+        (when reset-len-p
+          (setf alen (+ alen foreign-offset-bytes)))))))
 
 ;; audio sound loading implementation
 
