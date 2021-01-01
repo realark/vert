@@ -664,23 +664,27 @@ Long term plan is to cache audio samples in the game-objects or scenes which nee
             (setf tmp-audio-state
                   (audio-player-copy-state audio-player)))
           (audio-player-copy-state audio-player tmp-audio-state)
-          (let ((channel (loop :for channel :across (audio-state-sfx-channels tmp-audio-state) :do
-                              (when (null (sdl-channel-sample channel))
-                                ;; return the first free channel
-                                (return channel))
-                            :finally
-                            ;; not free channels. Get a new one out of the object pool.
-                              (let ((channel (sdl-audio-player-get-channel audio-player)))
-                                (setf (sdl-channel-number channel) (length (audio-state-sfx-channels tmp-audio-state)))
-                                (vector-push-extend channel
-                                                    (audio-state-sfx-channels tmp-audio-state))
-                                (return channel)))))
+          (let ((channel (%get-or-create-free-sfx-channel audio-player tmp-audio-state)))
             (setf (sdl-channel-sample channel) (audio-player-load-sfx audio-player
                                                                       path-to-sfx-file
                                                                       :volume volume)
                   (sdl-channel-start-time-samples channel) nil))
           (audio-player-load-state audio-player tmp-audio-state)))
       audio-player)))
+
+(defun %get-or-create-free-sfx-channel (audio-player audio-state)
+  (loop :for channel :across (audio-state-sfx-channels audio-state) :do
+    (when (null (sdl-channel-sample channel))
+      ;; return the first free channel
+      (return channel))
+        :finally
+           ;; no free channels. Get a new one out of the object pool.
+           (let ((channel (sdl-audio-player-get-channel audio-player)))
+             (setf (sdl-channel-number channel) (length (audio-state-sfx-channels audio-state)))
+             (vector-push-extend channel
+                                 (audio-state-sfx-channels audio-state))
+             (return channel)))
+  )
 
 (let ((tmp-audio-state nil))
   (defmethod audio-player-play-music ((audio-player sdl-audio-player) path-to-music-file &key (num-plays -1))
