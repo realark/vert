@@ -97,32 +97,41 @@
          (garbage-collect-hint))))
 
 @export
-(defun change-scene (engine-manager new-scene &optional (release-existing-scene T) (run-full-gc nil) (preserve-audio nil))
+(defun change-scene-fn (engine-manager scene-creator-fn &key (run-full-gc nil))
+  "At the beginning of the next game loop, Replace the active-scene with the scene returned by funcalling SCENE-CREATOR-FN.
+If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene will be released."
+  (declare ((function ()) scene-creator-fn))
+  (when (slot-value engine-manager 'pending-scene-changes)
+    (warn "skipping extra scene change. Scene change already pending!")
+    (return-from change-scene-fn))
+  (setf (slot-value engine-manager 'pending-scene-changes)
+        (lambda ()
+          (let ((new-scene (funcall scene-creator-fn))
+                (old-scene *scene*))
+            (when new-scene
+              (do-input-devices device (input-manager engine-manager)
+                (add-scene-input new-scene device)))
+            (setf *scene* new-scene)
+            (scene-deactivated old-scene)
+            (scene-activated *scene*)
+            (multiple-value-bind (width-px height-px)
+                (window-size-pixels (application-window *engine-manager*))
+              (after-resize-window (application-window engine-manager) width-px height-px))
+            (block run-gc
+              (setf old-scene nil)
+              (when run-full-gc
+                (garbage-collect-hint))))))
+  (values))
+
+@export
+(defun change-scene (engine-manager new-scene &key (run-full-gc nil))
   "At the beginning of the next game loop, Replace the active-scene with NEW-SCENE.
 If RELEASE-EXISTING-SCENE is non-nil (the default), the current active-scene will be released."
   (let ((old-scene *scene*))
     (unless (eq old-scene new-scene)
-      (when (slot-value engine-manager 'pending-scene-changes)
-        (error "Scene change already pending"))
-      (setf (slot-value engine-manager 'pending-scene-changes)
-            (lambda ()
-              #+nil
-              (when (and old-scene release-existing-scene)
-                (garbage-collect-hint))
-              (when new-scene
-                (do-input-devices device (input-manager engine-manager)
-                  (add-scene-input new-scene device)))
-              (let ((old-scene *scene*))
-                (setf *scene* new-scene)
-                (scene-deactivated old-scene)
-                (scene-activated *scene*))
-              (multiple-value-bind (width-px height-px)
-                  (window-size-pixels (application-window *engine-manager*))
-                (after-resize-window (application-window engine-manager) width-px height-px))
-              (block run-gc
-                (setf old-scene nil)
-                (when run-full-gc
-                  (garbage-collect-hint)))))))
+      (change-scene-fn engine-manager
+                       (lambda () new-scene)
+                       :run-full-gc run-full-gc)))
   (values))
 
 (defgeneric game-loop-iteration (engine-manager)
