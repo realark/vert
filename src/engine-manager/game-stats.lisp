@@ -128,7 +128,7 @@
   (defun gc-callback ()
     (incf gc-count)
     (setf
-     last-gc-time-ms (/ (- sb-ext:*gc-run-time* gc-timer) (/ internal-time-units-per-second 1000))
+     last-gc-time-ms (ceiling (/ (- sb-ext:*gc-run-time* gc-timer) (/ internal-time-units-per-second 1000.0)))
      gc-timer sb-ext:*gc-run-time*))
 
   (defun current-gc-count ()
