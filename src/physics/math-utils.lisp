@@ -20,15 +20,26 @@
       (= 0 (truncate
             (* (expt 10 precision)
                (- float1 float2))))))
+
 @export
 (defun deg->rad (x)
   (declare (rotation-degrees x))
   (the rotation-radians (* x #.(/ float-pi 180))))
 
+(define-compiler-macro deg->rad (&whole original x)
+  (if (constantp x)
+      (deg->rad x)
+      original))
+
 @export
 (defun rad->deg (x)
   (declare (rotation-radians x))
   (the rotation-degrees (* x #.(/ 180 float-pi))))
+
+(define-compiler-macro rad->deg (&whole original x)
+  (if (constantp x)
+      (rad->deg x)
+      original))
 
 (defun rotate-2d (point theta &optional (rotation-origin *origin*))
   "Rotate POINT THETA radians about ROTATION-ORIGIN in the xy plane."
