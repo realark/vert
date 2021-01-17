@@ -108,6 +108,9 @@ Computed as (* (/ bit-rate 8) num-channels)")
    (channel-number :initarg :channel-number
                    :accessor sdl-channel-number
                    :initform (error ":channel-number required"))
+   (channel-volume :initarg :channel-volume
+                   :initform sdl2-ffi:+MIX-MAX-VOLUME+
+                   :accessor sdl-channel-volume)
    (start-time-samples :initarg :start-time-samples
                        :initform nil
                        :accessor sdl-channel-start-time-samples
@@ -119,6 +122,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
   (declare (sdl-channel src-channel dest-channel))
   (setf (sdl-channel-sample dest-channel) (sdl-channel-sample src-channel)
         (sdl-channel-number dest-channel) (sdl-channel-number src-channel)
+        (sdl-channel-volume dest-channel) (sdl-channel-volume src-channel)
         (sdl-channel-start-time-samples dest-channel) (sdl-channel-start-time-samples src-channel))
   dest-channel)
 
@@ -130,6 +134,7 @@ Computed as (* (/ bit-rate 8) num-channels)")
        (or (and (null (sdl-channel-sample channel1)) (null (sdl-channel-sample channel2)))
            (and (not (null (sdl-channel-sample channel1))) (not (null (sdl-channel-sample channel2)))
                 (%audio-samples-equalp (sdl-channel-sample channel1) (sdl-channel-sample channel2))))
+       (equalp (sdl-channel-volume channel1) (sdl-channel-volume channel2))
        (equalp (sdl-channel-number channel1) (sdl-channel-number channel2))
        (equalp (sdl-channel-start-time-samples channel1) (sdl-channel-start-time-samples channel2))))
 
@@ -328,7 +333,7 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
           (setf current-music-volume new-music-volume)
           (when *audio*
             (sdl2-ffi.functions:mix-volume-music
-             (floor (* new-music-volume sdl2-ffi:+mix-max-volume+)))
+             (floor (* new-music-volume (sdl-channel-volume new-music-channel))))
             (sdl2-ffi.functions:mix-resume-music)))))))
 
 @export
@@ -411,13 +416,14 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
                                 (%sdl-channel-copy new-channel current-channel)
                                 (setf (sdl-channel-start-time-samples current-channel) (- (audio-state-current-time-samples new-audio-state) sfx-position-samples))))
                             ;; resume channel playback channel began playing. mark start time
-                            (setf (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state))))))))
+                            (setf (sdl-channel-start-time-samples current-channel) (audio-state-current-time-samples new-audio-state)))
+                        (when *audio*
+                          (sdl2-ffi.functions:mix-volume
+                           (sdl-channel-number current-channel)
+                           (floor (* new-sfx-volume (sdl-channel-volume current-channel))))))))))
         (setf current-sfx-volume new-sfx-volume)
 
         (when *audio*
-          (sdl2-ffi.functions:mix-volume
-           +all-channels+
-           (floor (* new-sfx-volume sdl2-ffi:+mix-max-volume+)))
           (sdl2-ffi.functions:mix-resume +all-channels+))))))
 
 (defun %%seek-sdl-mix-chunk (sdl-buffer position-samples fn)
