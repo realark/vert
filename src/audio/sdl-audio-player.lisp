@@ -37,7 +37,8 @@ Computed as (* (/ bit-rate 8) num-channels)")
 
 (defmethod initialize-instance :around ((sample audio-sample) &rest args)
   (declare (optimize (speed 3)))
-  (let ((all-args (append (list sample) args)))
+  (let ((all-args (cons sample (copy-list args))))
+    (declare (dynamic-extent all-args))
     (prog1 (apply #'call-next-method all-args)
       (resource-autoloader-add-object *resource-autoloader*
                                       (tg:make-weak-pointer sample)))))
@@ -189,6 +190,7 @@ For thread safety, this slot should not be directly accessed outside of audio-pl
 (defun sdl-audio-player-get-channel (sdl-audio-player)
   "Get a new sdl-channel out of SDL-AUDIO-PLAYER's object pool, or create a fresh one if the pool is empty."
   (with-slots (channel-pool) sdl-audio-player
+    (declare (vector channel-pool))
     (if (> (length channel-pool) 0)
         (vector-pop channel-pool)
         (make-instance 'sdl-channel
@@ -207,11 +209,11 @@ For thread safety, this slot should not be directly accessed outside of audio-pl
 (defmacro with-sdl-mixer-lock-held (&body body)
   "Run BODY with sdl-mixer's audio device locked. No audio callback fns will run during body.
 Don't block this thread on any audio callbacks or else a deadlock will occur."
-  `(progn
-     (sdl2-ffi.functions:sdl-lock-audio-device +sdl-mixer-audio-device-id+)
-     (unwind-protect
-          (progn ,@body)
-       (sdl2-ffi.functions:sdl-unlock-audio-device +sdl-mixer-audio-device-id+))))
+  `(unwind-protect
+        (progn
+          (sdl2-ffi.functions:sdl-lock-audio-device +sdl-mixer-audio-device-id+)
+          ,@body)
+     (sdl2-ffi.functions:sdl-unlock-audio-device +sdl-mixer-audio-device-id+)))
 
 @export
 (defun convert-audio-samples->ms (audio-samples)
