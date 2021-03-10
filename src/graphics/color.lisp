@@ -31,7 +31,7 @@
                         :a (float (/ a 255))))
 
 @export
-(defun lerp (from-color to-color percent-to &key (output-color (make-color)))
+(defun color-lerp (from-color to-color percent-to &key (output-color (make-color)))
   ;; TODO: remove this method and convert all callers to new naming convention
   (color-lerp from-color to-color percent-to :output-color output-color))
 
