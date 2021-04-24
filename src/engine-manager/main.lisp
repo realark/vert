@@ -42,8 +42,12 @@
                        *config* nil
                        *vert-thread* nil
                        *dev-mode* nil))))
-      ;; osx will crash if any thread other than thread0 issues drawing calls
-      (%run-on-main-thread #'run-engine))))
+      (if (getconfig 'allow-vert-on-non-main-thread config)
+          (progn
+            #+darwin
+            (error "osx will crash if any thread other than thread0 issues drawing calls ")
+            (run-engine))
+          (%run-on-main-thread #'run-engine)))))
 
 (defun %get-main-thread ()
   (or #+sbcl (sb-thread:main-thread)

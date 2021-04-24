@@ -128,6 +128,10 @@ Example:
 (export-config-key
  'dev-powersave-render-cap "Powersave feature useful for live dev. Sleep for 100 ms after each game loop iteration.")
 (export-config-key
+ 'allow-vert-on-non-main-thread "Development option. When T allow vert to launch on any thread.
+OSX will crash if any thread other than main issues rendering commands, so use this carefully.
+This is a useful option for dev because running on the main thread screws up stacktraces when using (break)")
+(export-config-key
  'dev-live-code-on-game-thread-p "When T and when swank is present, process swank events on the game thread.")
 
 @export
