@@ -353,10 +353,11 @@ This is an optimization so we don't have to rebuild the render and update queues
       (values))))
 
 (defmethod render ((scene game-scene) update-percent camera gl-context)
-  (prog1 (call-next-method scene update-percent camera gl-context)
-    (with-slots (scene-overlays) scene
-      (loop :for overlay :across (the (vector overlay) scene-overlays) :do
-           (render overlay update-percent (camera scene) gl-context)))))
+  (when (> (scene-ticks scene) 100) ; HACK scene transitions get messed up bc rendering occurs before setup stuff is done
+    (prog1 (call-next-method scene update-percent camera gl-context)
+      (with-slots (scene-overlays) scene
+        (loop :for overlay :across (the (vector overlay) scene-overlays) :do
+          (render overlay update-percent (camera scene) gl-context))))))
 
 (defevent-handler killed ((object obb) (game-scene game-scene))
     ""
