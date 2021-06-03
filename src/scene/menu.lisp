@@ -127,15 +127,15 @@
 (set-default-input-command-map
  menu
  (:keyboard (:scancode-return :menu-activate)
-                 (:scancode-up :menu-up)
-                 (:scancode-k :menu-up)
-                 (:scancode-down :menu-down)
-                 (:scancode-f11 :fullscreen-toggle)
-                 (:scancode-j :menu-down))
+            (:scancode-up :menu-up)
+            (:scancode-k :menu-up)
+            (:scancode-down :menu-down)
+            (:scancode-f10 :fullscreen-toggle)
+            (:scancode-j :menu-down))
  (:controller (:11 :menu-up)
-               (:12 :menu-down)
-               (:0 :menu-activate)
-               (:6 :menu-activate)))
+              (:12 :menu-down)
+              (:0 :menu-activate)
+              (:6 :menu-activate)))
 
 
 (set-default-command-action-map
