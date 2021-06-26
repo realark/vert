@@ -22,7 +22,8 @@
                          (:file "events")
                          (:file "game-object")
                          (:file "resource")
-                         (:file "scheduler")))
+                         (:file "scheduler")
+                         (:file "copier")))
                (:module memory
                         :depends-on (:core)
                         :pathname "src/memory"
