@@ -44,7 +44,7 @@ Idempotent. Will be called when all vert systems are initialized.")
 @export
 (defmacro resource-path (resource-relative-path)
   "Given a resource name, returns a path to locate the resource."
-  `(%resource-path ,resource-relative-path t))
+  `(%resource-path ,resource-relative-path nil))
 
 (defun test-resource-path (resource-name)
   "Given a resource name, returns a path to locate the test resource."
