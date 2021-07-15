@@ -89,19 +89,26 @@
     (%reload-all-shaders)))
 
 @export
-(defgeneric reload-everything ()
+(defgeneric reload-everything (&optional mid-reload-fn)
   (:documentation "Reload all shaders and external resources. Very slow. Live-coding/dev only.")
-  (:method ()
+  (:method (&optional mid-reload-fn)
     (when *engine-manager*
       (assert (on-game-thread-p))
       (log:info "Reloading all resources. This may take a few frames...")
       (with-sdl-mixer-lock-held
-        (resource-autoloader-release-all *resource-autoloader*)
-        (do-cache (*engine-caches* key val)
-          (log:info "clearing cache: ~A" key)
-          (clear-cache val))
-        (garbage-collect-hint)
-        (resource-autoloader-load-all *resource-autoloader*))
+        (let ((orig-can-load (resource-autoloader-can-load-resources-p *resource-autoloader*)))
+          (setf (resource-autoloader-can-load-resources-p *resource-autoloader*) nil)
+          (unwind-protect
+               (progn
+                 (resource-autoloader-release-all *resource-autoloader*)
+                 (do-cache (*engine-caches* key val)
+                   (log:info "clearing cache: ~A" key)
+                   (clear-cache val))
+                 (garbage-collect-hint)
+                 (when mid-reload-fn
+                   (funcall mid-reload-fn))
+                 (resource-autoloader-load-all *resource-autoloader*))
+            (setf (resource-autoloader-can-load-resources-p *resource-autoloader*) orig-can-load))))
       (log:info "~%All resources reloaded!~%"))))
 
 @export

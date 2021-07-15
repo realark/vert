@@ -60,7 +60,7 @@
       (setf (gethash array copied-objects) new-array)
       (dotimes (i (array-total-size array))
         (setf (row-major-aref new-array i)
-              (row-major-aref array i)))
+              (%deep-copy (row-major-aref array i) :copied-objects copied-objects)))
       new-array))
   (:method ((object standard-object) &key (copied-objects))
     (let* ((class (class-of object))
@@ -75,7 +75,21 @@
 (defmethod %deep-copy :around (object &key copied-objects)
   (if (and copied-objects (gethash object copied-objects))
       (gethash object copied-objects)
-      (call-next-method object :copied-objects copied-objects)))
+      (let ((copy (call-next-method object :copied-objects copied-objects)))
+        (prog1 copy
+          (loop :for type
+                  :in '(polygon-draw
+                        gl-font font-drawable
+                        sprite-instance-renderer
+                        static-sprite
+                        gl-quad
+                        audio-sample)
+                :do
+                   (when (typep copy type)
+                     (resource-autoloader-add-object
+                      *resource-autoloader*
+                      (tg:make-weak-pointer copy))
+                     (return)))))))
 
 ;; old array code
 #+nil
