@@ -417,3 +417,11 @@
   (declare (optimize (speed 3))
            (single-float min-float float max-float))
   (min (max min-float float) max-float))
+
+@export
+@inline
+(defun linear-interpolate (from to percent)
+  (declare (optimize (speed 3))
+           (single-float from to percent))
+  (let ((diff (- to from)))
+    (+ from (* diff percent))))
