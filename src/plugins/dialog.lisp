@@ -663,9 +663,30 @@ The NEXT value of each node defaults to the next line in BODY. "
 (defun cutscene-run-action (zero-arg-fn)
   (make-instance 'cutscene-node-run-action :zero-arg-fn zero-arg-fn))
 
+(defun %%get-last-node (node)
+  (with-accessors ((next-nodes cutscene-node-next-nodes)) node
+    (let ((size (length next-nodes)))
+      (when (> size 1)
+        (error "unable to determine last node when the cutscene branches: ~A"
+               next-nodes))
+      (if (= 0 size)
+          node
+          (%%get-last-node (elt next-nodes 0))))))
+
 (defmethod cutscene-node-while-active ((node cutscene-node-run-action) (hud cutscene-hud))
   (with-slots (zero-arg-fn) node
     (declare ((function ()) zero-arg-fn))
+    (let ((result (funcall zero-arg-fn))
+          (next-nodes-size (length (cutscene-node-next-nodes node))))
+      (when result
+        (if (typep result 'cutscene-node)
+            (progn
+              (when (> next-nodes-size 0)
+                (setf (cutscene-node-next-nodes (%%get-last-node result))
+                      (list (elt (cutscene-node-next-nodes node) 0))))
+              (setf (cutscene-node-next-nodes node) (list result)
+                    (cutscene-node-next-node-index node) (length (cutscene-node-next-nodes node))))
+            (setf (cutscene-node-next-node-index node) 0))))
     (when (funcall zero-arg-fn)
       (setf (cutscene-node-next-node-index node) 0))))
 
