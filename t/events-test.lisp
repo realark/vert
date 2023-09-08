@@ -35,8 +35,11 @@
                      'arg-five)
           :finally
              (events-run-pending)
-             (events-run-pending)))
-  (garbage-collect-block)
+             (events-run-pending))
+    (log:config :off)
+    (log4cl:flush-all-appenders)
+    (garbage-collect-block)
+    (log:config :info))
 
   (loop :with pub-size = 256
         :and starting-heap-size = (sb-kernel:dynamic-usage)

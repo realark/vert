@@ -128,6 +128,7 @@ Do not call this function from game code. It will be invoked by the engine at th
        (setf (documentation ',event-name 'variable)
              ,doc-string))
      (defmethod %event-pub ((event-name (eql ',event-name)) ,publisher &optional event-args)
+       (declare (optimize (speed 3)))
        (let (,@(loop :with i = -1
                      :for arg :in event-args :collect
                      `(,arg (elt event-args ,(incf i)))))
@@ -181,7 +182,8 @@ Do not call this function from game code. It will be invoked by the engine at th
        (setf (documentation ',event-name 'variable)
              ,doc-string))
      (defmethod %event-sub ((event-name (eql ',event-name)) ,pub ,sub &optional event-args)
-       (declare (ignorable event-args))
+       (declare (optimize (speed 3))
+                (ignorable event-args))
        (let (,@(loop :with i = -1
                      :for arg :in event-args :collect
                      `(,arg (elt event-args ,(incf i)))))
@@ -254,6 +256,7 @@ Do not call this function from game code. It will be invoked by the engine at th
        (setf (documentation ',global-handler-name 'variable)
              ,doc-string))
      (defmethod %event-pub :after ((event-name (eql ',event-name)) ,publisher &optional event-args)
+       (declare (optimize (speed 3)))
        (let (,@(loop :with i = -1
                      :for arg :in event-args :collect
                      `(,arg (elt event-args ,(incf i)))))
