@@ -378,6 +378,9 @@
                 (setf texture-src-width (pngload:width png)
                       texture-src-height (pngload:height png))
                 (case (pngload:color-type png)
+                  (:TRUECOLOUR ; blimey!
+                   (gl:tex-image-2d :texture-2d 0 :rgba (pngload:width png) (pngload:height png) 0 :rgb :unsigned-byte (sb-sys:vector-sap data) :raw t)
+                   (gl:generate-mipmap :texture-2d))
                   (:TRUECOLOUR-ALPHA ; blimey!
                    (gl:tex-image-2d :texture-2d 0 :rgba (pngload:width png) (pngload:height png) 0 :rgba :unsigned-byte (sb-sys:vector-sap data) :raw t)
                    (gl:generate-mipmap :texture-2d))
