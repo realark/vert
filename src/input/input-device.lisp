@@ -103,7 +103,8 @@
                    (cond
                      ((eq :keyboard (input-device-type input-device))
                       *keyboard-human-readable-names*)
-                     ((or (equalp "PS4 Controller" input-name)
+                     ((or (equalp "PS5 Controller" input-name)
+                          (equalp "PS4 Controller" input-name)
                           (equalp "PS3 Controller" input-name))
                       *dualshock-human-readable-names*)
                      (t *generic-human-readable-names*))))))
