@@ -467,7 +467,9 @@ Don't block this thread on any audio callbacks or else a deadlock will occur."
         (when reset-pointer-p
           (cffi:incf-pointer abuf (- foreign-offset-bytes)))
         (when reset-len-p
-          (setf alen (+ alen foreign-offset-bytes)))))))
+          (setf alen
+                (min (max 0 (+ alen foreign-offset-bytes))
+                     #.(- (expt 2 32) 1))))))))
 
 ;; audio sound loading implementation
 
