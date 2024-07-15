@@ -45,7 +45,6 @@
 (defun %mark-dirty (transform)
   (declare (optimize (speed 3))
            (transform transform))
-  (break "TODO: rm")
   (values))
 
 (defgeneric mark-transform-dirty (transform)

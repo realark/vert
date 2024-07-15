@@ -167,20 +167,20 @@
                 ;; every moved object will traverse the spatial partition, giving us
                 ;; Big-O Cost = N * A
                 (with-collision-check (object *scene*)
-                  (:position-update
-                   (log:trace "moving (~A,~A) -> ~A" v-x v-y object)
-                   ;; for some reason, the compiler complains if I use incf
-                   (setf x (+ x (* v-x *timestep*)))
-                   (setf y (+ y (* v-y *timestep*))))
-                  (:on-collision stationary-object
-                                 (linear-resolution object
-                                                    stationary-object
-                                                    :original-position original-position)))
+                    (:position-update
+                      (log:trace "moving (~A,~A) -> ~A" v-x v-y object)
+                      ;; for some reason, the compiler complains if I use incf
+                      (setf x (+ x (* v-x *timestep*)))
+                      (setf y (+ y (* v-y *timestep*))))
+                    (:on-collision stationary-object
+                      (linear-resolution object
+                                         stationary-object
+                                         :original-position original-position)))
                 ;; apply friction and drag
                 (setf v-x (* (expt friction-x *timestep*) v-x)
                       v-y (* (expt drag-y *timestep*) v-y)
-                      x (round x)
-                      y (round y))))
+                      x (fround x)
+                      y (fround y))))
             (block update-velocity-and-acceleration
               (unless (= 0.0 v-x v-y a-x a-y)
                 (setf
