@@ -280,20 +280,26 @@ It is invoked after the engine is fully started.")
   nil)
 
 (defun start-live-coding ()
-  "Enable live coding (if swank is present)"
-  ;; read-from string so this file will compile without swank
+  "Enable live coding (if swank or slynk are present)"
+  ;; read-from string so this file will compile without swank/slynk
+  (eval (read-from-string "(or #+slynk (slynk-mrepl:send-prompt) nil)"))
+
   (setf *live-coding-fn*
         (eval
          (read-from-string
-          "(or #+swank
-               (lambda ()
-                 (declare (optimize (speed 3)))
-                 (let ((connection (or swank::*emacs-connection*
-                                       (swank::default-connection))))
-                   (when connection
-                     (swank::handle-requests connection t))
-                   (values)))
-               nil)")))
+          "(or
+             #+slynk
+             (lambda ()
+               (slynk:process-requests t))
+             #+swank
+             (lambda ()
+               (declare (optimize (speed 3)))
+               (let ((connection (or swank::*emacs-connection*
+                                     (swank::default-connection))))
+                 (when connection
+                   (swank::handle-requests connection t))
+                 (values)))
+             nil)")))
   (if *live-coding-fn*
       (log:info "Live coding fn found: ~A -- ~A"
                 *live-coding-fn*
@@ -307,7 +313,7 @@ It is invoked after the engine is fully started.")
     (log:info "Live coding fn deleted.")))
 
 (defun update-live-coding ()
-  "Update swank events."
+  "Update live coding repl requests."
   (declare (optimize (speed 3)))
   (when (and *live-coding-fn*
              (get-dev-config 'dev-live-code-on-game-thread-p))
