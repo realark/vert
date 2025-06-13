@@ -179,8 +179,8 @@
                 ;; apply friction and drag
                 (setf v-x (* (expt friction-x *timestep*) v-x)
                       v-y (* (expt drag-y *timestep*) v-y)
-                      x (fround x)
-                      y (fround y))))
+                      x (nth-value 0 (fround x))
+                      y (nth-value 0 (fround y)))))
             (block update-velocity-and-acceleration
               (unless (= 0.0 v-x v-y a-x a-y)
                 (setf
