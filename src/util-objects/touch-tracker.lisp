@@ -34,9 +34,8 @@
 
 (defevent object-moved ((touch-region touch-region))
     ""
-  (prog1 (call-next-method touch-region)
-    (loop :for touched-object :across (touching touch-region) do
-      (%remove-if-not-touching touch-region touched-object))))
+  (loop :for touched-object :across (touching touch-region) do
+    (%remove-if-not-touching touch-region touched-object)))
 
 (defevent-handler object-moved ((touched-object obb) (region touch-region))
     ""
@@ -109,11 +108,10 @@
 
 (defevent object-moved ((touch-tracker touch-tracker))
     ""
-  (prog1 (call-next-method touch-tracker)
-    (with-slots (touch-regions) touch-tracker
-      (loop :for i :from 0 :below (length touch-regions) :by 2 :do
-        (event-publish object-moved
-                       (elt touch-regions (+ i 1)))))))
+  (with-slots (touch-regions) touch-tracker
+    (loop :for i :from 0 :below (length touch-regions) :by 2 :do
+      (event-publish object-moved
+                     (elt touch-regions (+ i 1))))))
 
 ;; TODO: move :around width/height scaling updates to pinned-objects
 (defmethod (setf width) :around (new-width (touch-tracker touch-tracker))
