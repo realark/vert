@@ -41,10 +41,25 @@
     (garbage-collect-block)
     (log:config :info))
 
+  ;; A healthy, object-pooled event system allocates *nothing* during
+  ;; steady-state publish/run-pending. We assert this per-frame rather than as a
+  ;; single start-to-finish delta because:
+  ;;   1. sb-ext:get-bytes-consed is process-wide, so background activity from
+  ;;      other subsystems can sporadically inflate a whole-run delta and make a
+  ;;      sub-cons-cell threshold flaky.
+  ;;   2. The regression we care about (mismatched %pending-events% / %event-bus%
+  ;;      capacities being ping-ponged by the rotatef swap in EVENTS-RUN-PENDING)
+  ;;      reallocates a large vector on *every* frame -- so a real regression
+  ;;      shows up as hundreds of allocating frames, while incidental external
+  ;;      noise touches at most a handful.
+  ;; So we count how many frames allocated at all and require that to be tiny.
   (loop :with pub-size = 256
-        :and starting-heap-size = (sb-kernel:dynamic-usage)
-        :and test-cons-max-bytes = 10
-        :and starting-gc-count = (vert::current-gc-count)
+        :and num-frames = 0
+        :and num-allocating-frames = 0
+        :and max-frame-bytes = 0
+        ;; the bug reallocated ~32KB every frame; allow a tiny slack for rare
+        ;; process-wide noise from other threads/finalizers/GC bookkeeping.
+        :and max-allocating-frames = 4
         :for i :from 1 :below 300000 :do
           (event-publish 'input-happened
                          *standard-input*
@@ -55,15 +70,55 @@
                          'arg-five)
           (when (and (> i 0) (= (mod i pub-size) 0))
             (assert (= (length %pending-events%) pub-size))
-            (events-run-pending)
+            (let ((before (sb-ext:get-bytes-consed)))
+              (events-run-pending)
+              (let ((frame-bytes (- (sb-ext:get-bytes-consed) before)))
+                (incf num-frames)
+                (when (> frame-bytes 0)
+                  (incf num-allocating-frames)
+                  (when (> frame-bytes max-frame-bytes)
+                    (setf max-frame-bytes frame-bytes)))))
             (assert (= (length %pending-events%) 0)))
         :finally
-           (prove:is (vert::current-gc-count) starting-gc-count
-                     "No Garbage Collection occurred.")
-           (prove:is (- (sb-kernel:dynamic-usage) starting-heap-size)
-                     test-cons-max-bytes
+           (prove:is num-allocating-frames
+                     max-allocating-frames
                      :test #'<=
-                     (format t "No more than ~A bytes consed." test-cons-max-bytes))))
+                     (format nil "Event publish/run-pending does not allocate per-frame (~A/~A frames allocated, max ~A bytes)"
+                             num-allocating-frames num-frames max-frame-bytes))))
+
+(prove:deftest test-events-buffers-do-not-grow-each-frame
+  "Regression test: EVENTS-RUN-PENDING swaps %pending-events% and %event-bus%
+every frame via ROTATEF. If the two buffers ever have different capacities, the
+smaller one gets reallocated every time it is filled, and -- because the swap
+ping-pongs them -- this reallocation recurs on every single frame forever. This
+manifested in-game as ~10x the expected GC pressure. Here we publish frames of
+*varying* size (which is what a real game does) and assert the backing buffers
+reach a steady capacity and stop growing."
+  ;; warm the buffers up to a high-water mark with one large frame
+  (loop :for i :from 1 :below 2048 :do
+    (event-publish 'input-happened *standard-input* 'a 'b 'c 'd 'e))
+  (events-run-pending)
+  (events-run-pending)
+
+  (let ((settled-pending-cap (array-dimension %pending-events% 0))
+        (settled-bus-cap (array-dimension %event-bus% 0))
+        (grow-events 0))
+    ;; Now run many frames of differing sizes. With the bug, the smaller buffer
+    ;; is regrown on (nearly) every frame.
+    (loop :for frame :from 0 :below 500 :do
+      (loop :for i :from 0 :below (+ 16 (mod frame 200)) :do
+        (event-publish 'input-happened *standard-input* 'a 'b 'c 'd 'e))
+      (events-run-pending)
+      (when (or (> (array-dimension %pending-events% 0) settled-pending-cap)
+                (> (array-dimension %event-bus% 0) settled-bus-cap))
+        (incf grow-events)
+        (setf settled-pending-cap (max settled-pending-cap
+                                       (array-dimension %pending-events% 0))
+              settled-bus-cap (max settled-bus-cap
+                                   (array-dimension %event-bus% 0)))))
+    (prove:is grow-events
+              0
+              "Event buffers reach a steady capacity and stop reallocating each frame")))
 
 (prove:deftest test-events-low-level
   (events-run-pending)

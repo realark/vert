@@ -78,6 +78,17 @@ Do not call this function from game code. It will be invoked by the engine at th
   (declare (optimize (speed 3)))
   (block swap-buffers-and-truncate-pending-events
     (rotatef %event-bus% %pending-events%)
+    ;; The two buffers are swapped every frame. If they have different
+    ;; capacities, the smaller one will be regrown (a heap allocation) every
+    ;; time it becomes %pending-events% and is filled again -- and since the
+    ;; swap ping-pongs the buffers, this regrowth recurs *every frame forever*.
+    ;; Keep both buffers at the high-water-mark capacity so the swap never
+    ;; forces a reallocation during steady-state publishing.
+    (let ((pending-cap (array-dimension %pending-events% 0))
+          (bus-cap (array-dimension %event-bus% 0)))
+      (declare (fixnum pending-cap bus-cap))
+      (when (< pending-cap bus-cap)
+        (adjust-array %pending-events% bus-cap)))
     ;; explicitly null out old events and args so we don't hold a strong ref
     ;; NOTE if this proves inefficient consider only doing this when the engine does an explicit GC
     (loop :for old-event :across %pending-events% :do
