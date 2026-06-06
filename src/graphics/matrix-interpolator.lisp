@@ -44,18 +44,24 @@
     (setf cached -1.0)
     (values)))
 
-@inline
-(defun obb-render-transform (obb)
-  "Construct a rendering transform for OBB."
+(defun obb-render-transform (obb &optional into)
+  "Construct a rendering transform for OBB.
+
+If INTO (a MATRIX) is supplied the result is written into it (no allocation),
+otherwise a fresh matrix is allocated. Hot paths should pass a reusable INTO
+buffer to avoid per-frame consing."
   (declare (optimize (speed 3))
-           (obb obb))
+           (obb obb)
+           ((or null matrix) into))
   (let ((dimensions (scale-matrix (width obb)
                                   (height obb)
                                   1.0)))
     (declare (dynamic-extent dimensions))
-    (matrix*
-     (local-to-world-matrix obb)
-     dimensions)))
+    (if into
+        (matrix*-into into (local-to-world-matrix obb) dimensions)
+        (matrix*
+         (local-to-world-matrix obb)
+         dimensions))))
 
 (defclass interpolated-obb (obb)
   ((interpolator0-dirty-p :initform t)
@@ -92,8 +98,9 @@ Useful in rendering because often rendering time wants to show a state in betwee
       obb
     (when (or 1dirty-p 0dirty-p)
       (with-slots (interpolator) obb
-        (let ((m (obb-render-transform obb)))
+        (let ((m (identity-matrix)))
           (declare (dynamic-extent m))
+          (obb-render-transform obb m)
           (interpolator-update interpolator m)))
       ;; it takes two passes to clean ourselves
       (if 0dirty-p
@@ -121,8 +128,9 @@ Useful in rendering because often rendering time wants to show a state in betwee
   (with-slots (interpolator) obb
     (unless (= update-percent
                (matrix-interpolator-cached-update-percent interpolator))
-      (let ((m (obb-render-transform obb)))
+      (let ((m (identity-matrix)))
         (declare (dynamic-extent m))
+        (obb-render-transform obb m)
         (interpolator-compute interpolator
                               m
                               update-percent)))

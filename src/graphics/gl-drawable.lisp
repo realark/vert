@@ -97,9 +97,10 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
   (declare (optimize (speed 3)))
   (with-slots (drawables render-area render-area-copy transform-interpolator) pipeline
     (if render-area
-        (let ((transform (obb-render-transform
-                          (%gl-pipeline-compute-render-area-copy pipeline))))
+        (let ((transform (identity-matrix)))
           (declare (dynamic-extent transform))
+          (obb-render-transform (%gl-pipeline-compute-render-area-copy pipeline)
+                                transform)
           (interpolator-compute transform-interpolator transform update-percent))
         *identity-matrix*)))
 
@@ -108,9 +109,10 @@ If OUTPUT-TEXTURE is defined, the FBO's contents will be copied to the texutre o
   (declare (optimize (speed 3)))
   (with-slots (render-area transform-interpolator) pipeline
     (when render-area
-      (let ((transform (obb-render-transform
-                        (%gl-pipeline-compute-render-area-copy pipeline))))
+      (let ((transform (identity-matrix)))
         (declare (dynamic-extent transform))
+        (obb-render-transform (%gl-pipeline-compute-render-area-copy pipeline)
+                              transform)
         (interpolator-update transform-interpolator transform)))))
 
 (defmethod pre-update ((pipeline gl-pipeline))

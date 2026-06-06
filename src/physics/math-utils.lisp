@@ -238,6 +238,36 @@
           0f0 0f0 0f0 1f0))
 
 @inline
+(defun %mat-mul-into (left right dest)
+  "DEST <- LEFT * RIGHT. DEST must not be EQ to LEFT or RIGHT. Returns DEST."
+  (declare (optimize (speed 3))
+           (matrix left right dest))
+  (macrolet ((mref (matrix row column)
+               `(aref ,matrix (+ ,row (* ,column 4))))
+             (inline-mul (l r d)
+               `(progn
+                  ,@(loop :for i :below 4
+                          :append (loop :for j :below 4
+                                        :collect
+                                        `(setf
+                                          (mref ,d ,i ,j)
+                                          (+ ,@(loop :for k :below 4
+                                                     :collect `(* (mref ,l ,i ,k)
+                                                                  (mref ,r ,k ,j))))))))))
+    (inline-mul left right dest))
+  dest)
+
+(defun matrix*-into (result left right)
+  "Multiply LEFT by RIGHT, storing the product into RESULT (which may not be EQ
+to LEFT or RIGHT). Returns RESULT.
+
+This is the allocation-free counterpart to MATRIX* and should be preferred on
+hot paths (e.g. per-drawable, per-frame rendering) where the caller can supply a
+reusable RESULT buffer."
+  (declare (optimize (speed 3))
+           (matrix result left right))
+  (%mat-mul-into left right result))
+
 (defun matrix* (&rest matrices)
   (declare (optimize (speed 3))
            (dynamic-extent matrices))
@@ -245,28 +275,10 @@
         (tmp (identity-matrix)))
     (declare (matrix product-matrix tmp)
              (dynamic-extent tmp))
-    (labels ((mref (matrix row column)
-               (declare (matrix matrix))
-               (aref matrix (+ row (* column 4))))
-             ((setf mref) (value matrix row column)
-               (declare (matrix matrix))
-               (setf (aref matrix (+ row (* column 4))) value)))
-      (macrolet ((inline-mul (left right dest)
-                   `(progn
-                      ,@(loop :for i :below 4
-                           :append (loop :for j :below 4
-                                      :collect
-                                        `(setf
-                                          (mref ,dest ,i ,j)
-                                          (+ ,@(loop :for k :below 4
-                                                  :collect `(* (mref ,left ,i ,k) (mref ,right ,k ,j))))))))))
-        (loop :for matrix :in matrices :do
-             (locally (declare ((simple-array single-float (16)) matrix))
-               (loop :for i :from 0 :below (length tmp) :do
-                    (setf (elt tmp i) 0.0))
-               (inline-mul product-matrix matrix tmp)
-               (loop :for i :from 0 :below (length tmp) :do
-                    (setf (elt product-matrix i) (elt tmp i)))))))
+    (loop :for matrix :in matrices :do
+          (locally (declare ((simple-array single-float (16)) matrix))
+            (%mat-mul-into product-matrix matrix tmp)
+            (copy-array-contents tmp product-matrix)))
     product-matrix))
 
 @inline

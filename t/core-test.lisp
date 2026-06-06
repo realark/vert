@@ -196,6 +196,56 @@
         "Precise distance between points."
         :test #'float=)))
 
+;;;; matrix math
+
+(prove:deftest test-matrix-multiply-into
+  ;; matrix*-into must produce the same result as the allocating matrix*.
+  (let* ((a (matrix 1f0 2f0 3f0 4f0    5f0 6f0 7f0 8f0
+                    9f0 10f0 11f0 12f0 13f0 14f0 15f0 16f0))
+         (b (matrix 16f0 15f0 14f0 13f0 12f0 11f0 10f0 9f0
+                    8f0 7f0 6f0 5f0     4f0 3f0 2f0 1f0))
+         (expected (matrix* a b))
+         (result (identity-matrix)))
+    (prove:is (matrix*-into result a b) expected
+              "matrix*-into matches matrix*"
+              :test #'equalp)
+    ;; identity * m == m
+    (prove:is (matrix*-into (identity-matrix) (identity-matrix) a) a
+              "identity * a == a"
+              :test #'equalp)))
+
+(defun %bytes-consed (thunk iterations)
+  (sb-ext:gc :full t)
+  (let ((start (sb-ext:get-bytes-consed)))
+    (dotimes (i iterations) (funcall thunk))
+    (round (/ (- (sb-ext:get-bytes-consed) start) iterations))))
+
+(prove:deftest test-render-transform-no-allocation
+  ;; REGRESSION: building an object's render transform every frame used to
+  ;; allocate a fresh 4x4 matrix (~80 bytes) per drawable because
+  ;; OBB-RENDER-TRANSFORM called the allocating MATRIX*. At 60fps with many
+  ;; visible objects this was the dominant source of per-frame GC pressure
+  ;; (render dominated the frame's allocation). With an output buffer it must
+  ;; allocate nothing.
+  (let ((obb (make-instance 'obb :width 32.0 :height 32.0))
+        (scratch (identity-matrix)))
+    ;; warm up / JIT
+    (obb-render-transform obb scratch)
+    ;; sb-ext:get-bytes-consed is process-wide, so a handful of bytes/call can
+    ;; leak in from other threads (slynk, finalizers). The regression we guard
+    ;; against allocated a full 80-byte matrix *every* call, so anything under a
+    ;; few bytes/call proves the per-call matrix allocation is gone.
+    (let ((per-call (%bytes-consed (lambda () (obb-render-transform obb scratch))
+                                   100000)))
+      (prove:ok (< per-call 16)
+                (format nil "obb-render-transform with a buffer does not allocate per call (got ~A bytes/call, regression was 80)"
+                        per-call)))
+    ;; sanity: the buffered result equals the allocating result
+    (prove:is (obb-render-transform obb scratch)
+              (obb-render-transform obb)
+              "buffered render transform matches the allocating version"
+              :test #'equalp)))
+
 ;;;; collisions
 
 (defclass %phantom-obb (phantom obb) ())
