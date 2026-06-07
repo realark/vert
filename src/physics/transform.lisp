@@ -88,46 +88,51 @@
           (add-child parent transform))
         (mark-transform-dirty transform)))))
 
-@inline
-(defun %local-to-parent-matrix (transform)
+(defun %local-to-parent-matrix (transform result)
+  "Compute TRANSFORM's local-to-parent matrix into RESULT (a MATRIX) and return
+it. Allocation-free: all intermediate matrices are stack allocated and combined
+with MATRIX*-INTO."
   (declare (optimize (speed 3))
-           (transform transform))
+           (transform transform)
+           (matrix result))
   (with-slots (local-position local-rotation local-scale) transform
-    (let* ((translation (translation-matrix
-                         (x local-position)
-                         (y local-position)
-                         (z local-position)))
-           (to-r-center (translation-matrix (* 0.5 (scale-x transform) (width transform))
-                                            (* 0.5 (scale-y transform) (height transform))
-                                            0.0))
-           (away-r-center (translation-matrix (* -0.5 (scale-x transform) (width transform))
-                                              (* -0.5 (scale-y transform) (height transform))
-                                              0.0))
-           (rotation (rotation-matrix 0f0 0f0 local-rotation))
-           (scale (scale-matrix (x local-scale)
-                                (y local-scale)
-                                1.0))
-           (product (matrix*
-                     translation
-                     ;; use translation matrices to rotate around the object's local center
-                     to-r-center
-                     rotation
-                     away-r-center
-                     scale)))
-      (declare (dynamic-extent translation rotation scale to-r-center away-r-center))
-      product)))
+    (let ((translation (translation-matrix
+                        (x local-position)
+                        (y local-position)
+                        (z local-position)))
+          (to-r-center (translation-matrix (* 0.5 (scale-x transform) (width transform))
+                                           (* 0.5 (scale-y transform) (height transform))
+                                           0.0))
+          (away-r-center (translation-matrix (* -0.5 (scale-x transform) (width transform))
+                                             (* -0.5 (scale-y transform) (height transform))
+                                             0.0))
+          (rotation (rotation-matrix 0f0 0f0 local-rotation))
+          (scale (scale-matrix (x local-scale)
+                               (y local-scale)
+                               1.0))
+          (scratch (identity-matrix)))
+      (declare (dynamic-extent translation rotation scale to-r-center away-r-center
+                               scratch))
+      ;; result = translation * to-r-center * rotation * away-r-center * scale
+      ;; alternate between RESULT and SCRATCH so neither dest aliases its inputs.
+      (matrix*-into result translation to-r-center)
+      (matrix*-into scratch result rotation)
+      (matrix*-into result scratch away-r-center)
+      (matrix*-into scratch result scale)
+      (copy-array-contents scratch result))))
 
 (defmethod local-to-world-matrix ((transform transform))
   (declare (optimize (speed 3)))
   (with-slots (dirty-p parent local-to-world-matrix) transform
     (when dirty-p
-      (let ((local-to-parent (%local-to-parent-matrix transform )))
-        (declare (dynamic-extent local-to-parent))
-        (if (null parent)
-            (copy-array-contents local-to-parent local-to-world-matrix)
-            (let ((product (matrix* (local-to-world-matrix parent) local-to-parent)))
-              (declare (dynamic-extent product))
-              (copy-array-contents product local-to-world-matrix))))
+      (if (null parent)
+          (%local-to-parent-matrix transform local-to-world-matrix)
+          (let ((local-to-parent (identity-matrix)))
+            (declare (dynamic-extent local-to-parent))
+            (%local-to-parent-matrix transform local-to-parent)
+            (matrix*-into local-to-world-matrix
+                          (local-to-world-matrix parent)
+                          local-to-parent)))
       (setf dirty-p nil))
     local-to-world-matrix))
 
@@ -155,15 +160,16 @@
                               (y vector)
                               z))
          (tmp (identity-matrix))
-         (product (matrix* (if to-basis
-                               (world-to-local-matrix to-basis)
-                               tmp)
-                           (local-to-world-matrix from-basis)
-                           vec-matrix)))
+         (product (identity-matrix)))
     (declare (dynamic-extent vec-matrix product tmp))
-    (vector3 (sb-cga:mref product 0 3)
-             (sb-cga:mref product 1 3)
-             (sb-cga:mref product 2 3))))
+    ;; product = basis * local-to-world(from) * vec-matrix, allocation-free.
+    (matrix*-into product
+                  (if to-basis (world-to-local-matrix to-basis) tmp)
+                  (local-to-world-matrix from-basis))
+    (matrix*-into tmp product vec-matrix)
+    (vector3 (sb-cga:mref tmp 0 3)
+             (sb-cga:mref tmp 1 3)
+             (sb-cga:mref tmp 2 3))))
 
 ;; setters for position, rotation, and dimension
 

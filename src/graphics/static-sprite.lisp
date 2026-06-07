@@ -158,27 +158,35 @@ Nil to render the entire sprite.")
                  (h (or (sprite-source-h source) total-h)))
             (declare ((single-float -1.0 1.0) flip-x flip-y)
                      ((integer 0 *) x y w h total-w total-h))
-            (setf
-             ;; x
-             (elt texture-src 0)
-             (if (< flip-x 0)
-                 (/ (float (+ x w)) total-w)
-                 (/ (float x) total-w))
-             ;; y
-             (elt texture-src 1)
-             (if (< flip-y 0.0)
-                 (- 1.0 (/ (float (+ y h)) total-h))
-                 ;; invert y coord for upper-left coord
-                 (- 1.0 (/ (float y) total-h)))
-             ;; w
-             (elt texture-src 2)
-             (float (/ (* w flip-x) total-w))
-             ;; h
-             (elt texture-src 3)
-             ;; invert y coord for upper-left coord
-             (if (< flip-y 0.0)
-                 (+ (float (/ h total-h)))
-                 (- (float (/ h total-h))))))))))
+            ;; Coerce to single-float BEFORE dividing. Dividing two integers
+            ;; (e.g. h / total-h) produces a RATIO, which heap-allocates -- this
+            ;; runs for every sprite every frame, so it was a small but constant
+            ;; source of per-frame garbage. Float division boxes nothing here.
+            (let ((fx (float x)) (fy (float y))
+                  (fw (float w)) (fh (float h))
+                  (ftw (float total-w)) (fth (float total-h)))
+              (declare (single-float fx fy fw fh ftw fth))
+              (setf
+               ;; x
+               (elt texture-src 0)
+               (if (< flip-x 0)
+                   (/ (+ fx fw) ftw)
+                   (/ fx ftw))
+               ;; y
+               (elt texture-src 1)
+               (if (< flip-y 0.0)
+                   (- 1.0 (/ (+ fy fh) fth))
+                   ;; invert y coord for upper-left coord
+                   (- 1.0 (/ fy fth)))
+               ;; w
+               (elt texture-src 2)
+               (/ (* fw flip-x) ftw)
+               ;; h
+               (elt texture-src 3)
+               ;; invert y coord for upper-left coord
+               (if (< flip-y 0.0)
+                   (/ fh fth)
+                   (- (/ fh fth))))))))))
   (call-next-method sprite update-percent camera gl-context))
 
 (defmethod (setf color) :after (new-color (sprite static-sprite))

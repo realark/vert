@@ -817,8 +817,30 @@ framebuffers will be of the specified WIDTHxHEIGHT. If width and height are not 
       (y (gl:uniformi location x y))
       (x (gl:uniformi location x))))
 
-  (defun n-uniform-matrix-4fv (location matrix &optional (transpose T))
-    (gl:uniform-matrix-4fv location matrix transpose))
+  (cffi:defcfun ("glUniformMatrix4fv" %n-uniform-matrix-4fv) :void
+    (location :int)
+    (count cl-opengl-bindings:sizei)
+    (transpose :int)
+    (value (:pointer :float)))
+
+  (let ((tmp-arr nil))
+    (defun n-uniform-matrix-4fv (location matrix &optional (transpose T))
+      "Non-consing replacement for CL-OPENGL:UNIFORM-MATRIX-4FV, which allocates
+a fresh foreign array on every call (cl-opengl issue #97). This is hot -- it
+runs once per shader per frame -- so we reuse a single foreign buffer. Only
+called from the render thread, so the shared buffer is safe."
+      (declare (optimize (speed 3))
+               ((simple-array single-float (16)) matrix))
+      (when (null tmp-arr)
+        (setf tmp-arr (cffi:foreign-alloc :float :count 16)))
+      (loop :for i :from 0 :below 16 :do
+            (setf (cffi:mem-aref tmp-arr :float i) (aref matrix i)))
+      (prog1
+          (%n-uniform-matrix-4fv location
+                                 1
+                                 (if (or (null transpose) (eql 0 transpose)) 0 1)
+                                 tmp-arr)
+        (gl:check-error))))
 
   (defun n-uniform-1fv (location count value)
     (%gl:uniform-1fv location count value))

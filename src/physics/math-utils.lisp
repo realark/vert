@@ -286,8 +286,10 @@ reusable RESULT buffer."
   "Construct a rotation matrix from rotation factors X Y Z"
   (declare (optimize (speed 3))
            (single-float x y z))
-  (let ((result (identity-matrix)))
-    (declare (matrix result))
+  (let ((result (identity-matrix))
+        (product (identity-matrix)))
+    (declare (matrix result product)
+             (dynamic-extent product))
     (unless (= 0f0 z)
       (let* ((c (cos z))
              (s (sin z))
@@ -295,9 +297,9 @@ reusable RESULT buffer."
                           c     (- s) 0f0    0f0
                           s     c     0f0    0f0
                           0f0   0f0   1f0    0f0
-                          0f0   0f0   0f0    1f0))
-             (product (matrix* result z-rotation)))
-        (declare (dynamic-extent z-rotation product))
+                          0f0   0f0   0f0    1f0)))
+        (declare (dynamic-extent z-rotation))
+        (matrix*-into product result z-rotation)
         (copy-array-contents product result)))
     (unless (= 0f0 y)
       (let* ((c (cos y))
@@ -306,9 +308,9 @@ reusable RESULT buffer."
                           c     0f0   s      0f0
                           0f0   1f0   0f0    0f0
                           (- s) 0f0   c      0f0
-                          0f0   0f0   0f0    1f0))
-             (product (matrix* result y-rotation)))
-        (declare (dynamic-extent y-rotation product))
+                          0f0   0f0   0f0    1f0)))
+        (declare (dynamic-extent y-rotation))
+        (matrix*-into product result y-rotation)
         (copy-array-contents product result)))
     (unless (= 0f0 x)
       (let* ((c (cos x))
@@ -317,9 +319,9 @@ reusable RESULT buffer."
                           1f0   0f0   0f0    0f0
                           0f0   c     (- s)  0f0
                           0f0   s     c      0f0
-                          0f0   0f0   0f0    1f0))
-             (product (matrix* result x-rotation)))
-        (declare (dynamic-extent x-rotation product))
+                          0f0   0f0   0f0    1f0)))
+        (declare (dynamic-extent x-rotation))
+        (matrix*-into product result x-rotation)
         (copy-array-contents product result)))
     result))
 

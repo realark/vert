@@ -246,6 +246,47 @@
               "buffered render transform matches the allocating version"
               :test #'equalp)))
 
+(prove:deftest test-transform-recompute-no-allocation
+  ;; REGRESSION: recomputing a moved object's world transform every frame used
+  ;; to allocate matrices (LOCAL-TO-WORLD-MATRIX and TRANSFORM-POINT both called
+  ;; the allocating MATRIX*). For parented / scaled / rotated objects this fired
+  ;; every frame and dominated per-frame GC pressure. Now it must be alloc-free.
+  (let* ((parent (make-instance 'obb :width 4.0 :height 4.0 :x 3.0 :y 5.0))
+         (child (make-instance 'obb
+                               :parent parent
+                               :width 2.0 :height 2.0
+                               :x 1.0 :y 1.0
+                               :scale-x 1.5 :scale-y 2.0
+                               :rotation 0.3)))
+    ;; warm up
+    (mark-transform-dirty child)
+    (local-to-world-matrix child)
+    (object-aabb child)
+    ;; Recomputing the world transform of a dirty object must not allocate.
+    ;; We flip the dirty flag directly (rather than via mark-transform-dirty,
+    ;; which publishes a move event) to isolate the matrix-math allocation that
+    ;; this regression is about.
+    (let ((per-call (%bytes-consed
+                     (lambda ()
+                       (setf (slot-value child 'dirty-p) t
+                             (slot-value child 'inverse-dirty-p) t)
+                       (local-to-world-matrix child))
+                     50000)))
+      (prove:ok (< per-call 16)
+                (format nil "local-to-world-matrix recompute does not allocate per call (got ~A bytes/call)"
+                        per-call)))
+    ;; object-aabb (which goes through transform-point for complex objects)
+    (let ((per-call (%bytes-consed
+                     (lambda ()
+                       (setf (slot-value child 'dirty-p) t
+                             (slot-value child 'inverse-dirty-p) t
+                             (slot-value child 'world-dimensions-dirty-p) t)
+                       (object-aabb child))
+                     50000)))
+      (prove:ok (< per-call 16)
+                (format nil "object-aabb does not allocate per call (got ~A bytes/call)"
+                        per-call)))))
+
 ;;;; collisions
 
 (defclass %phantom-obb (phantom obb) ())
